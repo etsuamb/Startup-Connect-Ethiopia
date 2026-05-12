@@ -13,45 +13,661 @@ const crypto = require("crypto");
 // REGISTER
 // ========================
 exports.register = async (req, res) => {
-	const { first_name, last_name, email, password, role } = req.body;
-	const allowedRoles = ["Admin", "Startup", "Investor", "Mentor"];
+	if (!req.body || typeof req.body !== "object") {
+		req.body = {};
+	}
+
+	if (typeof req.body.data === "string" && req.body.data.trim() !== "") {
+		try {
+			req.body = JSON.parse(req.body.data);
+		} catch (parseErr) {
+			return res.status(400).json({ error: "Invalid JSON in form-data field 'data'" });
+		}
+	}
+
+	const {
+		first_name,
+		last_name,
+		email,
+		password,
+		confirm_password,
+		role,
+		phone_number,
+		founder_full_name,
+		startup_name,
+		industry,
+		startup_tagline,
+		business_stage,
+		startup_type,
+		founded_year,
+		region,
+		city,
+		team_size,
+		founder_role,
+		website,
+		investor_type,
+		investment_stage,
+		startup_stage,
+		investment_range,
+		preferred_industry,
+		location_preference,
+		linked_in_or_website,
+		bio,
+		personal_verification,
+		professional_title,
+		year_of_experience,
+		years_experience,
+		language,
+		languages,
+		expertise_area,
+		professional_bio,
+		linkedin_portfolio,
+		certification_credentials,
+		availability_preference,
+		session_pricing,
+		current_organization,
+		current_title,
+		primary_industry,
+		secondary_industry,
+		city_location,
+		mentor_platform,
+		session_frequency,
+		required_time_slots,
+		mentoring_style,
+		notable_startups_mentored,
+		key_achievement,
+	} = req.body;
+
+	// Investor form may send camelCase or an array of industries; normalize for DB + validation.
+	const preferredIndustryResolved = (() => {
+		const v =
+			preferred_industry ??
+			req.body.preferredIndustry ??
+			req.body.preferred_industries ??
+			req.body.preferredIndustries;
+		if (v == null || v === "") return null;
+		if (Array.isArray(v)) {
+			return v.map((x) => String(x).trim()).filter(Boolean).join(", ") || null;
+		}
+		const s = String(v).trim();
+		return s || null;
+	})();
+
+	const allowedRoles = ["Startup", "Investor", "Mentor"];
+	let mentorResolved = null;
 
 	try {
 		// Basic validation
-		if (!first_name || !last_name || !email || !password) {
+		if (!first_name || !last_name || !email || !password || !confirm_password || !role) {
 			return res.status(400).json({
-				message: "first_name, last_name, email and password are required",
+				message:
+					"first_name, last_name, email, password, confirm_password and role are required",
 			});
 		}
 
+		if (password !== confirm_password) {
+			return res.status(400).json({ message: "Password and confirm password must match" });
+		}
+
+		if (typeof password !== "string" || password.length < 8) {
+			return res.status(400).json({
+				message: "Password must be at least 8 characters long",
+			});
+		}
+
+		const normalizedRole = String(role).trim();
+		if (!allowedRoles.includes(normalizedRole)) {
+			return res.status(400).json({
+				message: "Role must be one of Startup, Investor, or Mentor",
+			});
+		}
+
+		// Startup-specific validation
+		if (normalizedRole === "Startup") {
+			if (
+				!phone_number ||
+				!founder_full_name ||
+				!startup_name ||
+				!industry ||
+				!startup_tagline ||
+				!business_stage ||
+				!startup_type ||
+				!founded_year ||
+				!region ||
+				!city ||
+				(team_size === undefined || team_size === null || team_size === "") ||
+				!founder_role
+			) {
+				return res.status(400).json({
+					message:
+						"Startup registration requires founder_full_name, phone_number, startup_name, industry, startup_tagline, business_stage, startup_type, founded_year, region, city, team_size, and founder_role",
+				});
+			}
+
+			if (!req.files || !req.files.founder_id || !req.files.founder_id.length) {
+				return res.status(400).json({
+					message: "Founder or representative ID file is required for Startup registration",
+				});
+			}
+
+			if (
+				!req.files ||
+				!req.files.business_registration_proof ||
+				!req.files.business_registration_proof.length
+			) {
+				return res.status(400).json({
+					message: "Business registration proof file is required for Startup registration",
+				});
+			}
+		}
+
+		// Investor-specific validation
+		if (normalizedRole === "Investor") {
+			const chosenInvestmentStage = investment_stage || startup_stage;
+			if (
+				!phone_number ||
+				!investor_type ||
+				!preferredIndustryResolved ||
+				!chosenInvestmentStage ||
+				!investment_range ||
+				!location_preference ||
+				!linked_in_or_website ||
+				!bio ||
+				!personal_verification
+			) {
+				return res.status(400).json({
+					message:
+						"Investor registration requires investor_type, preferred_industry, investment_stage, investment_range, location_preference, linked_in_or_website, bio, and personal_verification",
+				});
+			}
+
+			if (!req.files || !req.files.registration_doc || !req.files.registration_doc.length) {
+				return res.status(400).json({
+					message: "Registration document file is required for Investor registration",
+				});
+			}
+
+			if (!req.files || !req.files.trade_license || !req.files.trade_license.length) {
+				return res.status(400).json({
+					message: "Trade license file is required for Investor registration",
+				});
+			}
+
+			if (!req.files || !req.files.tin_certificate || !req.files.tin_certificate.length) {
+				return res.status(400).json({
+					message: "TIN certificate file is required for Investor registration",
+				});
+			}
+		}
+
+		if (normalizedRole === "Mentor") {
+			const str = (v) => (v == null ? "" : String(v).trim());
+			const mentorTitle =
+				str(professional_title) ||
+				str(req.body.professionalTitle) ||
+				"";
+			const mentorYearsRaw =
+				year_of_experience ?? years_experience ?? req.body.yearOfExperience ?? req.body.yearsOfExperience;
+			const rawLang =
+				language ?? languages ?? req.body.language ?? req.body.languages;
+			const mentorLanguages = str(rawLang);
+			const mentorExpertise = str(expertise_area) || str(req.body.expertiseArea) || "";
+			const mentorBio = str(professional_bio) || str(req.body.professionalBio) || "";
+			const mentorLinkedin =
+				str(linkedin_portfolio) ||
+				str(req.body.linkedinPortfolio) ||
+				str(req.body.linkedInOrPortfolio) ||
+				"";
+			const mentorCertsText =
+				str(certification_credentials) || str(req.body.certificationCredentials) || "";
+			const mentorAvailPref =
+				str(availability_preference) || str(req.body.availabilityPreference) || "";
+			const mentorSessionPrice = session_pricing ?? req.body.sessionPricing;
+			const mentorOrg = str(current_organization) || str(req.body.currentOrganization) || "";
+			const mentorJobTitle = str(current_title) || str(req.body.currentTitle) || "";
+			const mentorPrimaryInd = str(primary_industry) || str(req.body.primaryIndustry) || "";
+			const mentorSecondaryRaw =
+				str(secondary_industry) || str(req.body.secondaryIndustry) || "";
+			const mentorSecondaryInd = mentorSecondaryRaw || null;
+			const mentorCity =
+				str(city_location) || str(req.body.cityLocation) || str(req.body.city) || "";
+			const mentorPlatform = str(mentor_platform) || str(req.body.mentorPlatform) || "";
+			const mentorSessionFreq = str(session_frequency) || str(req.body.sessionFrequency) || "";
+			const mentorTimeSlots = required_time_slots ?? req.body.requiredTimeSlots;
+			const mentorStyle = str(mentoring_style) || str(req.body.mentoringStyle) || "";
+			const mentorNotable =
+				str(notable_startups_mentored) || str(req.body.notableStartupsMentored) || "";
+			const mentorKeyAch = str(key_achievement) || str(req.body.keyAchievement) || "";
+
+			if (
+				!phone_number ||
+				!mentorTitle ||
+				mentorYearsRaw === undefined ||
+				mentorYearsRaw === null ||
+				mentorYearsRaw === "" ||
+				!mentorLanguages ||
+				!mentorExpertise ||
+				!mentorBio ||
+				!mentorLinkedin ||
+				!mentorCertsText ||
+				!mentorAvailPref ||
+				mentorSessionPrice === undefined ||
+				mentorSessionPrice === null ||
+				mentorSessionPrice === "" ||
+				!mentorOrg ||
+				!mentorJobTitle ||
+				!mentorPrimaryInd ||
+				!mentorCity ||
+				!mentorPlatform ||
+				!mentorSessionFreq ||
+				mentorTimeSlots === undefined ||
+				mentorTimeSlots === null ||
+				(typeof mentorTimeSlots === "string" && mentorTimeSlots.trim() === "") ||
+				!mentorStyle ||
+				!mentorNotable ||
+				!mentorKeyAch
+			) {
+				return res.status(400).json({
+					message:
+						"Mentor registration requires phone_number, professional_title, year_of_experience, language(s), expertise_area, professional_bio, linkedin_portfolio, certification_credentials, availability_preference, session_pricing, current_organization, current_title, primary_industry, city_location, mentor_platform, session_frequency, required_time_slots, mentoring_style, notable_startups_mentored, and key_achievement",
+				});
+			}
+
+			const parsedMentorYears = Number(mentorYearsRaw);
+			if (!Number.isInteger(parsedMentorYears) || parsedMentorYears < 0) {
+				return res.status(400).json({
+					message: "year_of_experience must be a non-negative integer",
+				});
+			}
+
+			const parsedSessionPricing = Number(mentorSessionPrice);
+			if (Number.isNaN(parsedSessionPricing) || parsedSessionPricing < 0) {
+				return res.status(400).json({
+					message: "session_pricing must be a valid non-negative number",
+				});
+			}
+
+			// Store as TEXT (same pattern as other text fields; avoids Postgres json/jsonb cast errors from multipart).
+			let requiredTimeSlotsDb = "";
+			if (typeof mentorTimeSlots === "string") {
+				const t = mentorTimeSlots.trim();
+				if (t) {
+					try {
+						const parsed = JSON.parse(t);
+						requiredTimeSlotsDb = JSON.stringify(parsed);
+					} catch {
+						requiredTimeSlotsDb = t;
+					}
+				}
+			} else if (mentorTimeSlots != null && typeof mentorTimeSlots === "object") {
+				requiredTimeSlotsDb = JSON.stringify(mentorTimeSlots);
+			}
+
+			const slotsBad =
+				!requiredTimeSlotsDb.trim() ||
+				requiredTimeSlotsDb.trim() === "[]" ||
+				requiredTimeSlotsDb.trim() === "{}";
+			if (slotsBad) {
+				return res.status(400).json({
+					message:
+						"required_time_slots is required: use plain text (e.g. Mon/Wed 6–8pm) or valid JSON array/object as a string",
+				});
+			}
+
+			mentorResolved = {
+				professionalTitle: mentorTitle,
+				yearsExperience: parsedMentorYears,
+				languagesStr: mentorLanguages,
+				expertiseArea: mentorExpertise,
+				professionalBio: mentorBio,
+				linkedinOrPortfolio: mentorLinkedin,
+				certificationCredentials: mentorCertsText,
+				availabilityPreference: mentorAvailPref,
+				sessionPricing: parsedSessionPricing,
+				currentOrganization: mentorOrg,
+				currentTitle: mentorJobTitle,
+				primaryIndustry: mentorPrimaryInd,
+				secondaryIndustry: mentorSecondaryInd,
+				cityLocation: mentorCity,
+				mentorPlatform: mentorPlatform,
+				sessionFrequency: mentorSessionFreq,
+				requiredTimeSlotsDb,
+				mentoringStyle: mentorStyle,
+				notableStartupsMentored: mentorNotable,
+				keyAchievement: mentorKeyAch,
+			};
+		}
+
 		// Check if user already exists
-		const existingUser = await pool.query(
-			"SELECT * FROM users WHERE email = $1",
-			[email],
-		);
+		const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
 		if (existingUser.rows.length > 0) {
 			return res.status(409).json({ message: "User already exists" });
 		}
 
-		// Hash password
-		const hashedPassword = await bcrypt.hash(password, 10);
+		const client = await pool.connect();
+		try {
+			await client.query("BEGIN");
 
-		// sanitize/validate role
-		const assignedRole = allowedRoles.includes(role) ? role : "Startup";
+			// Hash password
+			const hashedPassword = await bcrypt.hash(password, 10);
 
-		// Insert user (is_approved is default false)
-		const result = await pool.query(
-			`INSERT INTO users (first_name, last_name, email, password_hash, role)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING user_id, first_name, last_name, email, role, is_approved`,
-			[first_name, last_name, email, hashedPassword, assignedRole],
-		);
+			const userInsertResult = await client.query(
+				`INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING user_id, first_name, last_name, email, role, is_approved`,
+				[first_name, last_name, email, hashedPassword, normalizedRole, phone_number || null],
+			);
 
-		return res.status(201).json({
-			message: "User registered successfully. Account pending admin approval.",
-			user: result.rows[0],
-		});
+			const user = userInsertResult.rows[0];
+
+			let startupProfile = null;
+			let investorProfile = null;
+			let mentorProfile = null;
+
+		const saveDoc = async (entityType, entityId, file, documentType) => {
+			if (!file) return null;
+			const fileBuffer = file.buffer;
+			const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
+			const storagePath = `db://documents/${entityType}/${entityId}/${crypto.randomBytes(16).toString("hex")}`;
+			const fkColumn =
+				entityType === "startup"
+					? "startup_id"
+					: entityType === "investor"
+						? "investor_id"
+						: entityType === "mentor"
+							? "mentor_id"
+							: null;
+			if (!fkColumn) {
+				throw new Error(`Unsupported document owner type: ${entityType}`);
+			}
+			const result = await client.query(
+				`INSERT INTO documents (${fkColumn}, file_name, file_path, file_type, file_size_bytes, file_hash, file_data, description, created_at)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_TIMESTAMP)
+              RETURNING document_id`,
+				[
+					entityId,
+					file.originalname,
+					storagePath,
+					file.mimetype,
+					file.size,
+					fileHash,
+					fileBuffer,
+					documentType,
+				],
+			);
+			return {
+				document_id: result.rows[0].document_id,
+				document_type: documentType,
+				file_name: file.originalname,
+				file_path: storagePath,
+				file_type: file.mimetype,
+				file_size_bytes: file.size,
+				file_hash: fileHash,
+				created_at: new Date().toISOString(),
+			};
+		};
+
+			if (normalizedRole === "Startup") {
+				const parsedFoundedYear = Number(founded_year);
+				const parsedTeamSize = Number(team_size);
+
+				if (!Number.isInteger(parsedFoundedYear) || parsedFoundedYear < 1900 || parsedFoundedYear > 2100) {
+					throw new Error("founded_year must be an integer between 1900 and 2100");
+				}
+
+				if (!Number.isInteger(parsedTeamSize) || parsedTeamSize < 0) {
+					throw new Error("team_size must be a non-negative integer");
+				}
+
+				const uploadedDocs = [];
+
+				const startupInsertResult = await client.query(
+					`INSERT INTO startups (
+            user_id,
+            founder_full_name,
+            startup_name,
+            industry,
+            startup_tagline,
+            business_stage,
+            startup_type,
+            founded_year,
+            region,
+            city,
+            team_size,
+            founder_role,
+            location,
+            website,
+            uploaded_documents
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          RETURNING *`,
+				[
+					user.user_id,
+					founder_full_name,
+					startup_name,
+					industry,
+					startup_tagline,
+					business_stage,
+					startup_type,
+					(parsedFoundedYear),
+					region,
+					city,
+					parsedTeamSize,
+					founder_role,
+					`${region}, ${city}`,
+					website || null,
+					null,
+				],
+				);
+
+				startupProfile = startupInsertResult.rows[0];
+
+				uploadedDocs.push(
+					await saveDoc("startup", startupProfile.startup_id, req.files.founder_id[0], "Founder or representative ID"),
+				);
+				uploadedDocs.push(
+					await saveDoc(
+						"startup",
+						startupProfile.startup_id,
+						req.files.business_registration_proof[0],
+						"Business registration proof",
+					),
+				);
+				if (req.files.support_affiliation_letter && req.files.support_affiliation_letter.length) {
+					uploadedDocs.push(
+						await saveDoc(
+							"startup",
+							startupProfile.startup_id,
+							req.files.support_affiliation_letter[0],
+							"Support or affiliation letter",
+						),
+					);
+				}
+				if (req.files.tin_certificate && req.files.tin_certificate.length) {
+					uploadedDocs.push(
+						await saveDoc("startup", startupProfile.startup_id, req.files.tin_certificate[0], "TIN certificate"),
+					);
+				}
+
+				if (uploadedDocs.length) {
+					await client.query(
+						"UPDATE startups SET uploaded_documents = $1 WHERE startup_id = $2",
+						[JSON.stringify(uploadedDocs), startupProfile.startup_id],
+					);
+					startupProfile.uploaded_documents = uploadedDocs;
+				}
+			}
+
+			if (normalizedRole === "Investor") {
+				const chosenInvestmentStage = investment_stage || startup_stage;
+				const parsedInvestmentRange = Number(investment_range);
+				if (Number.isNaN(parsedInvestmentRange) || parsedInvestmentRange < 0) {
+					throw new Error("investment_range must be a valid non-negative number");
+				}
+
+				const uploadedDocs = [];
+				const investorInsertResult = await client.query(
+					`INSERT INTO investors (
+            user_id,
+            investor_type,
+            preferred_industry,
+            investment_stage,
+            investment_budget,
+            location_preference,
+            linked_in_or_website,
+            bio,
+            personal_verification,
+            uploaded_documents
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          RETURNING *`,
+				[
+					user.user_id,
+					investor_type,
+					preferredIndustryResolved,
+					chosenInvestmentStage,
+					parsedInvestmentRange,
+					location_preference,
+					linked_in_or_website,
+					bio,
+					personal_verification,
+					null,
+				],
+				);
+
+				investorProfile = investorInsertResult.rows[0];
+
+				uploadedDocs.push(await saveDoc("investor", investorProfile.investor_id, req.files.registration_doc[0], "Registration document"));
+				uploadedDocs.push(await saveDoc("investor", investorProfile.investor_id, req.files.trade_license[0], "Trade license"));
+				uploadedDocs.push(await saveDoc("investor", investorProfile.investor_id, req.files.tin_certificate[0], "TIN certificate"));
+
+				const savedInvestorDocs = uploadedDocs.filter(Boolean);
+				if (savedInvestorDocs.length) {
+					await client.query(
+						"UPDATE investors SET uploaded_documents = $1 WHERE investor_id = $2",
+						[JSON.stringify(savedInvestorDocs), investorProfile.investor_id],
+					);
+					investorProfile.uploaded_documents = savedInvestorDocs;
+				}
+			}
+
+			if (normalizedRole === "Mentor" && mentorResolved) {
+				const m = mentorResolved;
+				const mentorInsertResult = await client.query(
+					`INSERT INTO mentors (
+            user_id,
+            headline,
+            expertise,
+            years_experience,
+            hourly_rate,
+            country,
+            bio,
+            availability,
+            professional_title,
+            languages,
+            linkedin_or_portfolio,
+            certification_credentials,
+            availability_preference,
+            session_pricing,
+            current_organization,
+            current_title,
+            primary_industry,
+            secondary_industry,
+            city_location,
+            mentor_platform,
+            session_frequency,
+            required_time_slots,
+            mentoring_style,
+            notable_startups_mentored,
+            key_achievement,
+            uploaded_documents
+          ) VALUES (
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
+          )
+          RETURNING *`,
+					[
+						user.user_id,
+						m.professionalTitle,
+						m.expertiseArea,
+						m.yearsExperience,
+						m.sessionPricing,
+						null,
+						m.professionalBio,
+						null,
+						m.professionalTitle,
+						m.languagesStr,
+						m.linkedinOrPortfolio,
+						m.certificationCredentials,
+						m.availabilityPreference,
+						m.sessionPricing,
+						m.currentOrganization,
+						m.currentTitle,
+						m.primaryIndustry,
+						m.secondaryIndustry,
+						m.cityLocation,
+						m.mentorPlatform,
+						m.sessionFrequency,
+						m.requiredTimeSlotsDb,
+						m.mentoringStyle,
+						m.notableStartupsMentored,
+						m.keyAchievement,
+						null,
+					],
+				);
+
+				mentorProfile = mentorInsertResult.rows[0];
+
+				const mentorDocMeta = [];
+				if (req.files && req.files.intro_video && req.files.intro_video.length) {
+					mentorDocMeta.push(
+						await saveDoc("mentor", mentorProfile.mentor_id, req.files.intro_video[0], "Introduction video"),
+					);
+				}
+				if (req.files && req.files.certifications && req.files.certifications.length) {
+					for (const certFile of req.files.certifications) {
+						mentorDocMeta.push(
+							await saveDoc(
+								"mentor",
+								mentorProfile.mentor_id,
+								certFile,
+								"Certification or credential file",
+							),
+						);
+					}
+				}
+
+				const savedMentorDocs = mentorDocMeta.filter(Boolean);
+				if (savedMentorDocs.length) {
+					await client.query(
+						"UPDATE mentors SET uploaded_documents = $1 WHERE mentor_id = $2",
+						[JSON.stringify(savedMentorDocs), mentorProfile.mentor_id],
+					);
+					mentorProfile.uploaded_documents = savedMentorDocs;
+				}
+			}
+
+			await client.query("COMMIT");
+			const regMessage =
+				normalizedRole === "Investor"
+					? "Investor user registered successfully. Account pending admin approval."
+					: normalizedRole === "Mentor"
+						? "Mentor user registered successfully. Account pending admin approval."
+						: "Startup user registered successfully. Account pending admin approval.";
+			return res.status(201).json({
+				message: regMessage,
+				user,
+				startup: startupProfile,
+				investor: investorProfile,
+				mentor: mentorProfile,
+			});
+		} catch (err) {
+			await client.query("ROLLBACK");
+			if (err.message.includes("founded_year")) {
+				return res.status(400).json({ message: err.message });
+			}
+			return res.status(500).json({ error: err.message });
+		} finally {
+			client.release();
+		}
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}

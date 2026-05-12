@@ -70,7 +70,6 @@ npm run dev   # or `node index.js`
 
 ## Notes for team
 - Do not commit `.env`, `uploads/`, or `node_modules/` — they are ignored in `.gitignore`.
-- If teammates prefer Docker, we can add a `docker-compose.yml` to run Postgres + app.
 - For repeatable DB changes in teams, consider adopting a migration tool (Flyway, Knex, Sequelize, or node-pg-migrate).
 
 ## Useful scripts
@@ -79,43 +78,8 @@ npm run dev   # or `node index.js`
 - `node scripts/check_postman_collection.js` — validates the Postman collection contents.
 
 ## Troubleshooting
-- If requests fail with `Invalid URI "http:///..."`, import the Postman collection in `backend/` (it uses absolute `http://localhost:3000` URLs).
+- If requests fail with `Invalid URI "http:///..."`, import the Postman collection in `backend/` (it uses absolute `http://localhost:5000` URLs).
 - If you see DB column errors, ensure you ran the migration SQL or the migration script against the correct database.
-
-If you'd like, I can add a `/.env.example` file and a `docker-compose.yml` next.
-
-## .env.example and Docker (optional, recommended)
-
-I added `.env.example` and a minimal `docker-compose.yml` to make onboarding easier.
-
-1. Copy the example env and edit if needed:
-
-```bash
-cp .env.example .env
-# edit .env to set real DB credentials if not using Docker
-```
-
-2. Use Docker Compose to run Postgres locally (recommended):
-
-```bash
-docker-compose up -d
-```
-
-This starts a Postgres instance with:
-
-- user: `postgres`
-- password: `postgres`
-- db: `startupconnect`
-
-3. After Postgres is running, run migration and prepare the app:
-
-```bash
-npm ci
-node scripts/run_migration.js
-mkdir -p uploads
-node scripts/reset_admin_password.js
-npm run dev
-```
 
 4. Verify in Postman by importing `StartupConnect Backend API.postman_collection.json` and logging in.
 
@@ -123,5 +87,4 @@ npm run dev
 
 Files added:
 - `.env.example` — sample env variables
-- `docker-compose.yml` — Postgres service for local development
 

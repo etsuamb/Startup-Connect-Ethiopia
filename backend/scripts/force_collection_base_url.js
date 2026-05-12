@@ -24,6 +24,6 @@ walk(col.item);
 // Ensure collection variable exists
 col.variable = col.variable || [];
 if (!col.variable.find((v) => v.key === "base_url"))
-	col.variable.unshift({ key: "base_url", value: "http://localhost:3000" });
+	col.variable.unshift({ key: "base_url", value: "http://localhost:5000" });
 fs.writeFileSync(p, JSON.stringify(col, null, 2), "utf8");
 console.log("Collection updated to use {{base_url}} for all requests.");

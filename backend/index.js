@@ -3,7 +3,7 @@ const pool = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 5000;
 
 // Middleware
 app.use(express.json());
@@ -35,6 +35,9 @@ app.use("/api/projects", projectRoutes);
 
 const investmentRoutes = require("./routes/investmentRoutes");
 app.use("/api/investments", investmentRoutes);
+
+const messageRoutes = require("./routes/messageRoutes");
+app.use("/api/messages", messageRoutes);
 
 const investorRoutes = require("./routes/investorRoutes");
 app.use("/api/investors", investorRoutes);

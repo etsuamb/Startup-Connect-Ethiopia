@@ -1,7 +1,7 @@
 const fs = require("fs/promises");
 const path = require("path");
 
-const baseUrl = "http://localhost:3000";
+const baseUrl = "http://localhost:5000";
 const email = "startup@startupconnect.test";
 const password = "Demo123!";
 const sampleFilePath = path.join(__dirname, "demo_pitch_deck.txt");

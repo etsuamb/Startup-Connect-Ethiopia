@@ -33,6 +33,25 @@ exports.markAsRead = async (req, res) => {
 	}
 };
 
+// PATCH /api/notifications/:id
+exports.updateNotification = async (req, res) => {
+	const userId = req.user.user_id;
+	const { id } = req.params;
+	const { is_read } = req.body;
+	try {
+		const readValue = is_read === undefined ? true : Boolean(is_read);
+		const r = await pool.query(
+			"UPDATE notifications SET is_read = $1 WHERE notification_id = $2 AND user_id = $3 RETURNING notification_id, is_read, title, message, reference_type, reference_id",
+			[readValue, id, userId],
+		);
+		if (r.rows.length === 0)
+			return res.status(404).json({ message: "Notification not found" });
+		return res.json({ notification: r.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 // GET /api/notifications/unread-count
 exports.unreadCount = async (req, res) => {
 	const userId = req.user.user_id;

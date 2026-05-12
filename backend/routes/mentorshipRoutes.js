@@ -10,9 +10,9 @@ const {
 const mentorshipController = require("../controllers/mentorshipController");
 const mentorshipAdvancedController = require("../controllers/mentorshipAdvancedController");
 
-// Startup flows
+// Startup mentorship flows
 router.post(
-	"/requests",
+	"/request",
 	authenticate,
 	requireApproval,
 	authorizeRoles("Startup"),
@@ -20,10 +20,18 @@ router.post(
 );
 
 router.get(
-	"/requests/outgoing",
+	"/my-requests",
 	authenticate,
 	authorizeRoles("Startup"),
 	mentorshipController.getStartupMentorshipRequests,
+);
+
+router.post(
+	"/session",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Startup"),
+	mentorshipController.createMentorshipSessionForStartup,
 );
 
 // Mentor flows
@@ -50,18 +58,23 @@ router.post(
 	mentorshipController.scheduleMentorshipSession,
 );
 
-router.get(
-	"/sessions",
-	authenticate,
-	mentorshipAdvancedController.listMentorshipSessions,
-);
-
-router.get(
+router.put(
 	"/sessions/:sessionId",
 	authenticate,
-	mentorshipAdvancedController.getMentorshipSessionById,
+	requireApproval,
+	authorizeRoles("Mentor"),
+	mentorshipController.updateMentorshipSessionStatus,
 );
 
+// Shared mentorship history
+router.get(
+	"/history",
+	authenticate,
+	requireApproval,
+	mentorshipController.getMentorshipHistory,
+);
+
+// Advanced mentorship resources and chat
 router.post(
 	"/reports",
 	authenticate,
@@ -118,20 +131,16 @@ router.get(
 	mentorshipAdvancedController.getMentorshipConversation,
 );
 
-router.put(
-	"/sessions/:sessionId",
+router.get(
+	"/sessions",
 	authenticate,
-	requireApproval,
-	authorizeRoles("Mentor"),
-	mentorshipController.updateMentorshipSessionStatus,
+	mentorshipAdvancedController.listMentorshipSessions,
 );
 
-// Shared history (role-checked in controller)
 router.get(
-	"/history",
+	"/sessions/:sessionId",
 	authenticate,
-	requireApproval,
-	mentorshipController.getMentorshipHistory,
+	mentorshipAdvancedController.getMentorshipSessionById,
 );
 
 module.exports = router;

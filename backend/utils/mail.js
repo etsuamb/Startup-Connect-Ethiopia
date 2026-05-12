@@ -4,7 +4,7 @@ const SMTP_HOST = process.env.SMTP_HOST;
 const SMTP_PORT = process.env.SMTP_PORT;
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
-const FROM_EMAIL = process.env.FROM_EMAIL || "no-reply@startupconnect.local";
+const FROM_EMAIL = process.env.FROM_EMAIL || "no-reply@connectstartup.local";
 
 let transporter = null;
 if (SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS) {

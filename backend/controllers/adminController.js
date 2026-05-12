@@ -60,7 +60,14 @@ exports.getPendingUser = async (req, res) => {
 			documents = docs.rows;
 		} else if (user.role === "Mentor" && profile && profile.mentor_id) {
 			const docs = await pool.query(
-				"SELECT mentor_document_id AS document_id, document_type, file_name, file_path, file_type, file_size_bytes, created_at FROM mentor_documents WHERE mentor_id = $1",
+				`SELECT * FROM (
+				   SELECT document_id, COALESCE(description, 'document') AS document_type,
+				          file_name, file_path, file_type, file_size_bytes, created_at
+				   FROM documents WHERE mentor_id = $1
+				   UNION ALL
+				   SELECT mentor_document_id AS document_id, document_type, file_name, file_path, file_type, file_size_bytes, created_at
+				   FROM mentor_documents WHERE mentor_id = $1
+				) merged ORDER BY created_at DESC`,
 				[profile.mentor_id],
 			);
 			documents = docs.rows;
@@ -242,6 +249,14 @@ exports.getDocument = async (req, res) => {
 		if (r.rows.length === 0)
 			return res.status(404).json({ message: "Document not found" });
 		const doc = r.rows[0];
+		if (doc.file_data) {
+			res.setHeader("Content-Type", doc.file_type || "application/octet-stream");
+			res.setHeader(
+				"Content-Disposition",
+				`attachment; filename="${doc.file_name}"`,
+			);
+			return res.send(doc.file_data);
+		}
 		const uploadsDir = path.resolve(process.cwd(), "uploads");
 		const absPath = path.resolve(process.cwd(), doc.file_path);
 		if (!absPath.startsWith(uploadsDir))
@@ -257,13 +272,26 @@ exports.getDocument = async (req, res) => {
 exports.getMentorDocument = async (req, res) => {
 	const { documentId } = req.params;
 	try {
-		const r = await pool.query(
-			"SELECT * FROM mentor_documents WHERE mentor_document_id = $1",
-			[documentId],
-		);
+		let r = await pool.query("SELECT * FROM documents WHERE document_id = $1", [
+			documentId,
+		]);
+		if (r.rows.length === 0) {
+			r = await pool.query(
+				"SELECT * FROM mentor_documents WHERE mentor_document_id = $1",
+				[documentId],
+			);
+		}
 		if (r.rows.length === 0)
 			return res.status(404).json({ message: "Document not found" });
 		const doc = r.rows[0];
+		if (doc.file_data) {
+			res.setHeader("Content-Type", doc.file_type || "application/octet-stream");
+			res.setHeader(
+				"Content-Disposition",
+				`attachment; filename="${doc.file_name}"`,
+			);
+			return res.send(doc.file_data);
+		}
 		const uploadsDir = path.resolve(process.cwd(), "uploads");
 		const absPath = path.resolve(process.cwd(), doc.file_path);
 		if (!absPath.startsWith(uploadsDir))
@@ -681,17 +709,22 @@ exports.deleteDocumentAdmin = async (req, res) => {
 		const r = await pool.query('SELECT * FROM documents WHERE document_id = $1', [documentId]);
 		if (!r.rowCount) return res.status(404).json({ message: 'Document not found' });
 		const doc = r.rows[0];
-		// try unlink file
-		try {
-			const fs = require('fs');
-			const path = require('path');
-			const abs = path.resolve(process.cwd(), doc.file_path);
-			if (fs.existsSync(abs)) {
-				fs.unlinkSync(abs);
+		// If the file is stored in the database, do not attempt local unlink.
+		if (doc.file_data) {
+			// no local file cleanup needed
+		} else {
+			try {
+				const fs = require('fs');
+				const path = require('path');
+				const abs = path.resolve(process.cwd(), doc.file_path);
+				const uploadsDir = path.resolve(process.cwd(), 'uploads');
+				if (abs.startsWith(uploadsDir) && fs.existsSync(abs)) {
+					fs.unlinkSync(abs);
+				}
+			} catch (e) {
+				// ignore file unlink errors
+				console.error('unlink failed', e.message || e);
 			}
-		} catch (e) {
-			// ignore file unlink errors
-			console.error('unlink failed', e.message || e);
 		}
 		const del = await pool.query('DELETE FROM documents WHERE document_id = $1 RETURNING *', [documentId]);
 		await pool.query(

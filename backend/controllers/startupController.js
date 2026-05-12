@@ -350,3 +350,49 @@ exports.updateStartupProfile = async (req, res) => {
 		res.status(500).json({ error: err.message });
 	}
 };
+
+exports.getMyStartupProfile = async (req, res) => {
+	try {
+		const userId = req.user.user_id;
+		const result = await pool.query(
+			`SELECT s.*, u.first_name, u.last_name, u.email, u.phone_number
+			 FROM startups s
+			 JOIN users u ON u.user_id = s.user_id
+			 WHERE s.user_id = $1`,
+			[userId],
+		);
+
+		if (result.rowCount === 0) {
+			return res.status(404).json({ error: "Startup profile not found" });
+		}
+
+		res.json({ startup: result.rows[0] });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+};
+
+exports.getStartupDocuments = async (req, res) => {
+	try {
+		const userId = req.user.user_id;
+		const startupRes = await pool.query(
+			"SELECT startup_id FROM startups WHERE user_id = $1",
+			[userId],
+		);
+
+		if (startupRes.rowCount === 0) {
+			return res.status(404).json({ error: "Startup profile not found" });
+		}
+
+		const startupId = startupRes.rows[0].startup_id;
+		const docs = await pool.query(
+			`SELECT document_id, file_name, file_path, file_type, file_size_bytes, description, created_at
+			 FROM documents WHERE startup_id = $1 ORDER BY created_at DESC`,
+			[startupId],
+		);
+
+		res.json({ documents: docs.rows });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+};

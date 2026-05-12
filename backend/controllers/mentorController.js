@@ -1,4 +1,27 @@
+const crypto = require("crypto");
 const pool = require("../config/db");
+
+async function insertMentorDocumentFromMemory(mentorId, file, description) {
+	if (!file || !file.buffer) return;
+	const fileBuffer = file.buffer;
+	const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
+	const storagePath = `db://documents/mentor/${mentorId}/${crypto.randomBytes(16).toString("hex")}`;
+	await pool.query(
+		`INSERT INTO documents (
+      mentor_id, file_name, file_path, file_type, file_size_bytes, file_hash, file_data, description, created_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_TIMESTAMP)`,
+		[
+			mentorId,
+			file.originalname,
+			storagePath,
+			file.mimetype,
+			file.size,
+			fileHash,
+			fileBuffer,
+			description || null,
+		],
+	);
+}
 
 exports.createMentorProfile = async (req, res) => {
 	try {
@@ -102,32 +125,21 @@ exports.createMentorProfile = async (req, res) => {
 
 		const mentor = result.rows[0];
 
-		// Save uploaded files (cv, certifications) if any
-		const saveDoc = async (mentorId, file, documentType) => {
-			if (!file) return;
-			await pool.query(
-				`INSERT INTO mentor_documents (
-				mentor_id, document_type, file_name, file_path, file_type, file_size_bytes
-			  ) VALUES ($1,$2,$3,$4,$5,$6)`,
-				[
-					mentorId,
-					documentType,
-					file.originalname,
-					file.path,
-					file.mimetype,
-					file.size,
-				],
-			);
-		};
-
 		if (req.files) {
 			if (req.files.cv && req.files.cv.length) {
-				await saveDoc(mentor.mentor_id, req.files.cv[0], "cv");
+				await insertMentorDocumentFromMemory(mentor.mentor_id, req.files.cv[0], "CV");
 			}
 			if (req.files.certifications && req.files.certifications.length) {
 				for (const f of req.files.certifications) {
-					await saveDoc(mentor.mentor_id, f, "certification");
+					await insertMentorDocumentFromMemory(mentor.mentor_id, f, "Certification");
 				}
+			}
+			if (req.files.intro_video && req.files.intro_video.length) {
+				await insertMentorDocumentFromMemory(
+					mentor.mentor_id,
+					req.files.intro_video[0],
+					"Introduction video",
+				);
 			}
 		}
 
@@ -185,10 +197,15 @@ exports.getMentorById = async (req, res) => {
 		}
 
 		const docs = await pool.query(
-			`SELECT mentor_document_id, document_type, file_name, file_path, file_type, file_size_bytes, description, created_at
-		 FROM mentor_documents
-		 WHERE mentor_id = $1
-		 ORDER BY created_at DESC`,
+			`SELECT * FROM (
+			   SELECT document_id AS mentor_document_id,
+			          COALESCE(description, 'document') AS document_type,
+			          file_name, file_path, file_type, file_size_bytes, description, created_at
+			   FROM documents WHERE mentor_id = $1
+			   UNION ALL
+			   SELECT mentor_document_id, document_type, file_name, file_path, file_type, file_size_bytes, description, created_at
+			   FROM mentor_documents WHERE mentor_id = $1
+			) merged ORDER BY created_at DESC`,
 			[mentorId],
 		);
 
@@ -297,32 +314,21 @@ exports.updateMentorProfile = async (req, res) => {
 			],
 		);
 
-		// Save uploaded files if any
-		const saveDoc = async (mentorId, file, documentType) => {
-			if (!file) return;
-			await pool.query(
-				`INSERT INTO mentor_documents (
-				mentor_id, document_type, file_name, file_path, file_type, file_size_bytes
-			  ) VALUES ($1,$2,$3,$4,$5,$6)`,
-				[
-					mentorId,
-					documentType,
-					file.originalname,
-					file.path,
-					file.mimetype,
-					file.size,
-				],
-			);
-		};
-
 		if (req.files) {
 			if (req.files.cv && req.files.cv.length) {
-				await saveDoc(mentorId, req.files.cv[0], "cv");
+				await insertMentorDocumentFromMemory(mentorId, req.files.cv[0], "CV");
 			}
 			if (req.files.certifications && req.files.certifications.length) {
 				for (const f of req.files.certifications) {
-					await saveDoc(mentorId, f, "certification");
+					await insertMentorDocumentFromMemory(mentorId, f, "Certification");
 				}
+			}
+			if (req.files.intro_video && req.files.intro_video.length) {
+				await insertMentorDocumentFromMemory(
+					mentorId,
+					req.files.intro_video[0],
+					"Introduction video",
+				);
 			}
 		}
 

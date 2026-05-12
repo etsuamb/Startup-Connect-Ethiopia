@@ -5,11 +5,11 @@ function walk(items) {
 	items.forEach((item) => {
 		if (item.request && item.request.url && item.request.url.raw) {
 			let raw = item.request.url.raw;
-			// If raw contains {{base_url}}, replace with http://localhost:3000
-			raw = raw.replace(/{{\s*base_url\s*}}/, "http://localhost:3000");
+			// If raw contains {{base_url}}, replace with http://localhost:5000
+			raw = raw.replace(/{{\s*base_url\s*}}/, "http://localhost:5000");
 			// Ensure raw starts with http
 			if (!/^https?:\/\//.test(raw))
-				raw = "http://localhost:3000" + (raw.startsWith("/") ? raw : "/" + raw);
+				raw = "http://localhost:5000" + (raw.startsWith("/") ? raw : "/" + raw);
 			// Build path array from raw
 			try {
 				const urlObj = new URL(raw);
@@ -32,5 +32,5 @@ walk(col.item);
 col.variable = (col.variable || []).filter((v) => v.key !== "base_url");
 fs.writeFileSync(p, JSON.stringify(col, null, 2), "utf8");
 console.log(
-	"Restored absolute http://localhost:3000 URLs in collection and removed base_url variable.",
+	"Restored absolute http://localhost:5000 URLs in collection and removed base_url variable.",
 );

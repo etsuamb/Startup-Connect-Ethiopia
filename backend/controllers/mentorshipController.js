@@ -280,6 +280,88 @@ exports.scheduleMentorshipSession = async (req, res) => {
 	}
 };
 
+exports.createMentorshipSessionForStartup = async (req, res) => {
+	try {
+		const userId = req.user.user_id;
+		const startupId = await getStartupIdByUserId(userId);
+
+		if (!startupId) {
+			return res.status(404).json({ error: "Startup profile not found" });
+		}
+
+		const {
+			mentorship_request_id,
+			scheduled_at,
+			duration_minutes,
+			meeting_link,
+			notes,
+		} = req.body || {};
+
+		const requestId = Number(mentorship_request_id);
+		if (!Number.isInteger(requestId) || requestId <= 0) {
+			return res.status(400).json({
+				error: "'mentorship_request_id' must be a valid integer",
+			});
+		}
+
+		if (!scheduled_at) {
+			return res.status(400).json({ error: "'scheduled_at' is required" });
+		}
+
+		const when = new Date(scheduled_at);
+		if (Number.isNaN(when.getTime())) {
+			return res.status(400).json({
+				error: "'scheduled_at' must be a valid datetime",
+			});
+		}
+
+		const duration = Number(duration_minutes);
+		if (!Number.isInteger(duration) || duration <= 0) {
+			return res.status(400).json({
+				error: "'duration_minutes' must be a positive integer",
+			});
+		}
+
+		const requestResult = await pool.query(
+			`SELECT mentorship_request_id, status, startup_id
+       FROM mentorship_requests
+       WHERE mentorship_request_id = $1 AND startup_id = $2`,
+			[requestId, startupId],
+		);
+
+		if (requestResult.rowCount === 0) {
+			return res.status(404).json({ error: "Mentorship request not found" });
+		}
+
+		if (requestResult.rows[0].status !== "accepted") {
+			return res.status(409).json({
+				error: "Session can only be created for accepted mentorship requests",
+			});
+		}
+
+		const insertResult = await pool.query(
+			`INSERT INTO mentorship_sessions
+       (mentorship_request_id, scheduled_at, duration_minutes, meeting_link, notes, status)
+       VALUES ($1,$2,$3,$4,$5,'scheduled')
+       RETURNING *`,
+			[
+				requestId,
+				when.toISOString(),
+				duration,
+				meeting_link || null,
+				notes || null,
+			],
+		);
+
+		return res.status(201).json({
+			message: "Mentorship session created",
+			mentorship_session: insertResult.rows[0],
+		});
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 exports.updateMentorshipSessionStatus = async (req, res) => {
 	try {
 		const userId = req.user.user_id;
