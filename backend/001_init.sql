@@ -363,3 +363,116 @@ CREATE TABLE IF NOT EXISTS discover_mentor_applications (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (startup_id, mentor_id)
 );
+
+-- Startup–Investor chat threads, messages, and video session metadata (WebRTC room id + status)
+CREATE TABLE IF NOT EXISTS chat_conversations (
+    conversation_id SERIAL PRIMARY KEY,
+    startup_id INTEGER NOT NULL REFERENCES startups(startup_id) ON DELETE CASCADE,
+    investor_id INTEGER NOT NULL REFERENCES investors(investor_id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_message_at TIMESTAMPTZ,
+    UNIQUE (startup_id, investor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_conversations_startup ON chat_conversations (startup_id);
+CREATE INDEX IF NOT EXISTS idx_chat_conversations_investor ON chat_conversations (investor_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    chat_message_id SERIAL PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES chat_conversations(conversation_id) ON DELETE CASCADE,
+    sender_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    message_type VARCHAR(20) NOT NULL CHECK (message_type IN ('text', 'file')),
+    text_body TEXT,
+    file_name VARCHAR(255),
+    file_mime VARCHAR(120),
+    file_size_bytes BIGINT CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
+    file_data BYTEA,
+    read_at_startup TIMESTAMPTZ,
+    read_at_investor TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (message_type IN ('text', 'file'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages (conversation_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS chat_video_calls (
+    video_call_id SERIAL PRIMARY KEY,
+    conversation_id INTEGER NOT NULL REFERENCES chat_conversations(conversation_id) ON DELETE CASCADE,
+    room_id VARCHAR(64) NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing', 'active', 'ended', 'missed')),
+    started_by_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    screen_share_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    participant_user_ids INTEGER[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_video_calls_conversation ON chat_video_calls (conversation_id, created_at DESC);
+
+-- Per-user join/leave audit for a video call (session held until end or leave)
+CREATE TABLE IF NOT EXISTS chat_video_session_participants (
+    participant_row_id SERIAL PRIMARY KEY,
+    video_call_id INTEGER NOT NULL REFERENCES chat_video_calls(video_call_id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    left_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_session_participants_call ON chat_video_session_participants (video_call_id);
+CREATE INDEX IF NOT EXISTS idx_video_session_participants_user ON chat_video_session_participants (user_id);
+
+-- Startup–Mentor chat (requires a mentorship_requests row for the pair)
+CREATE TABLE IF NOT EXISTS mentor_chat_conversations (
+    mentor_conversation_id SERIAL PRIMARY KEY,
+    startup_id INTEGER NOT NULL REFERENCES startups(startup_id) ON DELETE CASCADE,
+    mentor_id INTEGER NOT NULL REFERENCES mentors(mentor_id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_message_at TIMESTAMPTZ,
+    UNIQUE (startup_id, mentor_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mentor_chat_conversations_startup ON mentor_chat_conversations (startup_id);
+CREATE INDEX IF NOT EXISTS idx_mentor_chat_conversations_mentor ON mentor_chat_conversations (mentor_id);
+
+CREATE TABLE IF NOT EXISTS mentor_chat_messages (
+    mentor_chat_message_id SERIAL PRIMARY KEY,
+    mentor_conversation_id INTEGER NOT NULL REFERENCES mentor_chat_conversations(mentor_conversation_id) ON DELETE CASCADE,
+    sender_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    message_type VARCHAR(20) NOT NULL CHECK (message_type IN ('text', 'file')),
+    text_body TEXT,
+    file_name VARCHAR(255),
+    file_mime VARCHAR(120),
+    file_size_bytes BIGINT CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
+    file_data BYTEA,
+    read_at_startup TIMESTAMPTZ,
+    read_at_mentor TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (message_type IN ('text', 'file'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_mentor_chat_messages_conversation ON mentor_chat_messages (mentor_conversation_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS mentor_chat_video_calls (
+    mentor_video_call_id SERIAL PRIMARY KEY,
+    mentor_conversation_id INTEGER NOT NULL REFERENCES mentor_chat_conversations(mentor_conversation_id) ON DELETE CASCADE,
+    room_id VARCHAR(64) NOT NULL UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing', 'active', 'ended', 'missed')),
+    started_by_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    screen_share_user_id INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    participant_user_ids INTEGER[] NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_mentor_chat_video_calls_conversation ON mentor_chat_video_calls (mentor_conversation_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS mentor_chat_video_session_participants (
+    participant_row_id SERIAL PRIMARY KEY,
+    mentor_video_call_id INTEGER NOT NULL REFERENCES mentor_chat_video_calls(mentor_video_call_id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    left_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_mentor_video_session_call ON mentor_chat_video_session_participants (mentor_video_call_id);
+CREATE INDEX IF NOT EXISTS idx_mentor_video_session_user ON mentor_chat_video_session_participants (user_id);

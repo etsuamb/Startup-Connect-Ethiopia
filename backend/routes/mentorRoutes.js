@@ -6,9 +6,16 @@ const {
 	requireApproval,
 } = require("../middleware/authMiddleware");
 const mentorController = require("../controllers/mentorController");
+const { buildMentorChatRoutes } = require("./mentorChatRoutes");
 
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
+
+/** Mentor–startup chat + video (Mentor JWT). Base: /api/mentors/mentor-chat */
+router.use(
+	"/mentor-chat",
+	buildMentorChatRoutes([authenticate, authorizeRoles("Mentor")]),
+);
 
 router.post(
 	"/profile",

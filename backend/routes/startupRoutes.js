@@ -11,6 +11,20 @@ const {
 const startupController = require("../controllers/startupController");
 const startupDashboardController = require("../controllers/startupDashboardController");
 const discoverRoutes = require("./discoverRoutes");
+const chatRoutesModule = require("./chatRoutes");
+const { buildMentorChatRoutes } = require("./mentorChatRoutes");
+
+/** Startup app: same chat/video paths as /api/chat, scoped to Startup role (e.g. GET /api/startups/chat/conversations). */
+router.use(
+	"/chat",
+	chatRoutesModule.buildChatRoutes([authenticate, authorizeRoles("Startup")]),
+);
+
+/** Mentor–startup chat + video (Startup JWT). Base: /api/startups/mentor-chat */
+router.use(
+	"/mentor-chat",
+	buildMentorChatRoutes([authenticate, authorizeRoles("Startup")]),
+);
 
 router.use("/discover", discoverRoutes);
 

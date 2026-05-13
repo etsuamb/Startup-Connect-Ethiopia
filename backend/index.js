@@ -54,6 +54,9 @@ app.use("/api/admin", adminRoutes);
 const notificationRoutes = require("./routes/notificationRoutes");
 app.use("/api/notifications", notificationRoutes);
 
+const chatRoutes = require("./routes/chatRoutes");
+app.use("/api/chat", chatRoutes);
+
 // Start server LAST
 app.listen(PORT, () => {
 	console.log(`Server running on port ${PORT}`);
