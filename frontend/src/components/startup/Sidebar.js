@@ -1,0 +1,161 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+export default function Sidebar() {
+  const pathname = usePathname();
+
+  const primaryLinks = [
+    {
+      name: "Dashboard",
+      href: "/startup/dashboard",
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+    },
+    {
+      name: "My Project",
+      href: "/startup/project",
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+    },
+    {
+      name: "Discover",
+      href: "/startup/discover",
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+    },
+    {
+      name: "AI Recommendations",
+      href: "/startup/recommendations",
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+    }
+  ];
+
+  const networkLinks = [
+    // { 
+    //   name: "Investment", 
+    //   href: "#", 
+    //   icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path> 
+    // },
+    {
+      name: "Investor Chat",
+      href: "/startup/chat",
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+    },
+    {
+      name: "Mentors chat",
+      href: "/startup/mentorship",
+      icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+    }
+  ];
+
+  // The sidebar container uses bg-[#061e16] and the faux light beams from the registration layout.
+  return (
+    <aside className="hidden md:flex flex-col w-[260px] bg-[#061e16] border-r border-[#0f3d32] shrink-0 sticky top-0 h-screen overflow-y-auto relative">
+      {/* Abstract Green Light Beams / Background */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[#061e16]"></div>
+        {/* Faux light beams using rotated divs */}
+        <div className="absolute top-[-10%] left-[10%] w-[150%] h-[30px] bg-[#008f64] opacity-30 transform -rotate-[55deg] blur-[2px]"></div>
+        <div className="absolute top-[10%] left-[10%] w-[150%] h-[40px] bg-[#008f64] opacity-30 transform -rotate-[55deg] blur-[2px]"></div>
+        <div className="absolute top-[30%] left-[0%] w-[150%] h-[20px] bg-[#008f64] opacity-30 transform -rotate-[55deg] blur-[2px]"></div>
+        <div className="absolute top-[50%] left-[-10%] w-[150%] h-[60px] bg-[#008f64] opacity-20 transform -rotate-[55deg] blur-[4px]"></div>
+        <div className="absolute top-[70%] left-[-20%] w-[150%] h-[25px] bg-[#008f64] opacity-40 transform -rotate-[55deg] blur-[2px]"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#061e16]/60 via-transparent to-[#061e16]/90"></div>
+      </div>
+
+      {/* Logo */}
+      <div className="p-6 pb-2 relative z-10">
+        <Link href="/" className="flex items-center gap-3">
+          <img src="/logo.png" alt="Startup Hub Logo" className="w-10 h-10 object-contain" />
+          <div className="flex flex-col">
+            <span className="font-bold text-white text-lg tracking-tight leading-tight">Startup Hub</span>
+            <span className="text-[9px] font-bold text-[#10b981] uppercase tracking-widest leading-tight">Entrepreneur Portal</span>
+          </div>
+        </Link>
+      </div>
+
+      {/* Primary Nav */}
+      <div className="px-4 py-4 flex flex-col gap-1 mt-4 relative z-10">
+        {primaryLinks.map((link) => {
+          // Check if link is active (exact match or subpath if it's not dashboard)
+          const isActive = pathname === link.href || (link.href !== "/startup/dashboard" && pathname?.startsWith(link.href));
+          return (
+            <Link
+              key={link.name}
+              href={link.href}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition relative overflow-hidden group ${isActive
+                  ? "bg-[#0f3d32] text-white"
+                  : "text-[#8ba39e] hover:text-white hover:bg-[#0a2921]"
+                }`}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {link.icon}
+              </svg>
+              {link.name}
+              {isActive && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#10b981] rounded-l-full"></div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Network Nav */}
+      <div className="px-4 py-2 mt-2 flex flex-col gap-1 relative z-10">
+        <p className="text-[10px] font-bold text-[#4d7066] uppercase tracking-widest px-4 mb-2">Network</p>
+        {networkLinks.map((link) => {
+          const isActive = pathname === link.href || (pathname?.startsWith(link.href) && link.href !== "#");
+          return (
+            <Link
+              key={link.name}
+              href={link.href}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition relative overflow-hidden group ${isActive
+                  ? "bg-[#0f3d32] text-white"
+                  : "text-[#8ba39e] hover:text-white hover:bg-[#0a2921]"
+                }`}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {link.icon}
+              </svg>
+              {link.name}
+              {isActive && (
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#10b981] rounded-l-full"></div>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Bottom Area: Settings and User */}
+      <div className="mt-auto pt-4 px-4 pb-6 relative z-10">
+        <div className="flex flex-col gap-1 pt-4 border-t border-[#0f3d32]">
+          <Link
+            href="/startup/settings"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-xs transition relative overflow-hidden group ${pathname?.startsWith("/startup/settings")
+                ? "bg-[#0f3d32] text-white"
+                : "text-[#8ba39e] hover:text-white hover:bg-[#0a2921]"
+              }`}
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            Settings
+            {pathname?.startsWith("/startup/settings") && (
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#10b981] rounded-l-full"></div>
+            )}
+          </Link>
+        </div>
+
+        {/* User profile section at the bottom to match the screenshot */}
+        {/* <div className="mt-4 px-4 py-3 flex items-center gap-3 bg-[#0a2921] rounded-xl border border-[#0f3d32] cursor-pointer hover:bg-[#0f3d32] transition">
+          <div className="w-8 h-8 rounded-full bg-[#115b4c] text-white flex items-center justify-center font-bold text-xs shrink-0">
+            N
+          </div>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-xs font-bold text-white truncate">Nebiyu</span>
+            <span className="text-[9px] text-[#8ba39e] truncate">Founder</span>
+          </div> */}
+        {/* </div> */}
+      </div>
+    </aside>
+  );
+}
