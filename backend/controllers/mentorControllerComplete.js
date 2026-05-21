@@ -48,7 +48,10 @@ exports.getMentorProfile = async (req, res) => {
 		const userId = req.user.user_id;
 
 		const result = await pool.query(
-			"SELECT * FROM mentors WHERE user_id = $1",
+			`SELECT m.*, u.first_name, u.last_name, u.email, u.phone_number, u.is_approved
+       FROM mentors m
+       JOIN users u ON u.user_id = m.user_id
+       WHERE m.user_id = $1`,
 			[userId]
 		);
 
@@ -56,7 +59,7 @@ exports.getMentorProfile = async (req, res) => {
 			return res.status(404).json({ message: "Mentor profile not found" });
 		}
 
-		res.json(result.rows[0]);
+		res.json({ mentor: result.rows[0] });
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}

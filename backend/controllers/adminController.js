@@ -3,6 +3,61 @@ const path = require("path");
 const fs = require("fs");
 const mail = require("../utils/mail");
 
+async function ensureUserApprovalSchema() {
+	await pool.query(
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS rejection_reason TEXT",
+	);
+	await pool.query(
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ",
+	);
+	await pool.query(
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS rejected_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL",
+	);
+	await pool.query(
+		"ALTER TABLE startups ADD COLUMN IF NOT EXISTS admin_status VARCHAR(20) DEFAULT 'Pending'",
+	);
+	await pool.query(
+		"ALTER TABLE startups ADD COLUMN IF NOT EXISTS is_listed BOOLEAN DEFAULT FALSE",
+	);
+}
+
+/** Keep directory listing flags aligned with account approval decisions. */
+async function syncStartupListingForUser(client, userId, { approved, rejected }) {
+	if (approved) {
+		await client.query(
+			`UPDATE startups
+			 SET admin_status = 'Pending', is_listed = false
+			 WHERE user_id = $1`,
+			[userId],
+		);
+		await client.query(
+			`UPDATE mentors SET is_approved = false WHERE user_id = $1`,
+			[userId],
+		);
+		await client.query(
+			`UPDATE investors SET is_approved = false WHERE user_id = $1`,
+			[userId],
+		);
+		return;
+	}
+	if (rejected) {
+		await client.query(
+			`UPDATE startups
+			 SET admin_status = 'Closed', is_listed = false
+			 WHERE user_id = $1`,
+			[userId],
+		);
+		await client.query(
+			`UPDATE mentors SET is_approved = false WHERE user_id = $1`,
+			[userId],
+		);
+		await client.query(
+			`UPDATE investors SET is_approved = false WHERE user_id = $1`,
+			[userId],
+		);
+	}
+}
+
 // GET /api/admin/users/pending
 exports.listPendingUsers = async (_req, res) => {
 	try {
@@ -50,22 +105,41 @@ exports.getPendingUser = async (req, res) => {
 			profile = p.rows[0] || null;
 		}
 
-		// fetch documents if startup
+		// fetch documents for the pending account
 		let documents = [];
 		if (user.role === "Startup" && profile && profile.startup_id) {
 			const docs = await pool.query(
-				"SELECT document_id, file_name, file_path, file_type, file_size_bytes, created_at FROM documents WHERE startup_id = $1",
+				`SELECT document_id, file_name, file_path, file_type, file_size_bytes,
+				        COALESCE(description, 'Document') AS description,
+				        COALESCE(description, 'Document') AS document_type, created_at
+				 FROM documents WHERE startup_id = $1 ORDER BY created_at DESC`,
 				[profile.startup_id],
+			);
+			documents = docs.rows;
+		} else if (user.role === "Investor" && profile && profile.investor_id) {
+			const docs = await pool.query(
+				`SELECT document_id, file_name, file_path, file_type, file_size_bytes,
+				        COALESCE(description, 'Document') AS description,
+				        COALESCE(description, 'Document') AS document_type, created_at
+				 FROM documents WHERE investor_id = $1 ORDER BY created_at DESC`,
+				[profile.investor_id],
 			);
 			documents = docs.rows;
 		} else if (user.role === "Mentor" && profile && profile.mentor_id) {
 			const docs = await pool.query(
 				`SELECT * FROM (
-				   SELECT document_id, COALESCE(description, 'document') AS document_type,
-				          file_name, file_path, file_type, file_size_bytes, created_at
+				   SELECT document_id,
+				          COALESCE(description, 'Document') AS description,
+				          COALESCE(description, 'Document') AS document_type,
+				          file_name, file_path, file_type, file_size_bytes, created_at,
+				          false AS is_mentor_document
 				   FROM documents WHERE mentor_id = $1
 				   UNION ALL
-				   SELECT mentor_document_id AS document_id, document_type, file_name, file_path, file_type, file_size_bytes, created_at
+				   SELECT mentor_document_id AS document_id,
+				          COALESCE(document_type, 'Document') AS description,
+				          COALESCE(document_type, 'Document') AS document_type,
+				          file_name, file_path, file_type, file_size_bytes, created_at,
+				          true AS is_mentor_document
 				   FROM mentor_documents WHERE mentor_id = $1
 				) merged ORDER BY created_at DESC`,
 				[profile.mentor_id],
@@ -79,18 +153,36 @@ exports.getPendingUser = async (req, res) => {
 	}
 };
 
-// PUT /api/admin/users/reject/:userId  (mark is_active=false)
+// PUT /api/admin/users/reject/:userId
 exports.rejectUser = async (req, res) => {
 	const { userId } = req.params;
 	const admin = req.user;
 	const { reason } = req.body;
+	const client = await pool.connect();
 	try {
-		const result = await pool.query(
-			"UPDATE users SET is_active = false WHERE user_id = $1 RETURNING user_id, email, is_active",
-			[userId],
+		await ensureUserApprovalSchema();
+		await client.query("BEGIN");
+
+		const result = await client.query(
+			`UPDATE users
+			 SET is_approved = false,
+			     is_active = false,
+			     rejection_reason = $1,
+			     rejected_at = NOW(),
+			     rejected_by = $2,
+			     approved_at = NULL,
+			     approved_by = NULL
+			 WHERE user_id = $3
+			 RETURNING user_id, email, is_active, is_approved, rejection_reason, rejected_at`,
+			[reason || null, admin.user_id, userId],
 		);
-		if (result.rows.length === 0)
+		if (result.rows.length === 0) {
+			await client.query("ROLLBACK");
 			return res.status(404).json({ message: "User not found" });
+		}
+
+		await syncStartupListingForUser(client, userId, { rejected: true });
+		await client.query("COMMIT");
 
 		// audit
 		await pool.query(
@@ -144,7 +236,14 @@ exports.rejectUser = async (req, res) => {
 			user: result.rows[0],
 		});
 	} catch (err) {
+		try {
+			await client.query("ROLLBACK");
+		} catch {
+			/* ignore */
+		}
 		return res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
 	}
 };
 
@@ -196,13 +295,31 @@ exports.approveUser = async (req, res) => {
 	const { userId } = req.params;
 	const admin = req.user;
 	const { comment } = req.body;
+	const client = await pool.connect();
 	try {
-		const result = await pool.query(
-			"UPDATE users SET is_approved = true, approved_by = $1, approved_at = NOW() WHERE user_id = $2 RETURNING user_id, email, is_approved",
+		await ensureUserApprovalSchema();
+		await client.query("BEGIN");
+
+		const result = await client.query(
+			`UPDATE users
+			 SET is_approved = true,
+			     is_active = true,
+			     approved_by = $1,
+			     approved_at = NOW(),
+			     rejection_reason = NULL,
+			     rejected_at = NULL,
+			     rejected_by = NULL
+			 WHERE user_id = $2
+			 RETURNING user_id, email, role, is_approved, is_active, approved_at`,
 			[admin.user_id, userId],
 		);
-		if (result.rows.length === 0)
+		if (result.rows.length === 0) {
+			await client.query("ROLLBACK");
 			return res.status(404).json({ message: "User not found" });
+		}
+
+		await syncStartupListingForUser(client, userId, { approved: true });
+		await client.query("COMMIT");
 
 		// audit
 		await pool.query(
@@ -232,9 +349,20 @@ exports.approveUser = async (req, res) => {
 			],
 		);
 
-		return res.json({ message: "User approved", user: result.rows[0] });
+		return res.json({
+			message:
+				"User approved. Startup founders remain unlisted until you set lifecycle to Active on the Startup Directory page.",
+			user: result.rows[0],
+		});
 	} catch (err) {
+		try {
+			await client.query("ROLLBACK");
+		} catch {
+			/* ignore */
+		}
 		return res.status(500).json({ error: err.message });
+	} finally {
+		client.release();
 	}
 };
 

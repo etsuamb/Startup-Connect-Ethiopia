@@ -47,6 +47,28 @@ async function main() {
 		console.log("approved_at exists");
 	}
 
+	if (!(await columnExists("rejection_reason"))) {
+		await addColumnIfMissing(
+			"ALTER TABLE users ADD COLUMN rejection_reason TEXT",
+		);
+	} else {
+		console.log("rejection_reason exists");
+	}
+
+	if (!(await columnExists("rejected_at"))) {
+		await addColumnIfMissing("ALTER TABLE users ADD COLUMN rejected_at TIMESTAMPTZ");
+	} else {
+		console.log("rejected_at exists");
+	}
+
+	if (!(await columnExists("rejected_by"))) {
+		await addColumnIfMissing(
+			"ALTER TABLE users ADD COLUMN rejected_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL",
+		);
+	} else {
+		console.log("rejected_by exists");
+	}
+
 	console.log("User schema fixup complete");
 	await pool.end();
 }
