@@ -71,8 +71,15 @@ exports.listStartups = async (req, res) => {
 		const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 		const offset = (pageNum - 1) * limitNum;
 
+		const visibilityWhere = `
+			u.is_approved = true
+			AND u.is_active = true
+			AND COALESCE(s.is_listed, false) = true
+			AND COALESCE(s.admin_status, 'Pending') IN ('Active', 'Funded')
+		`;
+
 		const countResult = await pool.query(
-			"SELECT COUNT(*) as total FROM startups s JOIN users u ON s.user_id = u.user_id WHERE u.is_approved = true"
+			`SELECT COUNT(*) as total FROM startups s JOIN users u ON s.user_id = u.user_id WHERE ${visibilityWhere}`,
 		);
 		const total = parseInt(countResult.rows[0].total);
 
@@ -81,7 +88,7 @@ exports.listStartups = async (req, res) => {
 			 s.location, s.website, s.funding_needed, s.created_at
 			 FROM startups s
 			 JOIN users u ON s.user_id = u.user_id
-			 WHERE u.is_approved = true
+			 WHERE ${visibilityWhere}
 			 ORDER BY s.created_at DESC
 			 LIMIT $1 OFFSET $2`,
 			[limitNum, offset]
@@ -112,7 +119,11 @@ exports.searchStartups = async (req, res) => {
 		const offset = (pageNum - 1) * limitNum;
 
 		let query =
-			"SELECT s.* FROM startups s JOIN users u ON s.user_id = u.user_id WHERE u.is_approved = true";
+			`SELECT s.* FROM startups s JOIN users u ON s.user_id = u.user_id
+			 WHERE u.is_approved = true
+			   AND u.is_active = true
+			   AND COALESCE(s.is_listed, false) = true
+			   AND COALESCE(s.admin_status, 'Pending') IN ('Active', 'Funded')`;
 		const params = [];
 
 		if (industry) {
@@ -186,7 +197,12 @@ exports.getStartupRecommendations = async (req, res) => {
 
 		// Get matching startups
 		let query =
-			"SELECT s.* FROM startups s JOIN users u ON s.user_id = u.user_id WHERE u.is_approved = true AND 1=1";
+			`SELECT s.* FROM startups s JOIN users u ON s.user_id = u.user_id
+			 WHERE u.is_approved = true
+			   AND u.is_active = true
+			   AND COALESCE(s.is_listed, false) = true
+			   AND COALESCE(s.admin_status, 'Pending') IN ('Active', 'Funded')
+			   AND 1=1`;
 		const params = [];
 
 		if (preferred_industry) {

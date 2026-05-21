@@ -19,6 +19,7 @@ router.post(
 		{ name: "tin_certificate", maxCount: 1 },
 		{ name: "registration_doc", maxCount: 1 },
 		{ name: "trade_license", maxCount: 1 },
+		{ name: "mentor_id", maxCount: 1 },
 		{ name: "certifications", maxCount: 15 },
 		{ name: "intro_video", maxCount: 1 },
 	]),
@@ -41,5 +42,17 @@ router.put(
 	authorizeRoles("Admin"),
 	authController.approveUser,
 );
+
+// Change admin password (Admin only, authenticated)
+router.put(
+	"/admin/change-password",
+	authenticate,
+	authController.changeAdminPassword,
+);
+
+// Active session tracking (Authenticated)
+router.get("/sessions", authenticate, authController.getActiveSessions);
+router.delete("/sessions/:token", authenticate, authController.revokeSession);
+router.delete("/sessions", authenticate, authController.revokeAllOtherSessions);
 
 module.exports = router;

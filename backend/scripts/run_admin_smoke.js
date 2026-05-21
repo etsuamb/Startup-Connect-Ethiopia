@@ -58,7 +58,6 @@ const requests = [
   { name: 'List Investments', args: ['-s', '-H', `Authorization: Bearer ${token}`, 'http://localhost:5000/api/admin/investments'] },
   { name: 'Export Audit Logs (HEAD)', args: ['-s', '-I', '-H', `Authorization: Bearer ${token}`, 'http://localhost:5000/api/admin/audit-logs/export'] },
   { name: 'Export Reports (HEAD)', args: ['-s', '-I', '-H', `Authorization: Bearer ${token}`, 'http://localhost:5000/api/admin/reports/export?type=users'] },
-  { name: 'Create Temp Admin', args: ['-s', '-X', 'POST', '-H', `Authorization: Bearer ${token}`, '-H', 'Content-Type: application/json', '-d', JSON.stringify({ first_name: 'Tmp', last_name: 'Admin', email: 'temp.admin@test', password: 'Temp1234!', privilege_level: 1 }), 'http://localhost:5000/api/admin/create-admin'] },
 ];
 
 for (const r of requests) {

@@ -9,6 +9,20 @@ const REFRESH_TOKEN_EXP_DAYS = parseInt(
 );
 const crypto = require("crypto");
 
+const isValidUrl = (value) => {
+	if (!value) return false;
+	try {
+		const url = new URL(String(value).trim());
+		return url.protocol === "http:" || url.protocol === "https:";
+	} catch (err) {
+		return false;
+	}
+};
+
+const hasStrongPassword = (password) => {
+	return typeof password === "string" && /(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password);
+};
+
 // ========================
 // REGISTER
 // ========================
@@ -109,13 +123,19 @@ exports.register = async (req, res) => {
 			return res.status(400).json({ message: "Password and confirm password must match" });
 		}
 
-		if (typeof password !== "string" || password.length < 8) {
+		if (!hasStrongPassword(password)) {
 			return res.status(400).json({
-				message: "Password must be at least 8 characters long",
+				message:
+					"Password must be at least 8 characters and include 1 capital letter, 1 special character, and 1 number",
 			});
 		}
 
 		const normalizedRole = String(role).trim();
+		if (normalizedRole === "Admin") {
+			return res.status(403).json({
+				message: "Admin accounts cannot be registered. Use admin login instead.",
+			});
+		}
 		if (!allowedRoles.includes(normalizedRole)) {
 			return res.status(400).json({
 				message: "Role must be one of Startup, Investor, or Mentor",
@@ -181,6 +201,12 @@ exports.register = async (req, res) => {
 				});
 			}
 
+			if (!isValidUrl(linked_in_or_website)) {
+				return res.status(400).json({
+					message: "linked_in_or_website must be a valid URL starting with http:// or https://",
+				});
+			}
+
 			if (!req.files || !req.files.registration_doc || !req.files.registration_doc.length) {
 				return res.status(400).json({
 					message: "Registration document file is required for Investor registration",
@@ -220,6 +246,12 @@ exports.register = async (req, res) => {
 				"";
 			const mentorCertsText =
 				str(certification_credentials) || str(req.body.certificationCredentials) || "";
+
+			if (mentorLinkedin && !isValidUrl(mentorLinkedin)) {
+				return res.status(400).json({
+					message: "linkedin_portfolio must be a valid URL starting with http:// or https://",
+				});
+			}
 			const mentorAvailPref =
 				str(availability_preference) || str(req.body.availabilityPreference) || "";
 			const mentorSessionPrice = session_pricing ?? req.body.sessionPricing;
@@ -617,6 +649,11 @@ exports.register = async (req, res) => {
 				mentorProfile = mentorInsertResult.rows[0];
 
 				const mentorDocMeta = [];
+				if (req.files && req.files.mentor_id && req.files.mentor_id.length) {
+					mentorDocMeta.push(
+						await saveDoc("mentor", mentorProfile.mentor_id, req.files.mentor_id[0], "Government-issued ID"),
+					);
+				}
 				if (req.files && req.files.intro_video && req.files.intro_video.length) {
 					mentorDocMeta.push(
 						await saveDoc("mentor", mentorProfile.mentor_id, req.files.intro_video[0], "Introduction video"),
@@ -643,6 +680,36 @@ exports.register = async (req, res) => {
 					);
 					mentorProfile.uploaded_documents = savedMentorDocs;
 				}
+			}
+
+			// Get all admins and notify them
+			const adminsRes = await client.query("SELECT user_id FROM users WHERE role = 'Admin'");
+			const admins = adminsRes.rows;
+
+			for (const admin of admins) {
+				// Insert registration notification
+				await client.query(
+					`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+					 VALUES ($1, 'registration', $2, $3, 'user', $4)`,
+					[
+						admin.user_id,
+						`New ${normalizedRole} Registered`,
+						`A new ${normalizedRole} account for ${first_name} ${last_name} (${email}) has registered and is pending approval.`,
+						user.user_id
+					]
+				);
+
+				// Insert verification request notification
+				await client.query(
+					`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+					 VALUES ($1, 'verification', $2, $3, 'user', $4)`,
+					[
+						admin.user_id,
+						`Verification Request: ${first_name} ${last_name}`,
+						`${first_name} ${last_name} (${normalizedRole}) has submitted documents for verification.`,
+						user.user_id
+					]
+				);
 			}
 
 			await client.query("COMMIT");
@@ -717,9 +784,37 @@ exports.login = async (req, res) => {
 		const expiresAt = new Date(
 			Date.now() + REFRESH_TOKEN_EXP_DAYS * 24 * 60 * 60 * 1000,
 		);
+
+		const userAgent = req.headers["user-agent"] || "";
+		let device = "Unknown Device";
+		if (/windows/i.test(userAgent)) device = "Windows PC";
+		else if (/macintosh|mac os x/i.test(userAgent)) device = "Mac PC";
+		else if (/iphone|ipad|ipod/i.test(userAgent)) device = "iOS Device";
+		else if (/android/i.test(userAgent)) device = "Android Device";
+		else if (/linux/i.test(userAgent)) device = "Linux PC";
+
+		let browser = "";
+		if (/chrome|crios/i.test(userAgent)) browser = "Chrome";
+		else if (/firefox|fxios/i.test(userAgent)) browser = "Firefox";
+		else if (/safari/i.test(userAgent) && !/chrome|crios/i.test(userAgent)) browser = "Safari";
+		else if (/edge|edg/i.test(userAgent)) browser = "Edge";
+
+		if (browser) {
+			device = `${device} (${browser})`;
+		}
+
+		const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.ip || "127.0.0.1";
+		const ip_address = rawIp.includes("::ffff:") ? rawIp.split("::ffff:")[1] : rawIp;
+
+		let location = "Addis Ababa, Ethiopia";
+		if (ip_address === "127.0.0.1" || ip_address === "::1" || ip_address.startsWith("192.168.") || ip_address.startsWith("10.")) {
+			location = "Local Network";
+		}
+
 		await pool.query(
-			"INSERT INTO refresh_tokens (token, user_id, expires_at, revoked) VALUES ($1, $2, $3, false)",
-			[refreshToken, user.user_id, expiresAt],
+			`INSERT INTO refresh_tokens (token, user_id, expires_at, revoked, device, ip_address, location)
+			 VALUES ($1, $2, $3, false, $4, $5, $6)`,
+			[refreshToken, user.user_id, expiresAt, device, ip_address, location],
 		);
 
 		return res.json({
@@ -793,9 +888,152 @@ exports.logout = async (req, res) => {
 	}
 };
 
+// PUT /auth/admin/change-password (Admin only)
+// Change password for the authenticated admin and send verification email
+const mail = require("../utils/mail");
+exports.changeAdminPassword = async (req, res) => {
+	const { user_id } = req.user;
+	const { currentPassword, newPassword } = req.body;
+
+	try {
+		if (!currentPassword || !newPassword) {
+			return res.status(400).json({ message: "Current and new password are required" });
+		}
+
+		// Validate strong password: 8+ chars, uppercase, lowercase, number, special char
+		const hasUppercase = /[A-Z]/.test(newPassword);
+		const hasLowercase = /[a-z]/.test(newPassword);
+		const hasNumber = /\d/.test(newPassword);
+		const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\\|,.<>\/?]/.test(newPassword);
+		const hasLength = newPassword.length >= 8;
+
+		if (!hasLength) {
+			return res.status(400).json({ message: "Password must be at least 8 characters" });
+		}
+		if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+			return res.status(400).json({ message: "Password must contain uppercase, lowercase, number, and special character" });
+		}
+
+		// Fetch current user
+		const userRes = await pool.query(
+			"SELECT user_id, email, password_hash, first_name FROM users WHERE user_id = $1",
+			[user_id],
+		);
+
+		if (userRes.rows.length === 0) {
+			return res.status(404).json({ message: "Admin user not found" });
+		}
+
+		const admin = userRes.rows[0];
+
+		// Verify current password
+		const isMatch = await bcrypt.compare(currentPassword, admin.password_hash);
+		if (!isMatch) {
+			return res.status(401).json({ message: "Current password is incorrect" });
+		}
+
+		// Hash new password
+		const newHashedPassword = await bcrypt.hash(newPassword, 10);
+
+		// Update password in database
+		await pool.query(
+			"UPDATE users SET password_hash = $1, updated_at = NOW() WHERE user_id = $2",
+			[newHashedPassword, user_id],
+		);
+
+		// Send verification email
+		const emailSubject = "Password Changed — Startup Connect Admin";
+		const emailText = `Hello ${admin.first_name},\n\nYour admin account password has been successfully changed. If you did not make this change, please contact support immediately.\n\nFor security, this change was made at ${new Date().toLocaleString()}.`;
+		const emailHtml = `
+			<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+				<div style="background: linear-gradient(135deg, #0f3d32 0%, #1a5a4a 100%); color: white; padding: 32px; border-radius: 12px; text-align: center; margin-bottom: 24px;">
+					<h1 style="margin: 0; font-size: 24px; font-weight: bold;">Password Changed</h1>
+				</div>
+				<div style="background: white; padding: 24px; border-radius: 8px; border: 1px solid #e5e7eb;">
+					<p style="margin: 0 0 16px 0; color: #1f2937; font-size: 16px;">Hello <strong>${admin.first_name}</strong>,</p>
+					<p style="margin: 0 0 16px 0; color: #4b5563; font-size: 14px; line-height: 1.6;">Your admin account password has been successfully changed. If you did not make this change, please contact support immediately.</p>
+					<div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 20px 0;">
+						<p style="margin: 0; color: #6b7280; font-size: 13px;"><strong>Change Time:</strong> ${new Date().toLocaleString()}</p>
+					</div>
+					<p style="margin: 16px 0 0 0; color: #9ca3af; font-size: 12px;">This is an automated security notification. Please do not reply to this email.</p>
+				</div>
+			</div>
+		`;
+
+		try {
+			await mail.sendMail(admin.email, emailSubject, emailText, emailHtml);
+		} catch (emailErr) {
+			console.error("Failed to send password change email:", emailErr.message);
+			// Still return success since password was changed, but log the email error
+		}
+
+		return res.json({ message: "Password changed successfully. Verification email sent." });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 // PUT /auth/approve/:userId  (Admin only)
 // Delegate to adminController.approveUser to avoid duplicate logic
 const adminController = require("./adminController");
 exports.approveUser = async (req, res) => {
 	return adminController.approveUser(req, res);
 };
+
+// GET /api/auth/sessions (Authenticated)
+exports.getActiveSessions = async (req, res) => {
+	const { user_id } = req.user;
+	try {
+		const r = await pool.query(
+			`SELECT token, device, ip_address, location, created_at, expires_at
+			 FROM refresh_tokens
+			 WHERE user_id = $1 AND revoked = false AND expires_at > NOW()
+			 ORDER BY created_at DESC`,
+			[user_id]
+		);
+		return res.json({ sessions: r.rows });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// DELETE /api/auth/sessions/:token (Authenticated)
+exports.revokeSession = async (req, res) => {
+	const { user_id } = req.user;
+	const { token } = req.params;
+	try {
+		const r = await pool.query(
+			"UPDATE refresh_tokens SET revoked = true WHERE token = $1 AND user_id = $2 RETURNING token",
+			[token, user_id]
+		);
+		if (r.rows.length === 0) {
+			return res.status(404).json({ message: "Session not found or already revoked" });
+		}
+		return res.json({ message: "Session revoked successfully" });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// DELETE /api/auth/sessions (Authenticated)
+exports.revokeAllOtherSessions = async (req, res) => {
+	const { user_id } = req.user;
+	const { currentToken } = req.body;
+	try {
+		if (currentToken) {
+			await pool.query(
+				"UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND token <> $2 AND revoked = false",
+				[user_id, currentToken]
+			);
+		} else {
+			await pool.query(
+				"UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
+				[user_id]
+			);
+		}
+		return res.json({ message: "All other sessions revoked successfully" });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+

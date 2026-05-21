@@ -10,7 +10,11 @@ CREATE TABLE IF NOT EXISTS users (
     is_approved BOOLEAN NOT NULL DEFAULT FALSE,
     approved_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     approved_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    rejection_reason TEXT,
+    rejected_at TIMESTAMPTZ,
+    rejected_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS admins (
@@ -39,6 +43,9 @@ CREATE TABLE IF NOT EXISTS startups (
     website VARCHAR(255),
     uploaded_documents JSONB,
     funding_needed DECIMAL(14,2) CHECK (funding_needed >= 0),
+    admin_status VARCHAR(20) NOT NULL DEFAULT 'Pending'
+        CHECK (admin_status IN ('Active', 'Pending', 'Funded', 'Closed')),
+    is_listed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -307,6 +314,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     expires_at TIMESTAMPTZ NOT NULL,
     revoked BOOLEAN NOT NULL DEFAULT FALSE,
+    device VARCHAR(255),
+    ip_address VARCHAR(45),
+    location VARCHAR(255),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -476,3 +486,22 @@ CREATE TABLE IF NOT EXISTS mentor_chat_video_session_participants (
 
 CREATE INDEX IF NOT EXISTS idx_mentor_video_session_call ON mentor_chat_video_session_participants (mentor_video_call_id);
 CREATE INDEX IF NOT EXISTS idx_mentor_video_session_user ON mentor_chat_video_session_participants (user_id);
+
+-- Backfill columns for databases created before these fields were in CREATE TABLE
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS rejected_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL;
+
+ALTER TABLE startups ADD COLUMN IF NOT EXISTS admin_status VARCHAR(20) DEFAULT 'Pending';
+ALTER TABLE startups ADD COLUMN IF NOT EXISTS is_listed BOOLEAN DEFAULT FALSE;
+
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint WHERE conname = 'startups_admin_status_check'
+	) THEN
+		ALTER TABLE startups
+		ADD CONSTRAINT startups_admin_status_check
+		CHECK (admin_status IN ('Active', 'Pending', 'Funded', 'Closed'));
+	END IF;
+END $$;

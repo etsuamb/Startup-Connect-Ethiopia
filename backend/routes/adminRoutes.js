@@ -6,6 +6,9 @@ const {
 } = require("../middleware/authMiddleware");
 const mentorshipAdvancedController = require("../controllers/mentorshipAdvancedController");
 const adminController = require("../controllers/adminController");
+const adminDashboardRoutes = require("./adminDashboardRoutes");
+
+router.use("/dashboard", adminDashboardRoutes);
 
 router.get(
 	"/mentorship/overview",
@@ -135,13 +138,6 @@ router.get(
 	authenticate,
 	authorizeRoles("Admin"),
 	adminController.listAuditLogs,
-);
-
-router.post(
-	"/create-admin",
-	authenticate,
-	authorizeRoles("Admin"),
-	adminController.createAdmin,
 );
 
 // Content moderation: projects

@@ -6,15 +6,33 @@ const {
 	requireApproval,
 } = require("../middleware/authMiddleware");
 const mentorController = require("../controllers/mentorController");
+const mentorComplete = require("../controllers/mentorControllerComplete");
+const mentorDashboard = require("../controllers/mentorDashboardController");
 const { buildMentorChatRoutes } = require("./mentorChatRoutes");
 
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 
-/** Mentor–startup chat + video (Mentor JWT). Base: /api/mentors/mentor-chat */
+/** Mentor–startup chat + video. Base: /api/mentors/mentor-chat */
 router.use(
 	"/mentor-chat",
 	buildMentorChatRoutes([authenticate, authorizeRoles("Mentor")]),
+);
+
+// ——— Dashboard & profile (static paths before /:mentorId) ———
+
+router.get(
+	"/dashboard",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorDashboard.getDashboard,
+);
+
+router.get(
+	"/profile",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.getMentorProfile,
 );
 
 router.post(
@@ -41,6 +59,84 @@ router.put(
 	mentorController.updateMentorProfile,
 );
 
+// ——— Mentorship requests & proposals ———
+
+router.get(
+	"/mentorship-requests",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.getMentorshipRequests,
+);
+
+router.put(
+	"/mentorship-requests/:requestId/accept",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.acceptMentorshipRequest,
+);
+
+router.put(
+	"/mentorship-requests/:requestId/reject",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.rejectMentorshipRequest,
+);
+
+router.post(
+	"/proposals",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.sendMentorshipProposal,
+);
+
+// ——— Startup discovery & assigned startups ———
+
+router.get(
+	"/startups",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.listStartups,
+);
+
+router.get(
+	"/my-startups",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorDashboard.getMyStartups,
+);
+
+router.get(
+	"/startups/:startupId",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.getStartupDetails,
+);
+
+router.get(
+	"/mentorships",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.getMentorshipHistory,
+);
+
+// ——— Legacy chat (messages table) ———
+
+router.post(
+	"/chat/startups/:startupId/send",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.sendMessage,
+);
+
+router.get(
+	"/chat/startups/:startupId/messages",
+	authenticate,
+	authorizeRoles("Mentor"),
+	mentorComplete.getMessages,
+);
+
+// ——— Public mentor directory (must stay after static routes) ———
+
 router.get(
 	"/all",
 	authenticate,
@@ -48,7 +144,6 @@ router.get(
 	mentorController.getAllMentors,
 );
 
-// Get mentor detail including documents
 router.get(
 	"/:mentorId",
 	authenticate,

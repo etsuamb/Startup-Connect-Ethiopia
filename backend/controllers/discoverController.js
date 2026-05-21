@@ -25,6 +25,7 @@ const mentorVisibilityWhere = `
   WHERE u.role = 'Mentor'
     AND u.is_active = TRUE
     AND u.is_approved = TRUE
+    AND COALESCE(m.is_approved, FALSE) = TRUE
 `;
 
 const investorUserJoin = `
@@ -36,6 +37,7 @@ const investorVisibilityWhere = `
   WHERE u.role = 'Investor'
     AND u.is_active = TRUE
     AND u.is_approved = TRUE
+    AND COALESCE(i.is_approved, FALSE) = TRUE
 `;
 
 exports.searchMentors = async (req, res) => {
