@@ -27,7 +27,9 @@ app.get("/", async (req, res) => {
 const testRoutes = require("./routes/testRoutes");
 app.use("/api/test", testRoutes);
 
+const startupRoutesComplete = require("./routes/startupRoutesComplete");
 const startupRoutes = require("./routes/startupRoutes");
+app.use("/api/startups", startupRoutesComplete);
 app.use("/api/startups", startupRoutes);
 
 const projectRoutes = require("./routes/projectRoutes");
