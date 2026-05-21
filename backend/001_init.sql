@@ -72,7 +72,6 @@ ALTER TABLE investors ADD COLUMN IF NOT EXISTS linked_in_or_website VARCHAR(255)
 ALTER TABLE investors ADD COLUMN IF NOT EXISTS bio TEXT;
 ALTER TABLE investors ADD COLUMN IF NOT EXISTS personal_verification VARCHAR(255);
 ALTER TABLE investors ADD COLUMN IF NOT EXISTS uploaded_documents JSONB;
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS investor_id INTEGER REFERENCES investors(investor_id) ON DELETE CASCADE;
 
 CREATE TABLE IF NOT EXISTS mentors (
     mentor_id SERIAL PRIMARY KEY,

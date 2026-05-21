@@ -13,15 +13,15 @@ app.use("/api/auth", authRoutes);
 
 // Test DB connection
 app.get("/", async (req, res) => {
-	try {
-		const result = await pool.query("SELECT NOW()");
-		res.json({
-			message: "Database connected ✅",
-			time: result.rows[0],
-		});
-	} catch (err) {
-		res.status(500).send(err.message);
-	}
+  try {
+    const result = await pool.query("SELECT NOW()");
+    res.json({
+      message: "Database connected ✅",
+      time: result.rows[0],
+    });
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
 });
 
 const testRoutes = require("./routes/testRoutes");
@@ -59,7 +59,10 @@ app.use("/api/notifications", notificationRoutes);
 const chatRoutes = require("./routes/chatRoutes");
 app.use("/api/chat", chatRoutes);
 
+const miscRoutes = require("./routes/miscRoutes");
+app.use("/api", miscRoutes);
+
 // Start server LAST
 app.listen(PORT, () => {
-	console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
