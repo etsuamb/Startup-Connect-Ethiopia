@@ -44,11 +44,3 @@ export function getInvestorPortfolio() {
 export function createInvestorFundingOffer(payload) {
 	return apiPostJson("/investors/funding-offers", payload);
 }
-
-export function acceptInvestorFundingOffer(offerId) {
-	return apiPatchJson(`/investors/funding-offers/${offerId}/accept`, {});
-}
-
-export function withdrawInvestorFundingOffer(offerId) {
-	return apiPatchJson(`/investors/funding-offers/${offerId}/withdraw`, {});
-}
