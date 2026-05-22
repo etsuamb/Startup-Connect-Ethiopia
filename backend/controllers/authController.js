@@ -4,458 +4,516 @@ const jwt = require("jsonwebtoken");
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 const REFRESH_TOKEN_EXP_DAYS = parseInt(
-	process.env.REFRESH_TOKEN_DAYS || "30",
-	10,
+  process.env.REFRESH_TOKEN_DAYS || "30",
+  10,
 );
 const crypto = require("crypto");
 
 const isValidUrl = (value) => {
-	if (!value) return false;
-	try {
-		const url = new URL(String(value).trim());
-		return url.protocol === "http:" || url.protocol === "https:";
-	} catch (err) {
-		return false;
-	}
+  if (!value) return false;
+  try {
+    const url = new URL(String(value).trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch (err) {
+    return false;
+  }
 };
 
 const hasStrongPassword = (password) => {
-	return typeof password === "string" && /(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password);
+  return (
+    typeof password === "string" &&
+    /(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password)
+  );
 };
 
 // ========================
 // REGISTER
 // ========================
 exports.register = async (req, res) => {
-	if (!req.body || typeof req.body !== "object") {
-		req.body = {};
-	}
+  if (!req.body || typeof req.body !== "object") {
+    req.body = {};
+  }
 
-	if (typeof req.body.data === "string" && req.body.data.trim() !== "") {
-		try {
-			req.body = JSON.parse(req.body.data);
-		} catch (parseErr) {
-			return res.status(400).json({ error: "Invalid JSON in form-data field 'data'" });
-		}
-	}
+  if (typeof req.body.data === "string" && req.body.data.trim() !== "") {
+    try {
+      req.body = JSON.parse(req.body.data);
+    } catch (parseErr) {
+      return res
+        .status(400)
+        .json({ error: "Invalid JSON in form-data field 'data'" });
+    }
+  }
 
-	const {
-		first_name,
-		last_name,
-		email,
-		password,
-		confirm_password,
-		role,
-		phone_number,
-		founder_full_name,
-		startup_name,
-		industry,
-		startup_tagline,
-		business_stage,
-		startup_type,
-		founded_year,
-		region,
-		city,
-		team_size,
-		founder_role,
-		website,
-		investor_type,
-		investment_stage,
-		startup_stage,
-		investment_range,
-		preferred_industry,
-		location_preference,
-		linked_in_or_website,
-		bio,
-		personal_verification,
-		professional_title,
-		year_of_experience,
-		years_experience,
-		language,
-		languages,
-		expertise_area,
-		professional_bio,
-		linkedin_portfolio,
-		certification_credentials,
-		availability_preference,
-		session_pricing,
-		current_organization,
-		current_title,
-		primary_industry,
-		secondary_industry,
-		city_location,
-		mentor_platform,
-		session_frequency,
-		required_time_slots,
-		mentoring_style,
-		notable_startups_mentored,
-		key_achievement,
-	} = req.body;
+  const {
+    first_name,
+    last_name,
+    email,
+    password,
+    confirm_password,
+    role,
+    phone_number,
+    founder_full_name,
+    startup_name,
+    industry,
+    startup_tagline,
+    business_stage,
+    startup_type,
+    founded_year,
+    region,
+    city,
+    team_size,
+    founder_role,
+    website,
+    investor_type,
+    investment_stage,
+    startup_stage,
+    investment_range,
+    preferred_industry,
+    location_preference,
+    linked_in_or_website,
+    bio,
+    personal_verification,
+    professional_title,
+    year_of_experience,
+    years_experience,
+    language,
+    languages,
+    expertise_area,
+    professional_bio,
+    linkedin_portfolio,
+    certification_credentials,
+    availability_preference,
+    session_pricing,
+    current_organization,
+    current_title,
+    primary_industry,
+    secondary_industry,
+    city_location,
+    mentor_platform,
+    session_frequency,
+    required_time_slots,
+    mentoring_style,
+    notable_startups_mentored,
+    key_achievement,
+  } = req.body;
 
-	// Investor form may send camelCase or an array of industries; normalize for DB + validation.
-	const preferredIndustryResolved = (() => {
-		const v =
-			preferred_industry ??
-			req.body.preferredIndustry ??
-			req.body.preferred_industries ??
-			req.body.preferredIndustries;
-		if (v == null || v === "") return null;
-		if (Array.isArray(v)) {
-			return v.map((x) => String(x).trim()).filter(Boolean).join(", ") || null;
-		}
-		const s = String(v).trim();
-		return s || null;
-	})();
+  // Investor form may send camelCase or an array of industries; normalize for DB + validation.
+  const preferredIndustryResolved = (() => {
+    const v =
+      preferred_industry ??
+      req.body.preferredIndustry ??
+      req.body.preferred_industries ??
+      req.body.preferredIndustries;
+    if (v == null || v === "") return null;
+    if (Array.isArray(v)) {
+      return (
+        v
+          .map((x) => String(x).trim())
+          .filter(Boolean)
+          .join(", ") || null
+      );
+    }
+    const s = String(v).trim();
+    return s || null;
+  })();
 
-	const allowedRoles = ["Startup", "Investor", "Mentor"];
-	let mentorResolved = null;
+  const allowedRoles = ["Startup", "Investor", "Mentor"];
+  let mentorResolved = null;
 
-	try {
-		// Basic validation
-		if (!first_name || !last_name || !email || !password || !confirm_password || !role) {
-			return res.status(400).json({
-				message:
-					"first_name, last_name, email, password, confirm_password and role are required",
-			});
-		}
+  try {
+    // Basic validation
+    if (
+      !first_name ||
+      !last_name ||
+      !email ||
+      !password ||
+      !confirm_password ||
+      !role
+    ) {
+      return res.status(400).json({
+        message:
+          "first_name, last_name, email, password, confirm_password and role are required",
+      });
+    }
 
-		if (password !== confirm_password) {
-			return res.status(400).json({ message: "Password and confirm password must match" });
-		}
+    if (password !== confirm_password) {
+      return res
+        .status(400)
+        .json({ message: "Password and confirm password must match" });
+    }
 
-		if (!hasStrongPassword(password)) {
-			return res.status(400).json({
-				message:
-					"Password must be at least 8 characters and include 1 capital letter, 1 special character, and 1 number",
-			});
-		}
+    if (!hasStrongPassword(password)) {
+      return res.status(400).json({
+        message:
+          "Password must be at least 8 characters and include 1 capital letter, 1 special character, and 1 number",
+      });
+    }
 
-		const normalizedRole = String(role).trim();
-		if (normalizedRole === "Admin") {
-			return res.status(403).json({
-				message: "Admin accounts cannot be registered. Use admin login instead.",
-			});
-		}
-		if (!allowedRoles.includes(normalizedRole)) {
-			return res.status(400).json({
-				message: "Role must be one of Startup, Investor, or Mentor",
-			});
-		}
+    const normalizedRole = String(role).trim();
+    if (normalizedRole === "Admin") {
+      return res.status(403).json({
+        message:
+          "Admin accounts cannot be registered. Use admin login instead.",
+      });
+    }
+    if (!allowedRoles.includes(normalizedRole)) {
+      return res.status(400).json({
+        message: "Role must be one of Startup, Investor, or Mentor",
+      });
+    }
 
-		// Startup-specific validation
-		if (normalizedRole === "Startup") {
-			if (
-				!phone_number ||
-				!founder_full_name ||
-				!startup_name ||
-				!industry ||
-				!startup_tagline ||
-				!business_stage ||
-				!startup_type ||
-				!founded_year ||
-				!region ||
-				!city ||
-				(team_size === undefined || team_size === null || team_size === "") ||
-				!founder_role
-			) {
-				return res.status(400).json({
-					message:
-						"Startup registration requires founder_full_name, phone_number, startup_name, industry, startup_tagline, business_stage, startup_type, founded_year, region, city, team_size, and founder_role",
-				});
-			}
+    // Startup-specific validation
+    if (normalizedRole === "Startup") {
+      if (
+        !phone_number ||
+        !founder_full_name ||
+        !startup_name ||
+        !industry ||
+        !startup_tagline ||
+        !business_stage ||
+        !startup_type ||
+        !founded_year ||
+        !region ||
+        !city ||
+        team_size === undefined ||
+        team_size === null ||
+        team_size === "" ||
+        !founder_role
+      ) {
+        return res.status(400).json({
+          message:
+            "Startup registration requires founder_full_name, phone_number, startup_name, industry, startup_tagline, business_stage, startup_type, founded_year, region, city, team_size, and founder_role",
+        });
+      }
 
-			if (!req.files || !req.files.founder_id || !req.files.founder_id.length) {
-				return res.status(400).json({
-					message: "Founder or representative ID file is required for Startup registration",
-				});
-			}
+      if (!req.files || !req.files.founder_id || !req.files.founder_id.length) {
+        return res.status(400).json({
+          message:
+            "Founder or representative ID file is required for Startup registration",
+        });
+      }
 
-			if (
-				!req.files ||
-				!req.files.business_registration_proof ||
-				!req.files.business_registration_proof.length
-			) {
-				return res.status(400).json({
-					message: "Business registration proof file is required for Startup registration",
-				});
-			}
-		}
+      if (
+        !req.files ||
+        !req.files.business_registration_proof ||
+        !req.files.business_registration_proof.length
+      ) {
+        return res.status(400).json({
+          message:
+            "Business registration proof file is required for Startup registration",
+        });
+      }
+    }
 
-		// Investor-specific validation
-		if (normalizedRole === "Investor") {
-			const chosenInvestmentStage = investment_stage || startup_stage;
-			if (
-				!phone_number ||
-				!investor_type ||
-				!preferredIndustryResolved ||
-				!chosenInvestmentStage ||
-				!investment_range ||
-				!location_preference ||
-				!linked_in_or_website ||
-				!bio ||
-				!personal_verification
-			) {
-				return res.status(400).json({
-					message:
-						"Investor registration requires investor_type, preferred_industry, investment_stage, investment_range, location_preference, linked_in_or_website, bio, and personal_verification",
-				});
-			}
+    // Investor-specific validation
+    if (normalizedRole === "Investor") {
+      const chosenInvestmentStage = investment_stage || startup_stage;
+      if (
+        !phone_number ||
+        !investor_type ||
+        !preferredIndustryResolved ||
+        !chosenInvestmentStage ||
+        !investment_range ||
+        !location_preference ||
+        !linked_in_or_website ||
+        !bio ||
+        !personal_verification
+      ) {
+        return res.status(400).json({
+          message:
+            "Investor registration requires investor_type, preferred_industry, investment_stage, investment_range, location_preference, linked_in_or_website, bio, and personal_verification",
+        });
+      }
 
-			if (!isValidUrl(linked_in_or_website)) {
-				return res.status(400).json({
-					message: "linked_in_or_website must be a valid URL starting with http:// or https://",
-				});
-			}
+      if (!isValidUrl(linked_in_or_website)) {
+        return res.status(400).json({
+          message:
+            "linked_in_or_website must be a valid URL starting with http:// or https://",
+        });
+      }
 
-			if (!req.files || !req.files.registration_doc || !req.files.registration_doc.length) {
-				return res.status(400).json({
-					message: "Registration document file is required for Investor registration",
-				});
-			}
+      if (
+        !req.files ||
+        !req.files.registration_doc ||
+        !req.files.registration_doc.length
+      ) {
+        return res.status(400).json({
+          message:
+            "Registration document file is required for Investor registration",
+        });
+      }
 
-			if (!req.files || !req.files.trade_license || !req.files.trade_license.length) {
-				return res.status(400).json({
-					message: "Trade license file is required for Investor registration",
-				});
-			}
+      if (
+        !req.files ||
+        !req.files.trade_license ||
+        !req.files.trade_license.length
+      ) {
+        return res.status(400).json({
+          message: "Trade license file is required for Investor registration",
+        });
+      }
 
-			if (!req.files || !req.files.tin_certificate || !req.files.tin_certificate.length) {
-				return res.status(400).json({
-					message: "TIN certificate file is required for Investor registration",
-				});
-			}
-		}
+      if (
+        !req.files ||
+        !req.files.tin_certificate ||
+        !req.files.tin_certificate.length
+      ) {
+        return res.status(400).json({
+          message: "TIN certificate file is required for Investor registration",
+        });
+      }
+    }
 
-		if (normalizedRole === "Mentor") {
-			const str = (v) => (v == null ? "" : String(v).trim());
-			const mentorTitle =
-				str(professional_title) ||
-				str(req.body.professionalTitle) ||
-				"";
-			const mentorYearsRaw =
-				year_of_experience ?? years_experience ?? req.body.yearOfExperience ?? req.body.yearsOfExperience;
-			const rawLang =
-				language ?? languages ?? req.body.language ?? req.body.languages;
-			const mentorLanguages = str(rawLang);
-			const mentorExpertise = str(expertise_area) || str(req.body.expertiseArea) || "";
-			const mentorBio = str(professional_bio) || str(req.body.professionalBio) || "";
-			const mentorLinkedin =
-				str(linkedin_portfolio) ||
-				str(req.body.linkedinPortfolio) ||
-				str(req.body.linkedInOrPortfolio) ||
-				"";
-			const mentorCertsText =
-				str(certification_credentials) || str(req.body.certificationCredentials) || "";
+    if (normalizedRole === "Mentor") {
+      const str = (v) => (v == null ? "" : String(v).trim());
+      const mentorTitle =
+        str(professional_title) || str(req.body.professionalTitle) || "";
+      const mentorYearsRaw =
+        year_of_experience ??
+        years_experience ??
+        req.body.yearOfExperience ??
+        req.body.yearsOfExperience;
+      const rawLang =
+        language ?? languages ?? req.body.language ?? req.body.languages;
+      const mentorLanguages = str(rawLang);
+      const mentorExpertise =
+        str(expertise_area) || str(req.body.expertiseArea) || "";
+      const mentorBio =
+        str(professional_bio) || str(req.body.professionalBio) || "";
+      const mentorLinkedin =
+        str(linkedin_portfolio) ||
+        str(req.body.linkedinPortfolio) ||
+        str(req.body.linkedInOrPortfolio) ||
+        "";
+      const mentorCertsText =
+        str(certification_credentials) ||
+        str(req.body.certificationCredentials) ||
+        "";
 
-			if (mentorLinkedin && !isValidUrl(mentorLinkedin)) {
-				return res.status(400).json({
-					message: "linkedin_portfolio must be a valid URL starting with http:// or https://",
-				});
-			}
-			const mentorAvailPref =
-				str(availability_preference) || str(req.body.availabilityPreference) || "";
-			const mentorSessionPrice = session_pricing ?? req.body.sessionPricing;
-			const mentorOrg = str(current_organization) || str(req.body.currentOrganization) || "";
-			const mentorJobTitle = str(current_title) || str(req.body.currentTitle) || "";
-			const mentorPrimaryInd = str(primary_industry) || str(req.body.primaryIndustry) || "";
-			const mentorSecondaryRaw =
-				str(secondary_industry) || str(req.body.secondaryIndustry) || "";
-			const mentorSecondaryInd = mentorSecondaryRaw || null;
-			const mentorCity =
-				str(city_location) || str(req.body.cityLocation) || str(req.body.city) || "";
-			const mentorPlatform = str(mentor_platform) || str(req.body.mentorPlatform) || "";
-			const mentorSessionFreq = str(session_frequency) || str(req.body.sessionFrequency) || "";
-			const mentorTimeSlots = required_time_slots ?? req.body.requiredTimeSlots;
-			const mentorStyle = str(mentoring_style) || str(req.body.mentoringStyle) || "";
-			const mentorNotable =
-				str(notable_startups_mentored) || str(req.body.notableStartupsMentored) || "";
-			const mentorKeyAch = str(key_achievement) || str(req.body.keyAchievement) || "";
+      if (mentorLinkedin && !isValidUrl(mentorLinkedin)) {
+        return res.status(400).json({
+          message:
+            "linkedin_portfolio must be a valid URL starting with http:// or https://",
+        });
+      }
+      const mentorAvailPref =
+        str(availability_preference) ||
+        str(req.body.availabilityPreference) ||
+        "";
+      const mentorSessionPrice = session_pricing ?? req.body.sessionPricing;
+      const mentorOrg =
+        str(current_organization) || str(req.body.currentOrganization) || "";
+      const mentorJobTitle =
+        str(current_title) || str(req.body.currentTitle) || "";
+      const mentorPrimaryInd =
+        str(primary_industry) || str(req.body.primaryIndustry) || "";
+      const mentorSecondaryRaw =
+        str(secondary_industry) || str(req.body.secondaryIndustry) || "";
+      const mentorSecondaryInd = mentorSecondaryRaw || null;
+      const mentorCity =
+        str(city_location) ||
+        str(req.body.cityLocation) ||
+        str(req.body.city) ||
+        "";
+      const mentorPlatform =
+        str(mentor_platform) || str(req.body.mentorPlatform) || "";
+      const mentorStartupStage =
+        str(startup_stage) || str(req.body.startupStage) || "";
+      const mentorStyle =
+        str(mentoring_style) || str(req.body.mentoringStyle) || "";
+      const mentorNotable =
+        str(notable_startups_mentored) ||
+        str(req.body.notableStartupsMentored) ||
+        "";
+      const mentorKeyAch =
+        str(key_achievement) || str(req.body.keyAchievement) || "";
 
-			if (
-				!phone_number ||
-				!mentorTitle ||
-				mentorYearsRaw === undefined ||
-				mentorYearsRaw === null ||
-				mentorYearsRaw === "" ||
-				!mentorLanguages ||
-				!mentorExpertise ||
-				!mentorBio ||
-				!mentorLinkedin ||
-				!mentorCertsText ||
-				!mentorAvailPref ||
-				mentorSessionPrice === undefined ||
-				mentorSessionPrice === null ||
-				mentorSessionPrice === "" ||
-				!mentorOrg ||
-				!mentorJobTitle ||
-				!mentorPrimaryInd ||
-				!mentorCity ||
-				!mentorPlatform ||
-				!mentorSessionFreq ||
-				mentorTimeSlots === undefined ||
-				mentorTimeSlots === null ||
-				(typeof mentorTimeSlots === "string" && mentorTimeSlots.trim() === "") ||
-				!mentorStyle ||
-				!mentorNotable ||
-				!mentorKeyAch
-			) {
-				return res.status(400).json({
-					message:
-						"Mentor registration requires phone_number, professional_title, year_of_experience, language(s), expertise_area, professional_bio, linkedin_portfolio, certification_credentials, availability_preference, session_pricing, current_organization, current_title, primary_industry, city_location, mentor_platform, session_frequency, required_time_slots, mentoring_style, notable_startups_mentored, and key_achievement",
-				});
-			}
+      const allowedStartupStages = [
+        "Idea Stage",
+        "Pre-Seed",
+        "Seed",
+        "Early Growth",
+      ];
+      if (!allowedStartupStages.includes(mentorStartupStage)) {
+        return res.status(400).json({
+          message:
+            "startup_stage must be one of Idea Stage, Pre-Seed, Seed, or Early Growth",
+        });
+      }
 
-			const parsedMentorYears = Number(mentorYearsRaw);
-			if (!Number.isInteger(parsedMentorYears) || parsedMentorYears < 0) {
-				return res.status(400).json({
-					message: "year_of_experience must be a non-negative integer",
-				});
-			}
+      if (
+        !phone_number ||
+        !mentorTitle ||
+        mentorYearsRaw === undefined ||
+        mentorYearsRaw === null ||
+        mentorYearsRaw === "" ||
+        !mentorLanguages ||
+        !mentorExpertise ||
+        !mentorBio ||
+        !mentorLinkedin ||
+        mentorSessionPrice === undefined ||
+        mentorSessionPrice === null ||
+        mentorSessionPrice === "" ||
+        !mentorOrg ||
+        !mentorJobTitle ||
+        !mentorPrimaryInd ||
+        !mentorCity ||
+        !mentorPlatform ||
+        !mentorStartupStage ||
+        !mentorStyle ||
+        !mentorNotable ||
+        !mentorKeyAch
+      ) {
+        return res.status(400).json({
+          message:
+            "Mentor registration requires phone_number, professional_title, year_of_experience, language(s), expertise_area, professional_bio, linkedin_portfolio, availability_preference, session_pricing, current_organization, current_title, primary_industry, city_location, mentor_platform, startup_stage, mentoring_style, notable_startups_mentored, and key_achievement",
+        });
+      }
 
-			const parsedSessionPricing = Number(mentorSessionPrice);
-			if (Number.isNaN(parsedSessionPricing) || parsedSessionPricing < 0) {
-				return res.status(400).json({
-					message: "session_pricing must be a valid non-negative number",
-				});
-			}
+      const parsedMentorYears = Number(mentorYearsRaw);
+      if (!Number.isInteger(parsedMentorYears) || parsedMentorYears < 0) {
+        return res.status(400).json({
+          message: "year_of_experience must be a non-negative integer",
+        });
+      }
 
-			// Store as TEXT (same pattern as other text fields; avoids Postgres json/jsonb cast errors from multipart).
-			let requiredTimeSlotsDb = "";
-			if (typeof mentorTimeSlots === "string") {
-				const t = mentorTimeSlots.trim();
-				if (t) {
-					try {
-						const parsed = JSON.parse(t);
-						requiredTimeSlotsDb = JSON.stringify(parsed);
-					} catch {
-						requiredTimeSlotsDb = t;
-					}
-				}
-			} else if (mentorTimeSlots != null && typeof mentorTimeSlots === "object") {
-				requiredTimeSlotsDb = JSON.stringify(mentorTimeSlots);
-			}
+      const parsedSessionPricing = Number(mentorSessionPrice);
+      if (!Number.isInteger(parsedSessionPricing) || parsedSessionPricing < 0) {
+        return res.status(400).json({
+          message: "session_pricing must be a valid non-negative integer",
+        });
+      }
 
-			const slotsBad =
-				!requiredTimeSlotsDb.trim() ||
-				requiredTimeSlotsDb.trim() === "[]" ||
-				requiredTimeSlotsDb.trim() === "{}";
-			if (slotsBad) {
-				return res.status(400).json({
-					message:
-						"required_time_slots is required: use plain text (e.g. Mon/Wed 6–8pm) or valid JSON array/object as a string",
-				});
-			}
+      mentorResolved = {
+        professionalTitle: mentorTitle,
+        yearsExperience: parsedMentorYears,
+        languagesStr: mentorLanguages,
+        expertiseArea: mentorExpertise,
+        professionalBio: mentorBio,
+        linkedinOrPortfolio: mentorLinkedin,
+        certificationCredentials: mentorCertsText,
+        availabilityPreference: mentorAvailPref,
+        sessionPricing: parsedSessionPricing,
+        currentOrganization: mentorOrg,
+        currentTitle: mentorJobTitle,
+        primaryIndustry: mentorPrimaryInd,
+        secondaryIndustry: mentorSecondaryInd,
+        startupStage: mentorStartupStage,
+        cityLocation: mentorCity,
+        mentorPlatform: mentorPlatform,
+        sessionFrequency: null,
+        requiredTimeSlotsDb: null,
+        mentoringStyle: mentorStyle,
+        notableStartupsMentored: mentorNotable,
+        keyAchievement: mentorKeyAch,
+      };
+    }
 
-			mentorResolved = {
-				professionalTitle: mentorTitle,
-				yearsExperience: parsedMentorYears,
-				languagesStr: mentorLanguages,
-				expertiseArea: mentorExpertise,
-				professionalBio: mentorBio,
-				linkedinOrPortfolio: mentorLinkedin,
-				certificationCredentials: mentorCertsText,
-				availabilityPreference: mentorAvailPref,
-				sessionPricing: parsedSessionPricing,
-				currentOrganization: mentorOrg,
-				currentTitle: mentorJobTitle,
-				primaryIndustry: mentorPrimaryInd,
-				secondaryIndustry: mentorSecondaryInd,
-				cityLocation: mentorCity,
-				mentorPlatform: mentorPlatform,
-				sessionFrequency: mentorSessionFreq,
-				requiredTimeSlotsDb,
-				mentoringStyle: mentorStyle,
-				notableStartupsMentored: mentorNotable,
-				keyAchievement: mentorKeyAch,
-			};
-		}
+    // Check if user already exists
+    const existingUser = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email],
+    );
 
-		// Check if user already exists
-		const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ message: "User already exists" });
+    }
 
-		if (existingUser.rows.length > 0) {
-			return res.status(409).json({ message: "User already exists" });
-		}
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-		const client = await pool.connect();
-		try {
-			await client.query("BEGIN");
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-			// Hash password
-			const hashedPassword = await bcrypt.hash(password, 10);
-
-			const userInsertResult = await client.query(
-				`INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number)
+      const userInsertResult = await client.query(
+        `INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING user_id, first_name, last_name, email, role, is_approved`,
-				[first_name, last_name, email, hashedPassword, normalizedRole, phone_number || null],
-			);
+        [
+          first_name,
+          last_name,
+          email,
+          hashedPassword,
+          normalizedRole,
+          phone_number || null,
+        ],
+      );
 
-			const user = userInsertResult.rows[0];
+      const user = userInsertResult.rows[0];
 
-			let startupProfile = null;
-			let investorProfile = null;
-			let mentorProfile = null;
+      let startupProfile = null;
+      let investorProfile = null;
+      let mentorProfile = null;
 
-		const saveDoc = async (entityType, entityId, file, documentType) => {
-			if (!file) return null;
-			const fileBuffer = file.buffer;
-			const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
-			const storagePath = `db://documents/${entityType}/${entityId}/${crypto.randomBytes(16).toString("hex")}`;
-			const fkColumn =
-				entityType === "startup"
-					? "startup_id"
-					: entityType === "investor"
-						? "investor_id"
-						: entityType === "mentor"
-							? "mentor_id"
-							: null;
-			if (!fkColumn) {
-				throw new Error(`Unsupported document owner type: ${entityType}`);
-			}
-			const result = await client.query(
-				`INSERT INTO documents (${fkColumn}, file_name, file_path, file_type, file_size_bytes, file_hash, file_data, description, created_at)
+      const saveDoc = async (entityType, entityId, file, documentType) => {
+        if (!file) return null;
+        const fileBuffer = file.buffer;
+        const fileHash = crypto
+          .createHash("sha256")
+          .update(fileBuffer)
+          .digest("hex");
+        const storagePath = `db://documents/${entityType}/${entityId}/${crypto.randomBytes(16).toString("hex")}`;
+        const fkColumn =
+          entityType === "startup"
+            ? "startup_id"
+            : entityType === "investor"
+              ? "investor_id"
+              : entityType === "mentor"
+                ? "mentor_id"
+                : null;
+        if (!fkColumn) {
+          throw new Error(`Unsupported document owner type: ${entityType}`);
+        }
+        const result = await client.query(
+          `INSERT INTO documents (${fkColumn}, file_name, file_path, file_type, file_size_bytes, file_hash, file_data, description, created_at)
               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_TIMESTAMP)
               RETURNING document_id`,
-				[
-					entityId,
-					file.originalname,
-					storagePath,
-					file.mimetype,
-					file.size,
-					fileHash,
-					fileBuffer,
-					documentType,
-				],
-			);
-			return {
-				document_id: result.rows[0].document_id,
-				document_type: documentType,
-				file_name: file.originalname,
-				file_path: storagePath,
-				file_type: file.mimetype,
-				file_size_bytes: file.size,
-				file_hash: fileHash,
-				created_at: new Date().toISOString(),
-			};
-		};
+          [
+            entityId,
+            file.originalname,
+            storagePath,
+            file.mimetype,
+            file.size,
+            fileHash,
+            fileBuffer,
+            documentType,
+          ],
+        );
+        return {
+          document_id: result.rows[0].document_id,
+          document_type: documentType,
+          file_name: file.originalname,
+          file_path: storagePath,
+          file_type: file.mimetype,
+          file_size_bytes: file.size,
+          file_hash: fileHash,
+          created_at: new Date().toISOString(),
+        };
+      };
 
-			if (normalizedRole === "Startup") {
-				const parsedFoundedYear = Number(founded_year);
-				const parsedTeamSize = Number(team_size);
+      if (normalizedRole === "Startup") {
+        const parsedFoundedYear = Number(founded_year);
+        const parsedTeamSize = Number(team_size);
 
-				if (!Number.isInteger(parsedFoundedYear) || parsedFoundedYear < 1900 || parsedFoundedYear > 2100) {
-					throw new Error("founded_year must be an integer between 1900 and 2100");
-				}
+        if (
+          !Number.isInteger(parsedFoundedYear) ||
+          parsedFoundedYear < 1900 ||
+          parsedFoundedYear > 2100
+        ) {
+          throw new Error(
+            "founded_year must be an integer between 1900 and 2100",
+          );
+        }
 
-				if (!Number.isInteger(parsedTeamSize) || parsedTeamSize < 0) {
-					throw new Error("team_size must be a non-negative integer");
-				}
+        if (!Number.isInteger(parsedTeamSize) || parsedTeamSize < 0) {
+          throw new Error("team_size must be a non-negative integer");
+        }
 
-				const uploadedDocs = [];
+        const uploadedDocs = [];
 
-				const startupInsertResult = await client.query(
-					`INSERT INTO startups (
+        const startupInsertResult = await client.query(
+          `INSERT INTO startups (
             user_id,
             founder_full_name,
             startup_name,
@@ -473,73 +531,88 @@ exports.register = async (req, res) => {
             uploaded_documents
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
           RETURNING *`,
-				[
-					user.user_id,
-					founder_full_name,
-					startup_name,
-					industry,
-					startup_tagline,
-					business_stage,
-					startup_type,
-					(parsedFoundedYear),
-					region,
-					city,
-					parsedTeamSize,
-					founder_role,
-					`${region}, ${city}`,
-					website || null,
-					null,
-				],
-				);
+          [
+            user.user_id,
+            founder_full_name,
+            startup_name,
+            industry,
+            startup_tagline,
+            business_stage,
+            startup_type,
+            parsedFoundedYear,
+            region,
+            city,
+            parsedTeamSize,
+            founder_role,
+            `${region}, ${city}`,
+            website || null,
+            null,
+          ],
+        );
 
-				startupProfile = startupInsertResult.rows[0];
+        startupProfile = startupInsertResult.rows[0];
 
-				uploadedDocs.push(
-					await saveDoc("startup", startupProfile.startup_id, req.files.founder_id[0], "Founder or representative ID"),
-				);
-				uploadedDocs.push(
-					await saveDoc(
-						"startup",
-						startupProfile.startup_id,
-						req.files.business_registration_proof[0],
-						"Business registration proof",
-					),
-				);
-				if (req.files.support_affiliation_letter && req.files.support_affiliation_letter.length) {
-					uploadedDocs.push(
-						await saveDoc(
-							"startup",
-							startupProfile.startup_id,
-							req.files.support_affiliation_letter[0],
-							"Support or affiliation letter",
-						),
-					);
-				}
-				if (req.files.tin_certificate && req.files.tin_certificate.length) {
-					uploadedDocs.push(
-						await saveDoc("startup", startupProfile.startup_id, req.files.tin_certificate[0], "TIN certificate"),
-					);
-				}
+        uploadedDocs.push(
+          await saveDoc(
+            "startup",
+            startupProfile.startup_id,
+            req.files.founder_id[0],
+            "Founder or representative ID",
+          ),
+        );
+        uploadedDocs.push(
+          await saveDoc(
+            "startup",
+            startupProfile.startup_id,
+            req.files.business_registration_proof[0],
+            "Business registration proof",
+          ),
+        );
+        if (
+          req.files.support_affiliation_letter &&
+          req.files.support_affiliation_letter.length
+        ) {
+          uploadedDocs.push(
+            await saveDoc(
+              "startup",
+              startupProfile.startup_id,
+              req.files.support_affiliation_letter[0],
+              "Support or affiliation letter",
+            ),
+          );
+        }
+        if (req.files.tin_certificate && req.files.tin_certificate.length) {
+          uploadedDocs.push(
+            await saveDoc(
+              "startup",
+              startupProfile.startup_id,
+              req.files.tin_certificate[0],
+              "TIN certificate",
+            ),
+          );
+        }
 
-				if (uploadedDocs.length) {
-					await client.query(
-						"UPDATE startups SET uploaded_documents = $1 WHERE startup_id = $2",
-						[JSON.stringify(uploadedDocs), startupProfile.startup_id],
-					);
-					startupProfile.uploaded_documents = uploadedDocs;
-				}
-			}
+        if (uploadedDocs.length) {
+          await client.query(
+            "UPDATE startups SET uploaded_documents = $1 WHERE startup_id = $2",
+            [JSON.stringify(uploadedDocs), startupProfile.startup_id],
+          );
+          startupProfile.uploaded_documents = uploadedDocs;
+        }
+      }
 
-			if (normalizedRole === "Investor") {
-				const chosenInvestmentStage = investment_stage || startup_stage;
-				const parsedInvestmentRange = Number(investment_range);
-				if (Number.isNaN(parsedInvestmentRange) || parsedInvestmentRange < 0) {
-					throw new Error("investment_range must be a valid non-negative number");
-				}
+      if (normalizedRole === "Investor") {
+        const chosenInvestmentStage = investment_stage || startup_stage;
+        const parsedInvestmentRange = Number(investment_range);
+        if (Number.isNaN(parsedInvestmentRange) || parsedInvestmentRange < 0) {
+          throw new Error(
+            "investment_range must be a valid non-negative number",
+          );
+        }
 
-				const uploadedDocs = [];
-				const investorInsertResult = await client.query(
-					`INSERT INTO investors (
+        const uploadedDocs = [];
+        const investorInsertResult = await client.query(
+          `INSERT INTO investors (
             user_id,
             investor_type,
             preferred_industry,
@@ -552,40 +625,61 @@ exports.register = async (req, res) => {
             uploaded_documents
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
           RETURNING *`,
-				[
-					user.user_id,
-					investor_type,
-					preferredIndustryResolved,
-					chosenInvestmentStage,
-					parsedInvestmentRange,
-					location_preference,
-					linked_in_or_website,
-					bio,
-					personal_verification,
-					null,
-				],
-				);
+          [
+            user.user_id,
+            investor_type,
+            preferredIndustryResolved,
+            chosenInvestmentStage,
+            parsedInvestmentRange,
+            location_preference,
+            linked_in_or_website,
+            bio,
+            personal_verification,
+            null,
+          ],
+        );
 
-				investorProfile = investorInsertResult.rows[0];
+        investorProfile = investorInsertResult.rows[0];
 
-				uploadedDocs.push(await saveDoc("investor", investorProfile.investor_id, req.files.registration_doc[0], "Registration document"));
-				uploadedDocs.push(await saveDoc("investor", investorProfile.investor_id, req.files.trade_license[0], "Trade license"));
-				uploadedDocs.push(await saveDoc("investor", investorProfile.investor_id, req.files.tin_certificate[0], "TIN certificate"));
+        uploadedDocs.push(
+          await saveDoc(
+            "investor",
+            investorProfile.investor_id,
+            req.files.registration_doc[0],
+            "Registration document",
+          ),
+        );
+        uploadedDocs.push(
+          await saveDoc(
+            "investor",
+            investorProfile.investor_id,
+            req.files.trade_license[0],
+            "Trade license",
+          ),
+        );
+        uploadedDocs.push(
+          await saveDoc(
+            "investor",
+            investorProfile.investor_id,
+            req.files.tin_certificate[0],
+            "TIN certificate",
+          ),
+        );
 
-				const savedInvestorDocs = uploadedDocs.filter(Boolean);
-				if (savedInvestorDocs.length) {
-					await client.query(
-						"UPDATE investors SET uploaded_documents = $1 WHERE investor_id = $2",
-						[JSON.stringify(savedInvestorDocs), investorProfile.investor_id],
-					);
-					investorProfile.uploaded_documents = savedInvestorDocs;
-				}
-			}
+        const savedInvestorDocs = uploadedDocs.filter(Boolean);
+        if (savedInvestorDocs.length) {
+          await client.query(
+            "UPDATE investors SET uploaded_documents = $1 WHERE investor_id = $2",
+            [JSON.stringify(savedInvestorDocs), investorProfile.investor_id],
+          );
+          investorProfile.uploaded_documents = savedInvestorDocs;
+        }
+      }
 
-			if (normalizedRole === "Mentor" && mentorResolved) {
-				const m = mentorResolved;
-				const mentorInsertResult = await client.query(
-					`INSERT INTO mentors (
+      if (normalizedRole === "Mentor" && mentorResolved) {
+        const m = mentorResolved;
+        const mentorInsertResult = await client.query(
+          `INSERT INTO mentors (
             user_id,
             headline,
             expertise,
@@ -604,6 +698,7 @@ exports.register = async (req, res) => {
             current_title,
             primary_industry,
             secondary_industry,
+            startup_stage,
             city_location,
             mentor_platform,
             session_frequency,
@@ -613,338 +708,382 @@ exports.register = async (req, res) => {
             key_achievement,
             uploaded_documents
           ) VALUES (
-            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
           )
           RETURNING *`,
-					[
-						user.user_id,
-						m.professionalTitle,
-						m.expertiseArea,
-						m.yearsExperience,
-						m.sessionPricing,
-						null,
-						m.professionalBio,
-						null,
-						m.professionalTitle,
-						m.languagesStr,
-						m.linkedinOrPortfolio,
-						m.certificationCredentials,
-						m.availabilityPreference,
-						m.sessionPricing,
-						m.currentOrganization,
-						m.currentTitle,
-						m.primaryIndustry,
-						m.secondaryIndustry,
-						m.cityLocation,
-						m.mentorPlatform,
-						m.sessionFrequency,
-						m.requiredTimeSlotsDb,
-						m.mentoringStyle,
-						m.notableStartupsMentored,
-						m.keyAchievement,
-						null,
-					],
-				);
+          [
+            user.user_id,
+            m.professionalTitle,
+            m.expertiseArea,
+            m.yearsExperience,
+            m.sessionPricing,
+            null,
+            m.professionalBio,
+            null,
+            m.professionalTitle,
+            m.languagesStr,
+            m.linkedinOrPortfolio,
+            m.certificationCredentials,
+            m.availabilityPreference,
+            m.sessionPricing,
+            m.currentOrganization,
+            m.currentTitle,
+            m.primaryIndustry,
+            m.secondaryIndustry,
+            m.startupStage,
+            m.cityLocation,
+            m.mentorPlatform,
+            m.sessionFrequency,
+            m.requiredTimeSlotsDb,
+            m.mentoringStyle,
+            m.notableStartupsMentored,
+            m.keyAchievement,
+            null,
+          ],
+        );
 
-				mentorProfile = mentorInsertResult.rows[0];
+        mentorProfile = mentorInsertResult.rows[0];
 
-				const mentorDocMeta = [];
-				if (req.files && req.files.mentor_id && req.files.mentor_id.length) {
-					mentorDocMeta.push(
-						await saveDoc("mentor", mentorProfile.mentor_id, req.files.mentor_id[0], "Government-issued ID"),
-					);
-				}
-				if (req.files && req.files.intro_video && req.files.intro_video.length) {
-					mentorDocMeta.push(
-						await saveDoc("mentor", mentorProfile.mentor_id, req.files.intro_video[0], "Introduction video"),
-					);
-				}
-				if (req.files && req.files.certifications && req.files.certifications.length) {
-					for (const certFile of req.files.certifications) {
-						mentorDocMeta.push(
-							await saveDoc(
-								"mentor",
-								mentorProfile.mentor_id,
-								certFile,
-								"Certification or credential file",
-							),
-						);
-					}
-				}
+        const mentorDocMeta = [];
+        if (req.files && req.files.mentor_id && req.files.mentor_id.length) {
+          mentorDocMeta.push(
+            await saveDoc(
+              "mentor",
+              mentorProfile.mentor_id,
+              req.files.mentor_id[0],
+              "Government-issued ID",
+            ),
+          );
+        }
+        if (
+          req.files &&
+          req.files.intro_video &&
+          req.files.intro_video.length
+        ) {
+          mentorDocMeta.push(
+            await saveDoc(
+              "mentor",
+              mentorProfile.mentor_id,
+              req.files.intro_video[0],
+              "Introduction video",
+            ),
+          );
+        }
+        if (
+          req.files &&
+          req.files.certifications &&
+          req.files.certifications.length
+        ) {
+          for (const certFile of req.files.certifications) {
+            mentorDocMeta.push(
+              await saveDoc(
+                "mentor",
+                mentorProfile.mentor_id,
+                certFile,
+                "Certification or credential file",
+              ),
+            );
+          }
+        }
 
-				const savedMentorDocs = mentorDocMeta.filter(Boolean);
-				if (savedMentorDocs.length) {
-					await client.query(
-						"UPDATE mentors SET uploaded_documents = $1 WHERE mentor_id = $2",
-						[JSON.stringify(savedMentorDocs), mentorProfile.mentor_id],
-					);
-					mentorProfile.uploaded_documents = savedMentorDocs;
-				}
-			}
+        const savedMentorDocs = mentorDocMeta.filter(Boolean);
+        if (savedMentorDocs.length) {
+          await client.query(
+            "UPDATE mentors SET uploaded_documents = $1 WHERE mentor_id = $2",
+            [JSON.stringify(savedMentorDocs), mentorProfile.mentor_id],
+          );
+          mentorProfile.uploaded_documents = savedMentorDocs;
+        }
+      }
 
-			// Get all admins and notify them
-			const adminsRes = await client.query("SELECT user_id FROM users WHERE role = 'Admin'");
-			const admins = adminsRes.rows;
+      // Get all admins and notify them
+      const adminsRes = await client.query(
+        "SELECT user_id FROM users WHERE role = 'Admin'",
+      );
+      const admins = adminsRes.rows;
 
-			for (const admin of admins) {
-				// Insert registration notification
-				await client.query(
-					`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+      for (const admin of admins) {
+        // Insert registration notification
+        await client.query(
+          `INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
 					 VALUES ($1, 'registration', $2, $3, 'user', $4)`,
-					[
-						admin.user_id,
-						`New ${normalizedRole} Registered`,
-						`A new ${normalizedRole} account for ${first_name} ${last_name} (${email}) has registered and is pending approval.`,
-						user.user_id
-					]
-				);
+          [
+            admin.user_id,
+            `New ${normalizedRole} Registered`,
+            `A new ${normalizedRole} account for ${first_name} ${last_name} (${email}) has registered and is pending approval.`,
+            user.user_id,
+          ],
+        );
 
-				// Insert verification request notification
-				await client.query(
-					`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+        // Insert verification request notification
+        await client.query(
+          `INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
 					 VALUES ($1, 'verification', $2, $3, 'user', $4)`,
-					[
-						admin.user_id,
-						`Verification Request: ${first_name} ${last_name}`,
-						`${first_name} ${last_name} (${normalizedRole}) has submitted documents for verification.`,
-						user.user_id
-					]
-				);
-			}
+          [
+            admin.user_id,
+            `Verification Request: ${first_name} ${last_name}`,
+            `${first_name} ${last_name} (${normalizedRole}) has submitted documents for verification.`,
+            user.user_id,
+          ],
+        );
+      }
 
-			await client.query("COMMIT");
-			const regMessage =
-				normalizedRole === "Investor"
-					? "Investor user registered successfully. Account pending admin approval."
-					: normalizedRole === "Mentor"
-						? "Mentor user registered successfully. Account pending admin approval."
-						: "Startup user registered successfully. Account pending admin approval.";
-			return res.status(201).json({
-				message: regMessage,
-				user,
-				startup: startupProfile,
-				investor: investorProfile,
-				mentor: mentorProfile,
-			});
-		} catch (err) {
-			await client.query("ROLLBACK");
-			if (err.message.includes("founded_year")) {
-				return res.status(400).json({ message: err.message });
-			}
-			return res.status(500).json({ error: err.message });
-		} finally {
-			client.release();
-		}
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+      await client.query("COMMIT");
+      const regMessage =
+        normalizedRole === "Investor"
+          ? "Investor user registered successfully. Account pending admin approval."
+          : normalizedRole === "Mentor"
+            ? "Mentor user registered successfully. Account pending admin approval."
+            : "Startup user registered successfully. Account pending admin approval.";
+      return res.status(201).json({
+        message: regMessage,
+        user,
+        startup: startupProfile,
+        investor: investorProfile,
+        mentor: mentorProfile,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.message.includes("founded_year")) {
+        return res.status(400).json({ message: err.message });
+      }
+      return res.status(500).json({ error: err.message });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // ========================
 // LOGIN
 // ========================
 exports.login = async (req, res) => {
-	const { email, password } = req.body;
+  const { email, password } = req.body;
 
-	try {
-		// Find user
-		const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-			email,
-		]);
+  try {
+    // Find user
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
-		if (result.rows.length === 0) {
-			return res.status(404).json({ message: "User not found" });
-		}
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-		const user = result.rows[0];
+    const user = result.rows[0];
 
-		// Check password
-		const isMatch = await bcrypt.compare(password, user.password_hash);
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password_hash);
 
-		if (!isMatch) {
-			return res.status(401).json({ message: "Invalid password" });
-		}
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
 
-		if (!user.is_active) {
-			return res.status(403).json({ message: "Account disabled" });
-		}
+    if (!user.is_active) {
+      return res.status(403).json({ message: "Account disabled" });
+    }
 
-		// NOTE: allow login even if not yet admin-approved so user can continue profile creation
-		// Approval gating is enforced by `requireApproval` middleware on protected routes.
+    // NOTE: allow login even if not yet admin-approved so user can continue profile creation
+    // Approval gating is enforced by `requireApproval` middleware on protected routes.
 
-		// Generate access token
-		const token = jwt.sign(
-			{ user_id: user.user_id, role: user.role },
-			JWT_SECRET,
-			{ expiresIn: "1d" },
-		);
+    // Generate access token
+    const token = jwt.sign(
+      { user_id: user.user_id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "1d" },
+    );
 
-		// Create refresh token and persist
-		const refreshToken = crypto.randomBytes(48).toString("hex");
-		const expiresAt = new Date(
-			Date.now() + REFRESH_TOKEN_EXP_DAYS * 24 * 60 * 60 * 1000,
-		);
+    // Create refresh token and persist
+    const refreshToken = crypto.randomBytes(48).toString("hex");
+    const expiresAt = new Date(
+      Date.now() + REFRESH_TOKEN_EXP_DAYS * 24 * 60 * 60 * 1000,
+    );
 
-		const userAgent = req.headers["user-agent"] || "";
-		let device = "Unknown Device";
-		if (/windows/i.test(userAgent)) device = "Windows PC";
-		else if (/macintosh|mac os x/i.test(userAgent)) device = "Mac PC";
-		else if (/iphone|ipad|ipod/i.test(userAgent)) device = "iOS Device";
-		else if (/android/i.test(userAgent)) device = "Android Device";
-		else if (/linux/i.test(userAgent)) device = "Linux PC";
+    const userAgent = req.headers["user-agent"] || "";
+    let device = "Unknown Device";
+    if (/windows/i.test(userAgent)) device = "Windows PC";
+    else if (/macintosh|mac os x/i.test(userAgent)) device = "Mac PC";
+    else if (/iphone|ipad|ipod/i.test(userAgent)) device = "iOS Device";
+    else if (/android/i.test(userAgent)) device = "Android Device";
+    else if (/linux/i.test(userAgent)) device = "Linux PC";
 
-		let browser = "";
-		if (/chrome|crios/i.test(userAgent)) browser = "Chrome";
-		else if (/firefox|fxios/i.test(userAgent)) browser = "Firefox";
-		else if (/safari/i.test(userAgent) && !/chrome|crios/i.test(userAgent)) browser = "Safari";
-		else if (/edge|edg/i.test(userAgent)) browser = "Edge";
+    let browser = "";
+    if (/chrome|crios/i.test(userAgent)) browser = "Chrome";
+    else if (/firefox|fxios/i.test(userAgent)) browser = "Firefox";
+    else if (/safari/i.test(userAgent) && !/chrome|crios/i.test(userAgent))
+      browser = "Safari";
+    else if (/edge|edg/i.test(userAgent)) browser = "Edge";
 
-		if (browser) {
-			device = `${device} (${browser})`;
-		}
+    if (browser) {
+      device = `${device} (${browser})`;
+    }
 
-		const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || req.ip || "127.0.0.1";
-		const ip_address = rawIp.includes("::ffff:") ? rawIp.split("::ffff:")[1] : rawIp;
+    const rawIp =
+      req.headers["x-forwarded-for"] ||
+      req.socket.remoteAddress ||
+      req.ip ||
+      "127.0.0.1";
+    const ip_address = rawIp.includes("::ffff:")
+      ? rawIp.split("::ffff:")[1]
+      : rawIp;
 
-		let location = "Addis Ababa, Ethiopia";
-		if (ip_address === "127.0.0.1" || ip_address === "::1" || ip_address.startsWith("192.168.") || ip_address.startsWith("10.")) {
-			location = "Local Network";
-		}
+    let location = "Addis Ababa, Ethiopia";
+    if (
+      ip_address === "127.0.0.1" ||
+      ip_address === "::1" ||
+      ip_address.startsWith("192.168.") ||
+      ip_address.startsWith("10.")
+    ) {
+      location = "Local Network";
+    }
 
-		await pool.query(
-			`INSERT INTO refresh_tokens (token, user_id, expires_at, revoked, device, ip_address, location)
+    await pool.query(
+      `INSERT INTO refresh_tokens (token, user_id, expires_at, revoked, device, ip_address, location)
 			 VALUES ($1, $2, $3, false, $4, $5, $6)`,
-			[refreshToken, user.user_id, expiresAt, device, ip_address, location],
-		);
+      [refreshToken, user.user_id, expiresAt, device, ip_address, location],
+    );
 
-		return res.json({
-			message: "Login successful 🔐",
-			token,
-			refreshToken,
-			user: { user_id: user.user_id, email: user.email, role: user.role },
-		});
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+    return res.json({
+      message: "Login successful 🔐",
+      token,
+      refreshToken,
+      user: { user_id: user.user_id, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // POST /auth/refresh
 exports.refresh = async (req, res) => {
-	const { refreshToken } = req.body;
-	if (!refreshToken)
-		return res.status(400).json({ message: "refreshToken required" });
+  const { refreshToken } = req.body;
+  if (!refreshToken)
+    return res.status(400).json({ message: "refreshToken required" });
 
-	try {
-		const result = await pool.query(
-			"SELECT * FROM refresh_tokens WHERE token = $1",
-			[refreshToken],
-		);
-		if (result.rows.length === 0)
-			return res.status(401).json({ message: "Invalid refresh token" });
+  try {
+    const result = await pool.query(
+      "SELECT * FROM refresh_tokens WHERE token = $1",
+      [refreshToken],
+    );
+    if (result.rows.length === 0)
+      return res.status(401).json({ message: "Invalid refresh token" });
 
-		const row = result.rows[0];
-		if (row.revoked)
-			return res.status(401).json({ message: "Refresh token revoked" });
-		if (new Date(row.expires_at) < new Date())
-			return res.status(401).json({ message: "Refresh token expired" });
+    const row = result.rows[0];
+    if (row.revoked)
+      return res.status(401).json({ message: "Refresh token revoked" });
+    if (new Date(row.expires_at) < new Date())
+      return res.status(401).json({ message: "Refresh token expired" });
 
-		const userRes = await pool.query(
-			"SELECT user_id, role, is_active, is_approved FROM users WHERE user_id=$1",
-			[row.user_id],
-		);
-		if (userRes.rows.length === 0)
-			return res.status(404).json({ message: "User not found" });
-		const user = userRes.rows[0];
-		if (!user.is_active)
-			return res.status(403).json({ message: "Account disabled" });
-		// allow refresh for unapproved users so they can continue profile creation;
-		// requireApproval middleware still protects important endpoints.
+    const userRes = await pool.query(
+      "SELECT user_id, role, is_active, is_approved FROM users WHERE user_id=$1",
+      [row.user_id],
+    );
+    if (userRes.rows.length === 0)
+      return res.status(404).json({ message: "User not found" });
+    const user = userRes.rows[0];
+    if (!user.is_active)
+      return res.status(403).json({ message: "Account disabled" });
+    // allow refresh for unapproved users so they can continue profile creation;
+    // requireApproval middleware still protects important endpoints.
 
-		const token = jwt.sign(
-			{ user_id: user.user_id, role: user.role },
-			JWT_SECRET,
-			{ expiresIn: "1d" },
-		);
-		return res.json({ token });
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+    const token = jwt.sign(
+      { user_id: user.user_id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "1d" },
+    );
+    return res.json({ token });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // POST /auth/logout
 exports.logout = async (req, res) => {
-	const { refreshToken } = req.body;
-	if (!refreshToken)
-		return res.status(400).json({ message: "refreshToken required" });
+  const { refreshToken } = req.body;
+  if (!refreshToken)
+    return res.status(400).json({ message: "refreshToken required" });
 
-	try {
-		await pool.query(
-			"UPDATE refresh_tokens SET revoked = true WHERE token = $1",
-			[refreshToken],
-		);
-		return res.json({ message: "Logged out" });
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+  try {
+    await pool.query(
+      "UPDATE refresh_tokens SET revoked = true WHERE token = $1",
+      [refreshToken],
+    );
+    return res.json({ message: "Logged out" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // PUT /auth/admin/change-password (Admin only)
 // Change password for the authenticated admin and send verification email
 const mail = require("../utils/mail");
 exports.changeAdminPassword = async (req, res) => {
-	const { user_id } = req.user;
-	const { currentPassword, newPassword } = req.body;
+  const { user_id } = req.user;
+  const { currentPassword, newPassword } = req.body;
 
-	try {
-		if (!currentPassword || !newPassword) {
-			return res.status(400).json({ message: "Current and new password are required" });
-		}
+  try {
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Current and new password are required" });
+    }
 
-		// Validate strong password: 8+ chars, uppercase, lowercase, number, special char
-		const hasUppercase = /[A-Z]/.test(newPassword);
-		const hasLowercase = /[a-z]/.test(newPassword);
-		const hasNumber = /\d/.test(newPassword);
-		const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\\|,.<>\/?]/.test(newPassword);
-		const hasLength = newPassword.length >= 8;
+    // Validate strong password: 8+ chars, uppercase, lowercase, number, special char
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasLowercase = /[a-z]/.test(newPassword);
+    const hasNumber = /\d/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\\|,.<>\/?]/.test(
+      newPassword,
+    );
+    const hasLength = newPassword.length >= 8;
 
-		if (!hasLength) {
-			return res.status(400).json({ message: "Password must be at least 8 characters" });
-		}
-		if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-			return res.status(400).json({ message: "Password must contain uppercase, lowercase, number, and special character" });
-		}
+    if (!hasLength) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 8 characters" });
+    }
+    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Password must contain uppercase, lowercase, number, and special character",
+        });
+    }
 
-		// Fetch current user
-		const userRes = await pool.query(
-			"SELECT user_id, email, password_hash, first_name FROM users WHERE user_id = $1",
-			[user_id],
-		);
+    // Fetch current user
+    const userRes = await pool.query(
+      "SELECT user_id, email, password_hash, first_name FROM users WHERE user_id = $1",
+      [user_id],
+    );
 
-		if (userRes.rows.length === 0) {
-			return res.status(404).json({ message: "Admin user not found" });
-		}
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ message: "Admin user not found" });
+    }
 
-		const admin = userRes.rows[0];
+    const admin = userRes.rows[0];
 
-		// Verify current password
-		const isMatch = await bcrypt.compare(currentPassword, admin.password_hash);
-		if (!isMatch) {
-			return res.status(401).json({ message: "Current password is incorrect" });
-		}
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, admin.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
 
-		// Hash new password
-		const newHashedPassword = await bcrypt.hash(newPassword, 10);
+    // Hash new password
+    const newHashedPassword = await bcrypt.hash(newPassword, 10);
 
-		// Update password in database
-		await pool.query(
-			"UPDATE users SET password_hash = $1, updated_at = NOW() WHERE user_id = $2",
-			[newHashedPassword, user_id],
-		);
+    // Update password in database
+    await pool.query(
+      "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE user_id = $2",
+      [newHashedPassword, user_id],
+    );
 
-		// Send verification email
-		const emailSubject = "Password Changed — Startup Connect Admin";
-		const emailText = `Hello ${admin.first_name},\n\nYour admin account password has been successfully changed. If you did not make this change, please contact support immediately.\n\nFor security, this change was made at ${new Date().toLocaleString()}.`;
-		const emailHtml = `
+    // Send verification email
+    const emailSubject = "Password Changed — Startup Connect Admin";
+    const emailText = `Hello ${admin.first_name},\n\nYour admin account password has been successfully changed. If you did not make this change, please contact support immediately.\n\nFor security, this change was made at ${new Date().toLocaleString()}.`;
+    const emailHtml = `
 			<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
 				<div style="background: linear-gradient(135deg, #0f3d32 0%, #1a5a4a 100%); color: white; padding: 32px; border-radius: 12px; text-align: center; margin-bottom: 24px;">
 					<h1 style="margin: 0; font-size: 24px; font-weight: bold;">Password Changed</h1>
@@ -960,80 +1099,83 @@ exports.changeAdminPassword = async (req, res) => {
 			</div>
 		`;
 
-		try {
-			await mail.sendMail(admin.email, emailSubject, emailText, emailHtml);
-		} catch (emailErr) {
-			console.error("Failed to send password change email:", emailErr.message);
-			// Still return success since password was changed, but log the email error
-		}
+    try {
+      await mail.sendMail(admin.email, emailSubject, emailText, emailHtml);
+    } catch (emailErr) {
+      console.error("Failed to send password change email:", emailErr.message);
+      // Still return success since password was changed, but log the email error
+    }
 
-		return res.json({ message: "Password changed successfully. Verification email sent." });
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+    return res.json({
+      message: "Password changed successfully. Verification email sent.",
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // PUT /auth/approve/:userId  (Admin only)
 // Delegate to adminController.approveUser to avoid duplicate logic
 const adminController = require("./adminController");
 exports.approveUser = async (req, res) => {
-	return adminController.approveUser(req, res);
+  return adminController.approveUser(req, res);
 };
 
 // GET /api/auth/sessions (Authenticated)
 exports.getActiveSessions = async (req, res) => {
-	const { user_id } = req.user;
-	try {
-		const r = await pool.query(
-			`SELECT token, device, ip_address, location, created_at, expires_at
+  const { user_id } = req.user;
+  try {
+    const r = await pool.query(
+      `SELECT token, device, ip_address, location, created_at, expires_at
 			 FROM refresh_tokens
 			 WHERE user_id = $1 AND revoked = false AND expires_at > NOW()
 			 ORDER BY created_at DESC`,
-			[user_id]
-		);
-		return res.json({ sessions: r.rows });
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+      [user_id],
+    );
+    return res.json({ sessions: r.rows });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // DELETE /api/auth/sessions/:token (Authenticated)
 exports.revokeSession = async (req, res) => {
-	const { user_id } = req.user;
-	const { token } = req.params;
-	try {
-		const r = await pool.query(
-			"UPDATE refresh_tokens SET revoked = true WHERE token = $1 AND user_id = $2 RETURNING token",
-			[token, user_id]
-		);
-		if (r.rows.length === 0) {
-			return res.status(404).json({ message: "Session not found or already revoked" });
-		}
-		return res.json({ message: "Session revoked successfully" });
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+  const { user_id } = req.user;
+  const { token } = req.params;
+  try {
+    const r = await pool.query(
+      "UPDATE refresh_tokens SET revoked = true WHERE token = $1 AND user_id = $2 RETURNING token",
+      [token, user_id],
+    );
+    if (r.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Session not found or already revoked" });
+    }
+    return res.json({ message: "Session revoked successfully" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
 
 // DELETE /api/auth/sessions (Authenticated)
 exports.revokeAllOtherSessions = async (req, res) => {
-	const { user_id } = req.user;
-	const { currentToken } = req.body;
-	try {
-		if (currentToken) {
-			await pool.query(
-				"UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND token <> $2 AND revoked = false",
-				[user_id, currentToken]
-			);
-		} else {
-			await pool.query(
-				"UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
-				[user_id]
-			);
-		}
-		return res.json({ message: "All other sessions revoked successfully" });
-	} catch (err) {
-		return res.status(500).json({ error: err.message });
-	}
+  const { user_id } = req.user;
+  const { currentToken } = req.body;
+  try {
+    if (currentToken) {
+      await pool.query(
+        "UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND token <> $2 AND revoked = false",
+        [user_id, currentToken],
+      );
+    } else {
+      await pool.query(
+        "UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
+        [user_id],
+      );
+    }
+    return res.json({ message: "All other sessions revoked successfully" });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 };
-
