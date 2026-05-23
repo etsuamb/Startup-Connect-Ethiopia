@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import AiMentorWidget from "@/components/startup/AiMentorWidget";
 import Sidebar from "@/components/startup/Sidebar";
 import { getDocuments, getMyProjects, getStartupProfile, getDashboardActivities, getDashboardFeedback, getDashboardEvents, getNotifications } from "@/lib/startupApi";
 
@@ -375,9 +376,7 @@ export default function StartupDashboard() {
           </div>
         </div>
       </main>
-      <button className="fixed bottom-8 right-8 w-12 h-12 bg-[#0f3d32] hover:bg-[#0a2921] rounded-full shadow-lg flex items-center justify-center text-white transition hover:scale-105 z-50">
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-      </button>
+      <AiMentorWidget />
     </div>
   );
 }

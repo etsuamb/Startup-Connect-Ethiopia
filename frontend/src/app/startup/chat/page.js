@@ -1,135 +1,99 @@
-﻿"use client";
-import { useEffect, useState } from "react";
+"use client";
+
 import Sidebar from "@/components/startup/Sidebar";
-import { searchInvestors, getInvestorMessages, sendInvestorMessage } from "@/lib/startupApi";
+
+const previewThreads = [
+  {
+    id: 1,
+    name: "Investor conversations",
+    subtitle: "Messaging will be connected here later.",
+    time: "Soon",
+  },
+  {
+    id: 2,
+    name: "Accepted offers only",
+    subtitle: "Chat access will remain gated by accepted investment offers.",
+    time: "Planned",
+  },
+];
 
 export default function StartupChatPage() {
-  const [investors, setInvestors] = useState([]);
-  const [selectedInvestor, setSelectedInvestor] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    async function loadInvestors() {
-      try {
-        const data = await searchInvestors({ query: "" });
-        setInvestors(data.investors || []);
-        if (data.investors?.[0]) {
-          selectInvestor(data.investors[0]);
-        }
-      } catch (err) {
-        setError(err.message || "Unable to load investor list.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadInvestors();
-  }, []);
-
-  async function selectInvestor(investor) {
-    setSelectedInvestor(investor);
-    setMessages([]);
-    setError(null);
-    try {
-      const data = await getInvestorMessages(investor.investor_id);
-      setMessages(data.messages || []);
-    } catch (err) {
-      setError(err.message || "Unable to load messages.");
-    }
-  }
-
-  async function handleSend(event) {
-    event.preventDefault();
-    if (!selectedInvestor || !messageText.trim()) {
-      return;
-    }
-    const text = messageText.trim();
-    setMessageText("");
-    try {
-      await sendInvestorMessage(selectedInvestor.investor_id, text);
-      setMessages((current) => [
-        ...current,
-        { sender: "startup", message: text, created_at: new Date().toISOString() },
-      ]);
-    } catch (err) {
-      setError(err.message || "Unable to send message.");
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-[#f7f8fb] font-sans text-gray-900 flex">
+    <div className="flex min-h-screen overflow-hidden bg-white font-sans text-gray-900">
       <Sidebar />
-      <main className="flex-grow flex flex-col overflow-y-auto">
-        <header className="px-8 py-6 bg-white border-b border-gray-100 sticky top-0 z-10">
-          <h1 className="text-3xl font-bold text-gray-900">Investor Chat</h1>
-          <p className="text-sm text-gray-500 mt-1">Connect with investors directly to discuss your project and next steps.</p>
-        </header>
 
-        <div className="px-4 sm:px-10 py-8 w-full max-w-[1400px] mx-auto pb-24">
-          {error && <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-          <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-            <aside className="rounded-[30px] border border-gray-100 bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Investors</h2>
-              {loading ? (
-                <p className="text-gray-500">Loading investors…</p>
-              ) : investors.length === 0 ? (
-                <p className="text-gray-500">No investors available.</p>
-              ) : (
-                <div className="space-y-3">
-                  {investors.map((investor) => (
-                    <button
-                      key={investor.investor_id}
-                      onClick={() => selectInvestor(investor)}
-                      className={`w-full text-left rounded-2xl p-4 transition ${selectedInvestor?.investor_id === investor.investor_id ? "bg-[#0f3d32] text-white" : "bg-[#f8fafc] text-gray-900 hover:bg-gray-100"}`}
-                    >
-                      <div className="font-semibold">{investor.organization_name || `${investor.first_name || ""} ${investor.last_name || ""}`.trim() || "Investor"}</div>
-                      <p className="text-sm text-gray-500 mt-1">{investor.industry || investor.sector || "Investment partner"}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </aside>
-            <section className="rounded-[30px] border border-gray-100 bg-white p-6 shadow-sm flex flex-col">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">{selectedInvestor ? (selectedInvestor.organization_name || `${selectedInvestor.first_name || ""} ${selectedInvestor.last_name || ""}`.trim()) : "Select an investor"}</h2>
-                  <p className="text-sm text-gray-500">{selectedInvestor ? selectedInvestor.industry || selectedInvestor.sector : "Choose an investor from the list to view the conversation."}</p>
-                </div>
-                <button className="rounded-2xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition">Refresh</button>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-4 mb-6" style={{ minHeight: 300 }}>
-                {selectedInvestor ? (
-                  messages.length === 0 ? (
-                    <div className="rounded-3xl border border-dashed border-gray-200 bg-[#f8fafc] p-8 text-center text-gray-500">No messages yet. Start the conversation by sending a message.</div>
-                  ) : (
-                    messages.map((message, index) => {
-                      const isStartup = message.sender === "startup" || message.sent_by_startup || message.sender === "you";
-                      return (
-                        <div key={index} className={`max-w-[80%] rounded-3xl px-5 py-4 ${isStartup ? "ml-auto bg-[#0f3d32] text-white" : "bg-[#f3f4f6] text-gray-900"}`}>
-                          <p className="text-sm leading-6">{message.message || message.body || message.content}</p>
-                          <p className="mt-2 text-[11px] text-gray-400">{message.created_at ? new Date(message.created_at).toLocaleString() : "Just now"}</p>
-                        </div>
-                      );
-                    })
-                  )
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-gray-200 bg-[#f8fafc] p-10 text-center text-gray-500">Select an investor to start chatting.</div>
-                )}
-              </div>
-              <form onSubmit={handleSend} className="flex gap-3">
-                <input
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1 rounded-3xl border border-gray-200 bg-[#f8fafc] px-5 py-3 text-sm outline-none focus:border-[#0f3d32] focus:ring-2 focus:ring-[#0f3d32]/20"
-                />
-                <button type="submit" className="rounded-3xl bg-[#0f3d32] px-6 py-3 text-sm font-bold text-white hover:bg-[#0a2921] transition">Send</button>
-              </form>
-            </section>
+      <main className="flex h-screen flex-grow overflow-hidden bg-white">
+        <aside className="flex w-[340px] shrink-0 flex-col border-r border-gray-200 bg-white">
+          <div className="border-b border-gray-100 p-4">
+            <h1 className="mb-4 text-xl font-bold text-gray-900">Investor Chat</h1>
+            <input
+              disabled
+              placeholder="Search conversations..."
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-[13px] text-gray-400 outline-none"
+            />
           </div>
-        </div>
+
+          <div className="flex-grow overflow-y-auto">
+            {previewThreads.map((thread) => (
+              <div key={thread.id} className="flex gap-4 border-b border-gray-50 p-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0f3d32] text-[13px] font-bold text-white">
+                  IN
+                </div>
+                <div className="min-w-0 flex-grow">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h4 className="truncate text-[15px] font-bold text-gray-900">{thread.name}</h4>
+                    <span className="shrink-0 text-[10px] font-bold text-gray-400">{thread.time}</span>
+                  </div>
+                  <p className="mt-1 truncate text-[13px] text-gray-500">{thread.subtitle}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <section className="flex flex-grow flex-col overflow-hidden">
+          <div className="flex h-[76px] shrink-0 items-center border-b border-gray-200 px-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0f3d32] text-[13px] font-bold text-white">
+                IN
+              </div>
+              <div>
+                <h2 className="text-lg font-bold leading-tight text-gray-900">Startup messaging is disconnected</h2>
+                <p className="text-[11px] font-bold text-[#0f3d32]">Ready for future integration</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-grow items-center justify-center p-8 text-center">
+            <div className="max-w-md">
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[#e9f7ef] text-[#0f3d32]">
+                <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900">Messaging is not integrated yet</h3>
+              <p className="mt-3 text-sm leading-6 text-gray-500">
+                This startup page no longer calls the chat backend. The layout is kept so you can reconnect investor conversations, files, and voice messages later.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3 border-t border-gray-200 bg-white p-6">
+            <button disabled className="flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 text-gray-300">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828L18 9.828a4 4 0 10-5.657-5.657L5.757 10.757a6 6 0 108.486 8.486L20.829 12.657" />
+              </svg>
+            </button>
+            <input
+              disabled
+              placeholder="Messaging integration will be added later"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-5 py-3.5 text-[14px] text-gray-400 outline-none"
+            />
+            <button disabled className="rounded-xl bg-gray-300 px-6 py-3.5 text-[14px] font-bold text-white">
+              Send
+            </button>
+          </div>
+        </section>
       </main>
     </div>
   );

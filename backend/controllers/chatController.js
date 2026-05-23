@@ -42,6 +42,27 @@ function isStartupUser(conv, userId) {
 	return Number(conv.startup_user_id) === Number(userId);
 }
 
+async function hasAcceptedInvestment(startupId, investorId) {
+	const r = await pool.query(
+		`SELECT 1
+		 FROM investment_requests
+		 WHERE startup_id = $1
+		   AND investor_id = $2
+		   AND status IN ('approved', 'accepted')
+		 LIMIT 1`,
+		[startupId, investorId],
+	);
+	return r.rowCount > 0;
+}
+
+async function requireAcceptedInvestment(startupId, investorId, res) {
+	if (await hasAcceptedInvestment(startupId, investorId)) return true;
+	res.status(403).json({
+		error: "Chat is available only after an investment offer is accepted.",
+	});
+	return false;
+}
+
 /** POST /chat/conversations — create or return existing thread (Startup sends investor_id, Investor sends startup_id) */
 exports.createOrGetConversation = async (req, res) => {
 	try {
@@ -58,6 +79,7 @@ exports.createOrGetConversation = async (req, res) => {
 			}
 			const inv = await pool.query("SELECT investor_id FROM investors WHERE investor_id = $1", [invId]);
 			if (!inv.rowCount) return res.status(404).json({ error: "Investor not found" });
+			if (!(await requireAcceptedInvestment(s.startup_id, invId, res))) return;
 			const ex = await pool.query(
 				"SELECT * FROM chat_conversations WHERE startup_id = $1 AND investor_id = $2",
 				[s.startup_id, invId],
@@ -79,6 +101,7 @@ exports.createOrGetConversation = async (req, res) => {
 			}
 			const st = await pool.query("SELECT startup_id FROM startups WHERE startup_id = $1", [sid]);
 			if (!st.rowCount) return res.status(404).json({ error: "Startup not found" });
+			if (!(await requireAcceptedInvestment(sid, inv.investor_id, res))) return;
 			const ex = await pool.query(
 				"SELECT * FROM chat_conversations WHERE startup_id = $1 AND investor_id = $2",
 				[sid, inv.investor_id],
@@ -121,6 +144,12 @@ exports.listConversations = async (req, res) => {
        INNER JOIN investors inv ON inv.investor_id = c.investor_id
        INNER JOIN users iu ON iu.user_id = inv.user_id
        WHERE c.startup_id = $1
+         AND EXISTS (
+           SELECT 1 FROM investment_requests ir
+           WHERE ir.startup_id = c.startup_id
+             AND ir.investor_id = c.investor_id
+             AND ir.status IN ('approved', 'accepted')
+         )
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC`,
 				[s.startup_id, userId],
 			);
@@ -142,6 +171,12 @@ exports.listConversations = async (req, res) => {
        INNER JOIN startups s ON s.startup_id = c.startup_id
        INNER JOIN users su ON su.user_id = s.user_id
        WHERE c.investor_id = $1
+         AND EXISTS (
+           SELECT 1 FROM investment_requests ir
+           WHERE ir.startup_id = c.startup_id
+             AND ir.investor_id = c.investor_id
+             AND ir.status IN ('approved', 'accepted')
+         )
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC`,
 				[inv.investor_id, userId],
 			);
@@ -167,6 +202,7 @@ exports.getMessages = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
 		const offset = Math.max(0, Number(req.query.offset) || 0);
@@ -216,6 +252,7 @@ exports.sendTextMessage = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const body = req.body || {};
 		const text = typeof body.body === "string" ? body.body : typeof body.text === "string" ? body.text : "";
@@ -262,6 +299,7 @@ exports.uploadChatFile = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const file = req.file;
 		if (!file || !file.buffer) {
@@ -332,7 +370,14 @@ exports.getChatNotifications = async (req, res) => {
 				`SELECT c.conversation_id,
               (SELECT COUNT(*)::int FROM chat_messages cm
                WHERE cm.conversation_id = c.conversation_id AND cm.sender_user_id <> $2 AND cm.read_at_startup IS NULL) AS unread
-       FROM chat_conversations c WHERE c.startup_id = $1`,
+       FROM chat_conversations c
+       WHERE c.startup_id = $1
+         AND EXISTS (
+           SELECT 1 FROM investment_requests ir
+           WHERE ir.startup_id = c.startup_id
+             AND ir.investor_id = c.investor_id
+             AND ir.status IN ('approved', 'accepted')
+         )`,
 				[s.startup_id, userId],
 			);
 			for (const row of r.rows) {
@@ -353,7 +398,14 @@ exports.getChatNotifications = async (req, res) => {
 				`SELECT c.conversation_id,
               (SELECT COUNT(*)::int FROM chat_messages cm
                WHERE cm.conversation_id = c.conversation_id AND cm.sender_user_id <> $2 AND cm.read_at_investor IS NULL) AS unread
-       FROM chat_conversations c WHERE c.investor_id = $1`,
+       FROM chat_conversations c
+       WHERE c.investor_id = $1
+         AND EXISTS (
+           SELECT 1 FROM investment_requests ir
+           WHERE ir.startup_id = c.startup_id
+             AND ir.investor_id = c.investor_id
+             AND ir.status IN ('approved', 'accepted')
+         )`,
 				[inv.investor_id, userId],
 			);
 			for (const row of r.rows) {
@@ -370,6 +422,12 @@ exports.getChatNotifications = async (req, res) => {
        INNER JOIN startups s ON s.startup_id = c.startup_id
        INNER JOIN investors i ON i.investor_id = c.investor_id
        WHERE (s.user_id = $1 OR i.user_id = $1)
+         AND EXISTS (
+           SELECT 1 FROM investment_requests ir
+           WHERE ir.startup_id = c.startup_id
+             AND ir.investor_id = c.investor_id
+             AND ir.status IN ('approved', 'accepted')
+         )
          AND v.status IN ('ringing', 'active')
        ORDER BY v.created_at DESC
        LIMIT 20`,
@@ -445,6 +503,7 @@ exports.videoStart = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		await client.query("BEGIN");
 		await endStaleCallsForConversation(client, convId);
@@ -489,6 +548,7 @@ exports.videoJoin = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const r = await pool.query(
 			`SELECT * FROM chat_video_calls
@@ -530,6 +590,7 @@ exports.videoEnd = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const r = await pool.query(
 			`SELECT * FROM chat_video_calls
@@ -573,6 +634,7 @@ exports.videoStatus = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const r = await pool.query(
 			`SELECT * FROM chat_video_calls
@@ -627,6 +689,7 @@ exports.videoScreenShare = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const action = String((req.body || {}).action || "").toLowerCase();
 		if (action !== "start" && action !== "stop") {
@@ -677,6 +740,7 @@ exports.downloadChatFile = async (req, res) => {
 		const conv = await loadConversationWithParties(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await requireAcceptedInvestment(conv.startup_id, conv.investor_id, res))) return;
 
 		const r = await pool.query(
 			`SELECT file_name, file_mime, file_data FROM chat_messages

@@ -382,10 +382,23 @@ exports.getLatestFeedback = async (req, res) => {
 			[req.user.user_id, limit],
 		);
 
+		const investorRatings = await pool.query(
+			`SELECT f.investor_feedback_id, f.rating, f.comment AS body, f.created_at,
+              iu.first_name || ' ' || iu.last_name AS from_name, 'investor_rating' AS source
+       FROM investor_feedback f
+       JOIN investors i ON i.investor_id = f.investor_id
+       JOIN users iu ON iu.user_id = i.user_id
+       WHERE f.startup_id = $1
+       ORDER BY f.created_at DESC
+       LIMIT $2`,
+			[startupId, limit],
+		);
+
 		const combined = [
 			...reviews.rows.map((r) => ({ ...r, kind: "review" })),
 			...reportFeedback.rows.map((r) => ({ ...r, kind: "report" })),
 			...investorMsgs.rows.map((r) => ({ ...r, kind: "message" })),
+			...investorRatings.rows.map((r) => ({ ...r, kind: "rating" })),
 		]
 			.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 			.slice(0, limit);

@@ -361,13 +361,104 @@ exports.searchMentors = async (req, res) => {
 	}
 };
 
-// UC_32: AI Recommendations (Basic)
+function normalizeRecommendationText(value) {
+	return String(value || "")
+		.toLowerCase()
+		.replace(/[^a-z0-9\s]/g, " ")
+		.split(/\s+/)
+		.filter((word) => word.length > 2);
+}
+
+function tokenSimilarity(left, right) {
+	const leftTokens = new Set(normalizeRecommendationText(left));
+	const rightTokens = new Set(normalizeRecommendationText(right));
+	if (!leftTokens.size || !rightTokens.size) return 0;
+
+	let overlap = 0;
+	for (const token of leftTokens) {
+		if (rightTokens.has(token)) overlap += 1;
+	}
+
+	return overlap / Math.max(leftTokens.size, rightTokens.size);
+}
+
+function sameValue(left, right) {
+	return Boolean(left && right && String(left).trim().toLowerCase() === String(right).trim().toLowerCase());
+}
+
+function containsValue(left, right) {
+	return Boolean(left && right && String(left).toLowerCase().includes(String(right).toLowerCase()));
+}
+
+function buildStartupRecommendationText(startup) {
+	return [
+		startup.startup_name,
+		startup.industry,
+		startup.business_stage,
+		startup.startup_type,
+		startup.startup_tagline,
+		startup.description,
+		startup.location,
+		startup.region,
+		startup.city,
+		startup.project_title,
+		startup.project_description,
+		startup.project_industry,
+		startup.lifecycle_stage,
+		startup.problem_statement,
+		startup.solution_statement,
+		startup.expected_impact,
+	].filter(Boolean).join(" ");
+}
+
+function buildInvestorRecommendationText(investor) {
+	return [
+		investor.investor_type,
+		investor.organization_name,
+		investor.preferred_industry,
+		investor.investment_stage,
+		investor.location_preference,
+		investor.country,
+		investor.bio,
+		investor.investment_budget ? `budget ${investor.investment_budget}` : "",
+		investor.portfolio_size ? `portfolio ${investor.portfolio_size}` : "",
+		investor.first_name,
+		investor.last_name,
+	].filter(Boolean).join(" ");
+}
+
+// UC_32: AI Recommendations
 exports.getInvestorRecommendations = async (req, res) => {
 	try {
 		const userId = req.user.user_id;
+		const limitNum = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
 
 		const startupRes = await pool.query(
-			"SELECT industry, business_stage FROM startups WHERE user_id = $1",
+			`SELECT
+				 s.*,
+				 p.project_id,
+				 p.project_title,
+				 p.description AS project_description,
+				 p.funding_goal,
+				 p.amount_raised,
+				 p.status AS project_status,
+				 p.industry AS project_industry,
+				 p.lifecycle_stage,
+				 p.problem_statement,
+				 p.solution_statement,
+				 p.expected_impact
+			 FROM startups s
+			 LEFT JOIN LATERAL (
+				SELECT *
+				FROM projects p
+				WHERE p.startup_id = s.startup_id
+				  AND p.status IN ('active', 'funded')
+				ORDER BY
+				  CASE WHEN p.status = 'active' THEN 0 ELSE 1 END,
+				  p.created_at DESC
+				LIMIT 1
+			 ) p ON true
+			 WHERE s.user_id = $1`,
 			[userId]
 		);
 
@@ -375,24 +466,108 @@ exports.getInvestorRecommendations = async (req, res) => {
 			return res.status(404).json({ message: "Startup profile not found" });
 		}
 
-		const { industry, business_stage } = startupRes.rows[0];
+		const startup = startupRes.rows[0];
+		const startupIndustry = startup.project_industry || startup.industry;
+		const startupStage = startup.lifecycle_stage || startup.business_stage;
+		const fundingNeed = Number(startup.funding_goal || startup.funding_needed || 0);
+		const startupText = buildStartupRecommendationText(startup);
 
-		// Find matching investors
 		const result = await pool.query(
-			`SELECT i.*, u.first_name, u.last_name FROM investors i 
+			`SELECT i.*, u.first_name, u.last_name, u.email
+			 FROM investors i
 			 JOIN users u ON i.user_id = u.user_id
-			 WHERE i.preferred_industry = $1 AND i.investment_stage = $2
-			 LIMIT 10`,
-			[industry, business_stage]
+			 WHERE u.is_approved = true
+			   AND u.is_active = true
+			 ORDER BY i.created_at DESC
+			 LIMIT 100`
 		);
 
-		const recommendations = result.rows.map((investor) => ({
-			investor,
-			score: 0.85,
-			reason: `Invests in ${industry} at ${business_stage} stage`,
-		}));
+		const recommendations = result.rows
+			.map((investor) => {
+				const reasons = [];
+				let ruleScore = 0;
+				const investmentBudget = Number(investor.investment_budget || 0);
 
-		res.json({ recommendations });
+				if (
+					sameValue(investor.preferred_industry, startupIndustry) ||
+					containsValue(investor.preferred_industry, startupIndustry) ||
+					containsValue(startupIndustry, investor.preferred_industry)
+				) {
+					ruleScore += 0.32;
+					reasons.push("Investor focuses on your industry");
+				}
+
+				if (
+					sameValue(investor.investment_stage, startupStage) ||
+					containsValue(investor.investment_stage, startupStage) ||
+					containsValue(startupStage, investor.investment_stage)
+				) {
+					ruleScore += 0.22;
+					reasons.push("Investor prefers your startup stage");
+				}
+
+				if (investmentBudget > 0 && fundingNeed > 0) {
+					const ratio = fundingNeed / investmentBudget;
+					if (ratio <= 1) {
+						ruleScore += 0.18;
+						reasons.push("Investor budget can cover your funding need");
+					} else if (ratio <= 1.5) {
+						ruleScore += 0.08;
+						reasons.push("Investor budget is close to your funding need");
+					}
+				}
+
+				if (
+					investor.location_preference &&
+					containsValue(`${startup.location || ""} ${startup.region || ""} ${startup.city || ""}`, investor.location_preference)
+				) {
+					ruleScore += 0.08;
+					reasons.push("Investor location preference matches your market");
+				}
+
+				const similarityScore = tokenSimilarity(startupText, buildInvestorRecommendationText(investor));
+				const finalScore = Math.min(0.99, Math.max(0.35, similarityScore * 0.35 + ruleScore + 0.2));
+				const score = Number(finalScore.toFixed(2));
+
+				return {
+					investor: {
+						investor_id: investor.investor_id,
+						investor_type: investor.investor_type,
+						organization_name: investor.organization_name,
+						investment_budget: investor.investment_budget,
+						preferred_industry: investor.preferred_industry,
+						investment_stage: investor.investment_stage,
+						location_preference: investor.location_preference,
+						country: investor.country,
+						portfolio_size: investor.portfolio_size,
+						bio: investor.bio,
+						first_name: investor.first_name,
+						last_name: investor.last_name,
+						email: investor.email,
+					},
+					score,
+					match_percent: Math.round(score * 100),
+					similarityScore: Number(similarityScore.toFixed(3)),
+					ruleScore: Number(ruleScore.toFixed(3)),
+					finalScore: score,
+					reasons,
+					reason: reasons.join(", ") || "Investor profile is related to your startup and project details",
+				};
+			})
+			.sort((a, b) => b.finalScore - a.finalScore)
+			.slice(0, limitNum);
+
+		res.json({
+			recommendations,
+			source: "ai-reccommendation/adapted",
+			startup_profile: {
+				industry: startupIndustry,
+				stage: startupStage,
+				funding_need: fundingNeed,
+				location: startup.location || startup.city || startup.region,
+				project_id: startup.project_id,
+			},
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -566,6 +741,22 @@ exports.sendMessage = async (req, res) => {
 		}
 
 		const investorUserId = investorRes.rows[0].user_id;
+		const startupRes = await pool.query(
+			"SELECT startup_id FROM startups WHERE user_id = $1",
+			[startupUserId]
+		);
+		if (startupRes.rows.length === 0) {
+			return res.status(404).json({ message: "Startup profile not found" });
+		}
+		const acceptedRes = await pool.query(
+			`SELECT 1 FROM investment_requests
+			 WHERE startup_id = $1 AND investor_id = $2 AND status IN ('approved', 'accepted')
+			 LIMIT 1`,
+			[startupRes.rows[0].startup_id, investorId]
+		);
+		if (acceptedRes.rowCount === 0) {
+			return res.status(403).json({ error: "Chat is available only after an investment offer is accepted." });
+		}
 
 		// Save message
 		const result = await pool.query(
@@ -602,6 +793,22 @@ exports.getMessages = async (req, res) => {
 		}
 
 		const investorUserId = investorRes.rows[0].user_id;
+		const startupRes = await pool.query(
+			"SELECT startup_id FROM startups WHERE user_id = $1",
+			[startupUserId]
+		);
+		if (startupRes.rows.length === 0) {
+			return res.status(404).json({ message: "Startup profile not found" });
+		}
+		const acceptedRes = await pool.query(
+			`SELECT 1 FROM investment_requests
+			 WHERE startup_id = $1 AND investor_id = $2 AND status IN ('approved', 'accepted')
+			 LIMIT 1`,
+			[startupRes.rows[0].startup_id, investorId]
+		);
+		if (acceptedRes.rowCount === 0) {
+			return res.status(403).json({ error: "Chat is available only after an investment offer is accepted." });
+		}
 
 		const result = await pool.query(
 			`SELECT * FROM messages 

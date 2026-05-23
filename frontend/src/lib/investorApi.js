@@ -1,4 +1,4 @@
-import { apiFetch, apiPatchJson, apiPostJson } from "./api";
+import { apiFetch, apiFetchBlob, apiPatchJson, apiPostForm, apiPostJson } from "./api";
 
 function toQuery(params = {}) {
 	const query = new URLSearchParams();
@@ -43,4 +43,77 @@ export function getInvestorPortfolio() {
 
 export function createInvestorFundingOffer(payload) {
 	return apiPostJson("/investors/funding-offers", payload);
+}
+
+export function getInvestorPaymentItems() {
+	return apiFetch("/payments/investment-items");
+}
+
+export function initializeChapaPayment(payload) {
+	return apiPostJson("/payments/chapa/initialize", payload);
+}
+
+export function createChapaHostedPayment(payload) {
+	return apiPostJson("/payments/chapa/hosted", payload);
+}
+
+export function verifyChapaPayment(txRef) {
+	return apiFetch(`/payments/chapa/verify/${encodeURIComponent(txRef)}`);
+}
+
+export function acceptInvestorFundingOffer(offerId) {
+	return apiPatchJson(`/investors/funding-offers/${offerId}/accept`, {});
+}
+
+export function withdrawInvestorFundingOffer(offerId) {
+	return apiPatchJson(`/investors/funding-offers/${offerId}/withdraw`, {});
+}
+
+export function getInvestorRatings(params = {}) {
+	const qs = toQuery(params);
+	return apiFetch(`/investors/ratings${qs ? `?${qs}` : ""}`);
+}
+
+export function submitInvestorRating(startupId, payload) {
+	return apiPostJson(`/investors/startups/${startupId}/feedback`, payload);
+}
+
+export function getInvestorMessageThreads() {
+	return apiFetch("/chat/conversations");
+}
+
+export function createInvestorConversation(startupId) {
+	return apiPostJson("/chat/conversations", { startup_id: startupId });
+}
+
+export function getInvestorMessages(conversationId, params = {}) {
+	const qs = toQuery(params);
+	return apiFetch(`/chat/conversations/${conversationId}/messages${qs ? `?${qs}` : ""}`);
+}
+
+export function sendInvestorMessage(conversationId, message) {
+	return apiPostJson(`/chat/conversations/${conversationId}/messages`, { body: message });
+}
+
+export function sendInvestorChatFile(conversationId, file, caption = "") {
+	const form = new FormData();
+	form.append("file", file);
+	if (caption) form.append("caption", caption);
+	return apiPostForm(`/chat/conversations/${conversationId}/files`, form);
+}
+
+export function downloadInvestorChatFile(conversationId, messageId) {
+	return apiFetchBlob(`/chat/conversations/${conversationId}/files/${messageId}`);
+}
+
+export function getInvestorMeetings() {
+	return apiFetch("/investors/meetings");
+}
+
+export function createInvestorMeeting(payload) {
+	return apiPostJson("/investors/meetings", payload);
+}
+
+export function updateInvestorMeeting(meetingId, payload) {
+	return apiPatchJson(`/investors/meetings/${meetingId}`, payload);
 }
