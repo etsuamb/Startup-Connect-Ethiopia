@@ -197,15 +197,82 @@ exports.searchStartups = async (req, res) => {
 	}
 };
 
-// UC_16: AI Startup Recommendations (Basic implementation)
+function normalizeRecommendationText(value) {
+	return String(value || "")
+		.toLowerCase()
+		.replace(/[^a-z0-9\s]/g, " ")
+		.split(/\s+/)
+		.filter((word) => word.length > 2);
+}
+
+function tokenSimilarity(left, right) {
+	const leftTokens = new Set(normalizeRecommendationText(left));
+	const rightTokens = new Set(normalizeRecommendationText(right));
+	if (!leftTokens.size || !rightTokens.size) return 0;
+
+	let overlap = 0;
+	for (const token of leftTokens) {
+		if (rightTokens.has(token)) overlap += 1;
+	}
+
+	return overlap / Math.max(leftTokens.size, rightTokens.size);
+}
+
+function buildInvestorRecommendationText(investor) {
+	return [
+		investor.investor_type,
+		investor.organization_name,
+		investor.preferred_industry,
+		investor.investment_stage,
+		investor.location_preference,
+		investor.country,
+		investor.bio,
+		investor.investment_budget ? `budget ${investor.investment_budget}` : "",
+		investor.portfolio_size ? `portfolio ${investor.portfolio_size}` : "",
+	].filter(Boolean).join(" ");
+}
+
+function buildStartupRecommendationText(startup) {
+	return [
+		startup.startup_name,
+		startup.industry,
+		startup.business_stage,
+		startup.startup_type,
+		startup.startup_tagline,
+		startup.description,
+		startup.location,
+		startup.region,
+		startup.city,
+		startup.project_title,
+		startup.project_description,
+		startup.project_industry,
+		startup.lifecycle_stage,
+		startup.problem_statement,
+		startup.solution_statement,
+		startup.expected_impact,
+	].filter(Boolean).join(" ");
+}
+
+function sameValue(left, right) {
+	return Boolean(left && right && String(left).trim().toLowerCase() === String(right).trim().toLowerCase());
+}
+
+function containsValue(left, right) {
+	return Boolean(
+		left &&
+		right &&
+		String(left).toLowerCase().includes(String(right).toLowerCase())
+	);
+}
+
+// UC_16: AI Startup Recommendations
 exports.getStartupRecommendations = async (req, res) => {
 	try {
 		const investorId = req.params.investorId || req.user.user_id;
-		const { limit = 5 } = req.query;
+		const limitNum = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
 
-		// Get investor preferences
 		const investorRes = await pool.query(
-			"SELECT preferred_industry, investment_stage FROM investors WHERE user_id = $1",
+			"SELECT * FROM investors WHERE user_id = $1",
 			[investorId]
 		);
 
@@ -213,40 +280,137 @@ exports.getStartupRecommendations = async (req, res) => {
 			return res.status(404).json({ message: "Investor profile not found" });
 		}
 
-		const { preferred_industry, investment_stage } = investorRes.rows[0];
+		const investor = investorRes.rows[0];
+		const investorText = buildInvestorRecommendationText(investor);
 
-		// Get matching startups
-		let query =
-			`SELECT s.* FROM startups s JOIN users u ON s.user_id = u.user_id
+		const result = await pool.query(
+			`SELECT
+				 s.*,
+				 p.project_id,
+				 p.project_title,
+				 p.description AS project_description,
+				 p.funding_goal,
+				 p.amount_raised,
+				 p.status AS project_status,
+				 p.industry AS project_industry,
+				 p.lifecycle_stage,
+				 p.problem_statement,
+				 p.solution_statement,
+				 p.expected_impact
+			 FROM startups s
+			 JOIN users u ON s.user_id = u.user_id
+			 LEFT JOIN LATERAL (
+				SELECT *
+				FROM projects p
+				WHERE p.startup_id = s.startup_id
+				  AND p.status IN ('active', 'funded')
+				ORDER BY
+				  CASE WHEN p.status = 'active' THEN 0 ELSE 1 END,
+				  p.created_at DESC
+				LIMIT 1
+			 ) p ON true
 			 WHERE u.is_approved = true
 			   AND u.is_active = true
 			   AND COALESCE(s.is_listed, false) = true
 			   AND COALESCE(s.admin_status, 'Pending') IN ('Active', 'Funded')
-			   AND 1=1`;
-		const params = [];
+			 ORDER BY s.created_at DESC
+			 LIMIT 100`
+		);
 
-		if (preferred_industry) {
-			params.push(preferred_industry);
-			query += ` AND s.industry = $${params.length}`;
-		}
+		const recommendations = result.rows
+			.map((startup) => {
+				const reasons = [];
+				let ruleScore = 0;
+				const startupIndustry = startup.project_industry || startup.industry;
+				const startupStage = startup.lifecycle_stage || startup.business_stage;
+				const fundingNeed = Number(startup.funding_goal || startup.funding_needed || 0);
+				const investmentBudget = Number(investor.investment_budget || 0);
 
-		if (investment_stage) {
-			params.push(investment_stage);
-			query += ` AND s.business_stage = $${params.length}`;
-		}
+				if (
+					sameValue(investor.preferred_industry, startupIndustry) ||
+					containsValue(investor.preferred_industry, startupIndustry) ||
+					containsValue(startupIndustry, investor.preferred_industry)
+				) {
+					ruleScore += 0.32;
+					reasons.push("Industry matches your investment preference");
+				}
 
-		params.push(limit);
-		query += ` ORDER BY s.created_at DESC LIMIT $${params.length}`;
+				if (
+					sameValue(investor.investment_stage, startupStage) ||
+					containsValue(investor.investment_stage, startupStage) ||
+					containsValue(startupStage, investor.investment_stage)
+				) {
+					ruleScore += 0.22;
+					reasons.push("Startup stage fits your preferred stage");
+				}
 
-		const result = await pool.query(query, params);
+				if (investmentBudget > 0 && fundingNeed > 0) {
+					const ratio = fundingNeed / investmentBudget;
+					if (ratio <= 1) {
+						ruleScore += 0.18;
+						reasons.push("Funding need is within your stated budget");
+					} else if (ratio <= 1.5) {
+						ruleScore += 0.08;
+						reasons.push("Funding need is close to your investment budget");
+					}
+				}
 
-		const recommendations = result.rows.map((startup) => ({
-			startup,
-			score: 0.85, // Simplified scoring
-			reason: `Matches your interest in ${preferred_industry || "startups"} at ${investment_stage || "various"} stages`,
-		}));
+				if (
+					investor.location_preference &&
+					containsValue(`${startup.location || ""} ${startup.region || ""} ${startup.city || ""}`, investor.location_preference)
+				) {
+					ruleScore += 0.08;
+					reasons.push("Location aligns with your preference");
+				}
 
-		res.json({ recommendations });
+				const similarityScore = tokenSimilarity(investorText, buildStartupRecommendationText(startup));
+				const finalScore = Math.min(0.99, Math.max(0.35, similarityScore * 0.35 + ruleScore + 0.2));
+				const score = Number(finalScore.toFixed(2));
+
+				return {
+					startup: {
+						startup_id: startup.startup_id,
+						startup_name: startup.startup_name,
+						industry: startup.industry,
+						description: startup.description,
+						business_stage: startup.business_stage,
+						team_size: startup.team_size,
+						location: startup.location || startup.city || startup.region,
+						website: startup.website,
+						funding_needed: startup.funding_needed,
+					},
+					project: startup.project_id ? {
+						project_id: startup.project_id,
+						project_title: startup.project_title,
+						description: startup.project_description,
+						funding_goal: startup.funding_goal,
+						amount_raised: startup.amount_raised,
+						status: startup.project_status,
+						industry: startup.project_industry,
+						lifecycle_stage: startup.lifecycle_stage,
+					} : null,
+					score,
+					match_percent: Math.round(score * 100),
+					similarityScore: Number(similarityScore.toFixed(3)),
+					ruleScore: Number(ruleScore.toFixed(3)),
+					finalScore: score,
+					reasons,
+					reason: reasons.join(", ") || "Profile details are related to your investor preferences",
+				};
+			})
+			.sort((a, b) => b.finalScore - a.finalScore)
+			.slice(0, limitNum);
+
+		res.json({
+			recommendations,
+			source: "ai-reccommendation/adapted",
+			investor_preferences: {
+				preferred_industry: investor.preferred_industry,
+				investment_stage: investor.investment_stage,
+				investment_budget: investor.investment_budget,
+				location_preference: investor.location_preference,
+			},
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -565,12 +729,217 @@ exports.getPortfolio = async (req, res) => {
 	}
 };
 
+async function getInvestorIdForUser(userId) {
+	const investorRes = await pool.query(
+		"SELECT investor_id FROM investors WHERE user_id = $1",
+		[userId]
+	);
+	return investorRes.rows[0]?.investor_id || null;
+}
+
+async function getAcceptedInvestmentRequest(startupId, investorId) {
+	const result = await pool.query(
+		`SELECT investment_request_id, startup_id, investor_id, requested_amount, status
+		 FROM investment_requests
+		 WHERE startup_id = $1
+		   AND investor_id = $2
+		   AND status IN ('approved', 'accepted')
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		[startupId, investorId]
+	);
+	return result.rows[0] || null;
+}
+
+async function ensureInvestorMeetingsSchema() {
+	await pool.query(`
+		CREATE TABLE IF NOT EXISTS investor_meetings (
+			investor_meeting_id SERIAL PRIMARY KEY,
+			startup_id INTEGER NOT NULL REFERENCES startups(startup_id) ON DELETE CASCADE,
+			investor_id INTEGER NOT NULL REFERENCES investors(investor_id) ON DELETE CASCADE,
+			investment_request_id INTEGER REFERENCES investment_requests(investment_request_id) ON DELETE SET NULL,
+			topic VARCHAR(255) NOT NULL DEFAULT 'Investment follow-up',
+			scheduled_at TIMESTAMPTZ NOT NULL,
+			duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (duration_minutes > 0),
+			meeting_link TEXT,
+			status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+	await pool.query("CREATE INDEX IF NOT EXISTS idx_investor_meetings_startup ON investor_meetings (startup_id, scheduled_at DESC)");
+	await pool.query("CREATE INDEX IF NOT EXISTS idx_investor_meetings_investor ON investor_meetings (investor_id, scheduled_at DESC)");
+}
+
+exports.getMeetings = async (req, res) => {
+	try {
+		await ensureInvestorMeetingsSchema();
+		const investorId = await getInvestorIdForUser(req.user.user_id);
+		if (!investorId) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+
+		const result = await pool.query(
+			`SELECT im.*, s.startup_name, s.industry, s.business_stage,
+			        ir.requested_amount, ir.status AS offer_status
+			 FROM investor_meetings im
+			 JOIN startups s ON s.startup_id = im.startup_id
+			 LEFT JOIN investment_requests ir ON ir.investment_request_id = im.investment_request_id
+			 WHERE im.investor_id = $1
+			 ORDER BY im.scheduled_at ASC`,
+			[investorId]
+		);
+
+		return res.json({ meetings: result.rows });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+exports.createMeeting = async (req, res) => {
+	try {
+		await ensureInvestorMeetingsSchema();
+		const investorId = await getInvestorIdForUser(req.user.user_id);
+		if (!investorId) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+
+		const { startup_id, scheduled_at, topic, meeting_link, duration_minutes } = req.body || {};
+		const startupId = Number(startup_id);
+		const duration = Number(duration_minutes || 30);
+		const scheduledAt = new Date(scheduled_at);
+
+		if (!Number.isInteger(startupId) || startupId <= 0) {
+			return res.status(400).json({ error: "startup_id is required" });
+		}
+		if (Number.isNaN(scheduledAt.getTime())) {
+			return res.status(400).json({ error: "scheduled_at must be a valid date/time" });
+		}
+		if (!Number.isInteger(duration) || duration <= 0) {
+			return res.status(400).json({ error: "duration_minutes must be a positive integer" });
+		}
+
+		const startupRes = await pool.query(
+			"SELECT startup_id, user_id, startup_name FROM startups WHERE startup_id = $1",
+			[startupId]
+		);
+		if (startupRes.rows.length === 0) {
+			return res.status(404).json({ message: "Startup not found" });
+		}
+
+		const acceptedOffer = await getAcceptedInvestmentRequest(startupId, investorId);
+		if (!acceptedOffer) {
+			return res.status(403).json({ error: "Meetings can be scheduled only after an investment offer is accepted." });
+		}
+
+		const result = await pool.query(
+			`INSERT INTO investor_meetings
+			   (startup_id, investor_id, investment_request_id, topic, scheduled_at, duration_minutes, meeting_link, status)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+			 RETURNING *`,
+			[
+				startupId,
+				investorId,
+				acceptedOffer.investment_request_id,
+				String(topic || "Investment follow-up").trim() || "Investment follow-up",
+				scheduledAt,
+				duration,
+				meeting_link || null,
+			]
+		);
+
+		await pool.query(
+			`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+			 VALUES ($1, 'meeting', 'New investor meeting', $2, 'investor_meetings', $3)`,
+			[
+				startupRes.rows[0].user_id,
+				`A meeting was scheduled for ${startupRes.rows[0].startup_name}.`,
+				result.rows[0].investor_meeting_id,
+			]
+		);
+
+		return res.status(201).json({ meeting: result.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+exports.updateMeeting = async (req, res) => {
+	try {
+		await ensureInvestorMeetingsSchema();
+		const investorId = await getInvestorIdForUser(req.user.user_id);
+		if (!investorId) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+
+		const meetingId = Number(req.params.meetingId);
+		if (!Number.isInteger(meetingId) || meetingId <= 0) {
+			return res.status(400).json({ error: "Invalid meeting id" });
+		}
+
+		const { status, meeting_link } = req.body || {};
+		const allowed = ["pending", "confirmed", "completed", "cancelled"];
+		if (status && !allowed.includes(status)) {
+			return res.status(400).json({ error: "Invalid meeting status" });
+		}
+
+		const result = await pool.query(
+			`UPDATE investor_meetings
+			 SET status = COALESCE($1, status),
+			     meeting_link = COALESCE($2, meeting_link),
+			     updated_at = CURRENT_TIMESTAMP
+			 WHERE investor_meeting_id = $3 AND investor_id = $4
+			 RETURNING *`,
+			[status || null, meeting_link || null, meetingId, investorId]
+		);
+
+		if (result.rows.length === 0) {
+			return res.status(404).json({ error: "Meeting not found" });
+		}
+
+		return res.json({ meeting: result.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 // UC_23: Chat with Startup
+exports.getMessageThreads = async (req, res) => {
+	try {
+		const investorUserId = req.user.user_id;
+
+		const result = await pool.query(
+			`SELECT s.startup_id, s.startup_name, s.industry, s.business_stage,
+			        MAX(m.created_at) AS last_message_at,
+			        (ARRAY_AGG(m.body ORDER BY m.created_at DESC))[1] AS last_message_preview,
+			        COUNT(*) FILTER (WHERE m.receiver_user_id = $1 AND m.is_read = false)::int AS unread_count
+			 FROM messages m
+			 JOIN startups s ON s.user_id = CASE
+			   WHEN m.sender_user_id = $1 THEN m.receiver_user_id
+			   ELSE m.sender_user_id
+			 END
+			 WHERE m.sender_user_id = $1 OR m.receiver_user_id = $1
+			 GROUP BY s.startup_id, s.startup_name, s.industry, s.business_stage
+			 ORDER BY last_message_at DESC`,
+			[investorUserId]
+		);
+
+		res.json({ conversations: result.rows });
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+	}
+};
+
 exports.sendMessage = async (req, res) => {
 	try {
 		const investorUserId = req.user.user_id;
 		const { startupId } = req.params;
 		const { message } = req.body;
+		const text = String(message || "").trim();
+
+		if (!text) {
+			return res.status(400).json({ error: "message is required" });
+		}
 
 		// Get startup user_id
 		const startupRes = await pool.query(
@@ -583,15 +952,31 @@ exports.sendMessage = async (req, res) => {
 		}
 
 		const startupUserId = startupRes.rows[0].user_id;
+		const investorRes = await pool.query(
+			"SELECT investor_id FROM investors WHERE user_id = $1",
+			[investorUserId]
+		);
+		if (investorRes.rows.length === 0) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+		const acceptedRes = await pool.query(
+			`SELECT 1 FROM investment_requests
+			 WHERE startup_id = $1 AND investor_id = $2 AND status IN ('approved', 'accepted')
+			 LIMIT 1`,
+			[startupId, investorRes.rows[0].investor_id]
+		);
+		if (acceptedRes.rowCount === 0) {
+			return res.status(403).json({ error: "Chat is available only after an investment offer is accepted." });
+		}
 
 		// Save message
 		const result = await pool.query(
 			`INSERT INTO messages (sender_user_id, receiver_user_id, body, subject)
 			 VALUES ($1, $2, $3, 'Investment Discussion') RETURNING *`,
-			[investorUserId, startupUserId, message]
+			[investorUserId, startupUserId, text]
 		);
 
-		res.status(201).json({ message_id: result.rows[0].message_id });
+		res.status(201).json({ message: result.rows[0] });
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -609,7 +994,7 @@ exports.getMessages = async (req, res) => {
 		const offset = (pageNum - 1) * limitNum;
 
 		const startupRes = await pool.query(
-			"SELECT user_id FROM startups WHERE startup_id = $1",
+			"SELECT startup_id, startup_name, user_id FROM startups WHERE startup_id = $1",
 			[startupId]
 		);
 
@@ -618,6 +1003,22 @@ exports.getMessages = async (req, res) => {
 		}
 
 		const startupUserId = startupRes.rows[0].user_id;
+		const investorRes = await pool.query(
+			"SELECT investor_id FROM investors WHERE user_id = $1",
+			[investorUserId]
+		);
+		if (investorRes.rows.length === 0) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+		const acceptedRes = await pool.query(
+			`SELECT 1 FROM investment_requests
+			 WHERE startup_id = $1 AND investor_id = $2 AND status IN ('approved', 'accepted')
+			 LIMIT 1`,
+			[startupId, investorRes.rows[0].investor_id]
+		);
+		if (acceptedRes.rowCount === 0) {
+			return res.status(403).json({ error: "Chat is available only after an investment offer is accepted." });
+		}
 
 		const result = await pool.query(
 			`SELECT * FROM messages 
@@ -632,18 +1033,78 @@ exports.getMessages = async (req, res) => {
 			[investorUserId, startupUserId]
 		);
 
-		res.json({ messages: result.rows });
+		res.json({
+			messages: [...result.rows].reverse(),
+			current_user_id: investorUserId,
+			startup: {
+				startup_id: startupRes.rows[0].startup_id,
+				startup_name: startupRes.rows[0].startup_name,
+			},
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
 };
 
-// UC_25: Provide Feedback to Startup
+exports.getRatings = async (req, res) => {
+	try {
+		const investorRes = await pool.query(
+			"SELECT investor_id FROM investors WHERE user_id = $1",
+			[req.user.user_id]
+		);
+
+		if (investorRes.rows.length === 0) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+
+		const limit = Math.min(Number(req.query.limit) || 10, 50);
+		const result = await pool.query(
+			`SELECT f.investor_feedback_id, f.startup_id, f.rating, f.comment, f.created_at,
+			        s.startup_name, s.industry, s.business_stage
+			 FROM investor_feedback f
+			 JOIN startups s ON s.startup_id = f.startup_id
+			 WHERE f.investor_id = $1
+			 ORDER BY f.created_at DESC
+			 LIMIT $2`,
+			[investorRes.rows[0].investor_id, limit]
+		);
+
+		return res.json({ ratings: result.rows });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// UC_25: Provide Rating to Startup
 exports.sendFeedback = async (req, res) => {
 	try {
 		const investorUserId = req.user.user_id;
 		const { startupId } = req.params;
-		const { rating, comment } = req.body;
+		const { rating, comment, ratings } = req.body;
+		const startupIdNumber = Number.parseInt(startupId, 10);
+
+		if (!Number.isInteger(startupIdNumber)) {
+			return res.status(400).json({ error: "Invalid startup id" });
+		}
+
+		const scores = ratings && typeof ratings === "object"
+			? Object.values(ratings).map((value) => Number(value)).filter((value) => Number.isFinite(value))
+			: [Number(rating)];
+		const finalRating = Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+
+		const hasInvalidScore = scores.some((value) => !Number.isInteger(value) || value < 1 || value > 5);
+		if (!scores.length || hasInvalidScore || !Number.isInteger(finalRating) || finalRating < 1 || finalRating > 5) {
+			return res.status(400).json({ error: "rating must be between 1 and 5" });
+		}
+
+		const startupRes = await pool.query(
+			"SELECT startup_id, user_id, startup_name FROM startups WHERE startup_id = $1",
+			[startupIdNumber]
+		);
+
+		if (startupRes.rows.length === 0) {
+			return res.status(404).json({ message: "Startup not found" });
+		}
 
 		// Get investor_id
 		const investorRes = await pool.query(
@@ -655,14 +1116,35 @@ exports.sendFeedback = async (req, res) => {
 			return res.status(404).json({ message: "Investor profile not found" });
 		}
 
-		// Create review/feedback
+		// Create or update investor rating
 		const result = await pool.query(
-			`INSERT INTO reviews (startup_id, mentor_id, rating, comment)
-			 VALUES ($1, $2, $3, $4) RETURNING *`,
-			[startupId, investorRes.rows[0].investor_id, rating, comment]
+			`INSERT INTO investor_feedback (startup_id, investor_id, rating, comment)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (startup_id, investor_id)
+			 DO UPDATE SET rating = EXCLUDED.rating,
+			               comment = EXCLUDED.comment,
+			               created_at = CURRENT_TIMESTAMP
+			 RETURNING *`,
+			[startupIdNumber, investorRes.rows[0].investor_id, finalRating, comment || null]
 		);
 
-		res.status(201).json({ feedback_id: result.rows[0].review_id });
+		await pool.query(
+			`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			[
+				startupRes.rows[0].user_id,
+				"rating",
+				"New Investor Rating",
+				`An investor rated ${startupRes.rows[0].startup_name} ${finalRating}/5.`,
+				"investor_feedback",
+				result.rows[0].investor_feedback_id,
+			]
+		);
+
+		res.status(201).json({
+			message: "Rating submitted",
+			rating: result.rows[0],
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}

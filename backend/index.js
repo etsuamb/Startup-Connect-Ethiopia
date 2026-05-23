@@ -45,6 +45,9 @@ app.use("/api/messages", messageRoutes);
 const investorRoutes = require("./routes/investorRoutes");
 app.use("/api/investors", investorRoutes);
 
+const paymentRoutes = require("./routes/paymentRoutes");
+app.use("/api/payments", paymentRoutes);
+
 const mentorRoutes = require("./routes/mentorRoutes");
 app.use("/api/mentors", mentorRoutes);
 
@@ -59,6 +62,9 @@ app.use("/api/notifications", notificationRoutes);
 
 const chatRoutes = require("./routes/chatRoutes");
 app.use("/api/chat", chatRoutes);
+
+const aiMentorRoutes = require("./routes/aiMentorRoutes");
+app.use("/api/ai-mentor", aiMentorRoutes);
 
 const miscRoutes = require("./routes/miscRoutes");
 app.use("/api", miscRoutes);

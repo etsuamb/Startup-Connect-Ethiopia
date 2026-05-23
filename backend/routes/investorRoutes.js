@@ -95,12 +95,44 @@ router.get(
 	investorController.getPortfolio,
 );
 
+router.get(
+	"/meetings",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.getMeetings,
+);
+
+router.post(
+	"/meetings",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.createMeeting,
+);
+
+router.patch(
+	"/meetings/:meetingId",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.updateMeeting,
+);
+
 router.post(
 	"/chat/startups/:startupId/send",
 	authenticate,
 	requireApproval,
 	authorizeRoles("Investor"),
 	investorController.sendMessage,
+);
+
+router.get(
+	"/chat/conversations",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.getMessageThreads,
 );
 
 router.get(
@@ -117,6 +149,14 @@ router.post(
 	requireApproval,
 	authorizeRoles("Investor"),
 	investorController.sendFeedback,
+);
+
+router.get(
+	"/ratings",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.getRatings,
 );
 
 module.exports = router;

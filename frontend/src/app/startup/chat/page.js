@@ -189,7 +189,7 @@ export default function StartupInvestorChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f8fb] font-sans text-gray-900 flex">
+    <div className="flex min-h-screen overflow-hidden bg-white font-sans text-gray-900">
       <Sidebar />
       <main className="flex-grow flex flex-col overflow-y-auto">
         <header className="px-8 py-6 bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -370,7 +370,7 @@ export default function StartupInvestorChatPage() {
               </form>
             </section>
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );
