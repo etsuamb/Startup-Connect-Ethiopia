@@ -109,6 +109,10 @@ export function sendMentorMessage(conversationId, body) {
 	});
 }
 
+export function sendMentorChatFile(conversationId, formData) {
+	return apiPostForm(`/mentors/mentor-chat/conversations/${conversationId}/files`, formData);
+}
+
 export function fetchMentorChatNotifications() {
 	return apiFetch("/mentors/mentor-chat/notifications");
 }

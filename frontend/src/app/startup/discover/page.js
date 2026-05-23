@@ -163,8 +163,8 @@ export default function StartupDiscoverPage() {
                     <h2 className="mt-2 text-2xl font-bold text-gray-900">Mentor connections</h2>
                     <p className="mt-2 text-sm text-gray-500">Find mentors aligned with your industry, growth stage, and goals.</p>
                   </div>
-                  <Link href="/startup/mentorship" className="inline-flex items-center gap-2 rounded-full border border-[#0f3d32] bg-[#f0faf5] px-5 py-3 text-sm font-semibold text-[#0f3d32] transition hover:bg-[#e1f4e7]">
-                    Request mentorship
+                  <Link href="/startup/discover" className="inline-flex items-center gap-2 rounded-full border border-[#0f3d32] bg-[#f0faf5] px-5 py-3 text-sm font-semibold text-[#0f3d32] transition hover:bg-[#e1f4e7]">
+                    Find mentors
                   </Link>
                 </div>
 

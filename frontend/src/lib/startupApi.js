@@ -1,4 +1,4 @@
-import { apiFetch, apiPostJson, apiPutJson, apiPostForm, apiPutForm } from "./api";
+import { apiFetch, apiPatchJson, apiPostJson, apiPutJson, apiPostForm, apiPutForm } from "./api";
 
 function buildQuery(params) {
   const searchParams = new URLSearchParams();
@@ -52,6 +52,10 @@ export async function updateStartupProfile(payload) {
   return apiPutForm("/startups/profile", payload);
 }
 
+export async function getStartupDocuments() {
+  return apiFetch("/startups/documents");
+}
+
 export async function getMyProjects() {
   return apiFetch("/startups/projects");
 }
@@ -102,6 +106,80 @@ export async function sendInvestorMessage(investorId, message) {
 export async function getInvestorMessages(investorId, params = {}) {
   const query = buildQuery(params);
   return apiFetch(`/startups/chat/investors/${investorId}/messages?${query}`);
+}
+
+export async function getInvestorChatConversations() {
+  return apiFetch("/chat/conversations");
+}
+
+export async function getInvestorChatMessages(conversationId, params = {}) {
+  const query = buildQuery(params);
+  return apiFetch(`/chat/conversations/${conversationId}/messages${query ? `?${query}` : ""}`);
+}
+
+export async function sendInvestorChatMessage(conversationId, body) {
+  return apiPostJson(`/chat/conversations/${conversationId}/messages`, { body });
+}
+
+export async function sendInvestorChatFile(conversationId, formData) {
+  return apiPostForm(`/chat/conversations/${conversationId}/files`, formData);
+}
+
+export async function getInvestorVideoStatus(conversationId) {
+  return apiFetch(`/chat/conversations/${conversationId}/video/status`);
+}
+
+export async function startInvestorVideoCall(conversationId) {
+  return apiPostJson(`/chat/conversations/${conversationId}/video/start`, {});
+}
+
+export async function joinInvestorVideoCall(conversationId) {
+  return apiPostJson(`/chat/conversations/${conversationId}/video/join`, {});
+}
+
+export async function endInvestorVideoCall(conversationId) {
+  return apiPostJson(`/chat/conversations/${conversationId}/video/end`, {});
+}
+
+export async function getMentorChatConversations() {
+  return apiFetch("/startups/mentor-chat/conversations");
+}
+
+export async function getMentorChatMessages(conversationId, params = {}) {
+  const query = buildQuery(params);
+  return apiFetch(`/startups/mentor-chat/conversations/${conversationId}/messages${query ? `?${query}` : ""}`);
+}
+
+export async function sendMentorChatMessage(conversationId, body) {
+  return apiPostJson(`/startups/mentor-chat/conversations/${conversationId}/messages`, { body });
+}
+
+export async function sendMentorChatFile(conversationId, formData) {
+  return apiPostForm(`/startups/mentor-chat/conversations/${conversationId}/files`, formData);
+}
+
+export async function getMentorVideoStatus(conversationId) {
+  return apiFetch(`/startups/mentor-chat/conversations/${conversationId}/video/status`);
+}
+
+export async function startMentorVideoCall(conversationId) {
+  return apiPostJson(`/startups/mentor-chat/conversations/${conversationId}/video/start`, {});
+}
+
+export async function joinMentorVideoCall(conversationId) {
+  return apiPostJson(`/startups/mentor-chat/conversations/${conversationId}/video/join`, {});
+}
+
+export async function endMentorVideoCall(conversationId) {
+  return apiPostJson(`/startups/mentor-chat/conversations/${conversationId}/video/end`, {});
+}
+
+export async function setMentorVideoScreenShare(conversationId, action) {
+  return apiPostJson(`/startups/mentor-chat/conversations/${conversationId}/video/screen-share`, { action });
+}
+
+export async function setInvestorVideoScreenShare(conversationId, action) {
+  return apiPostJson(`/chat/conversations/${conversationId}/video/screen-share`, { action });
 }
 
 export async function getNotifications(params = {}) {
@@ -159,7 +237,7 @@ export async function getOfferDetails(offerType, offerId) {
 }
 
 export async function updateOfferStatus(offerType, offerId, status) {
-  return apiPutJson(`/startups/offers/${offerType}/${offerId}`, { status });
+  return apiPatchJson(`/startups/offers/${offerType}/${offerId}`, { status });
 }
 
 export async function sendAiMentorMessage(payload) {

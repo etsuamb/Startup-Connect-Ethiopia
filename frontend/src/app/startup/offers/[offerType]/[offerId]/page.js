@@ -71,6 +71,7 @@ export default function OfferDetailsPage() {
     switch (status.toLowerCase()) {
       case "pending":
         return "bg-[#fef3c7] text-[#92400e]";
+      case "approved":
       case "accepted":
         return "bg-[#dcfce7] text-[#166534]";
       case "rejected":
@@ -78,6 +79,21 @@ export default function OfferDetailsPage() {
       default:
         return "bg-gray-100 text-gray-600";
     }
+  }
+
+  function formatStatus(status) {
+    if (status === "approved") return "accepted";
+    return status || "unknown";
+  }
+
+  function getDirectionColor() {
+    if (isInvestment && offer.source_direction === "incoming") {
+      return "bg-blue-50 text-blue-700";
+    }
+    if (!isInvestment) {
+      return "bg-purple-50 text-purple-700";
+    }
+    return "bg-gray-100 text-gray-700";
   }
 
   if (loading) {
@@ -114,7 +130,7 @@ export default function OfferDetailsPage() {
   }
 
   const isInvestment = offerType === "investment";
-  const canAction = isInvestment ? offer.status === "pending" : offer.status === "accepted";
+  const canAction = isInvestment && offer.source_direction === "incoming" && offer.status === "pending";
 
   return (
     <div className="min-h-screen bg-[#f4f7f9] font-sans text-gray-900 flex">
@@ -128,7 +144,7 @@ export default function OfferDetailsPage() {
                 {isInvestment ? "Investment" : "Mentorship"} Offer
               </h1>
               <p className="mt-3 max-w-2xl text-sm text-[#d2f8e3]">
-                Review the full details and decide whether to accept or reject this offer.
+                Review whether this is an incoming offer or a request your startup already sent.
               </p>
             </div>
             <Link
@@ -148,8 +164,11 @@ export default function OfferDetailsPage() {
                   <span className="rounded-full bg-[#ecfdf3] px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#0f3d32]">
                     {offer.type}
                   </span>
+                  <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] ${getDirectionColor()}`}>
+                    {offer.source_label || (offer.source_direction === "incoming" ? "Incoming" : "Sent by startup")}
+                  </span>
                   <span className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] ${getStatusColor(offer.status)}`}>
-                    {offer.status}
+                    {formatStatus(offer.status)}
                   </span>
                 </div>
                 <h2 className="text-3xl font-bold text-gray-900">
@@ -365,12 +384,14 @@ export default function OfferDetailsPage() {
                 )}
               </div>
               <div className="rounded-3xl bg-[#eafdf3] px-6 py-4 text-sm text-[#0f3d32]">
-                {offer.status === "pending" && isInvestment
+                {canAction
                   ? "This investment offer is waiting for your response."
-                  : offer.status === "accepted"
+                  : offer.source_direction === "sent"
+                  ? "Your startup sent this request. The investor or mentor must respond to it."
+                  : ["accepted", "approved"].includes(offer.status)
                   ? isInvestment
                     ? "You have accepted this investment offer. Next steps can be arranged through chat."
-                    : "This mentorship offer is active. You can schedule sessions through the mentorship page."
+                    : "This mentorship offer is active. You can message and call your mentor from Mentor Chat."
                   : offer.status === "rejected"
                   ? "This offer was rejected. You can revisit the details any time."
                   : "This offer has been processed."}

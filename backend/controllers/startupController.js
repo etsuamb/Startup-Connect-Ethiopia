@@ -199,23 +199,40 @@ exports.updateStartupProfile = async (req, res) => {
     }
 
     let {
+      first_name,
+      last_name,
+      phone_number,
+      founder_full_name,
       startup_name,
       industry,
+      startup_tagline,
       description,
       business_stage,
+      startup_type,
       founded_year,
       team_size,
+      region,
+      city,
+      founder_role,
       location,
       website,
       funding_needed,
     } = req.body || {};
 
     // Basic required validation
-    if (!startup_name || typeof startup_name !== "string") {
+    if (!startup_name || typeof startup_name !== "string" || !startup_name.trim()) {
       return res.status(400).json({
         error:
           "'startup_name' is required. Send either JSON (application/json) or form-data fields with startup_name.",
       });
+    }
+    startup_name = startup_name.trim();
+
+    if (first_name !== undefined && (typeof first_name !== "string" || !first_name.trim())) {
+      return res.status(400).json({ error: "'first_name' must be a non-empty string" });
+    }
+    if (last_name !== undefined && (typeof last_name !== "string" || !last_name.trim())) {
+      return res.status(400).json({ error: "'last_name' must be a non-empty string" });
     }
 
     // Validate typed fields (same rules as create)
@@ -263,56 +280,103 @@ exports.updateStartupProfile = async (req, res) => {
       funding_needed = null;
     }
 
-    if (website !== undefined && website !== null && website !== "") {
-      if (
-        typeof website !== "string" ||
-        !(website.startsWith("http://") || website.startsWith("https://"))
-      ) {
-        return res.status(400).json({
-          error:
-            "'website' must be a valid URL starting with http:// or https://",
-        });
+    if (website !== undefined && website !== null && String(website).trim() !== "") {
+      website = String(website).trim();
+      if (!website.startsWith("http://") && !website.startsWith("https://")) {
+        website = `https://${website}`;
       }
+    } else {
+      website = null;
     }
 
     // Ensure startup exists
     const existing = await pool.query(
-      "SELECT startup_id FROM startups WHERE user_id = $1",
+      "SELECT startup_id, founder_full_name FROM startups WHERE user_id = $1",
       [userId],
     );
     if (existing.rowCount === 0) {
       return res.status(404).json({ error: "Startup profile not found" });
     }
 
+    const resolvedFounderName =
+      typeof founder_full_name === "string" && founder_full_name.trim()
+        ? founder_full_name.trim()
+        : existing.rows[0].founder_full_name;
+
+    if (first_name !== undefined || last_name !== undefined || phone_number !== undefined) {
+      const userPatch = await pool.query(
+        `SELECT first_name, last_name, phone_number FROM users WHERE user_id = $1`,
+        [userId],
+      );
+      const current = userPatch.rows[0] || {};
+      await pool.query(
+        `UPDATE users SET
+          first_name = $1,
+          last_name = $2,
+          phone_number = $3,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $4`,
+        [
+          first_name !== undefined ? String(first_name).trim() : current.first_name,
+          last_name !== undefined ? String(last_name).trim() : current.last_name,
+          phone_number !== undefined && String(phone_number).trim() !== ""
+            ? String(phone_number).trim()
+            : phone_number !== undefined
+              ? null
+              : current.phone_number,
+          userId,
+        ],
+      );
+    }
+
     const updateRes = await pool.query(
       `UPDATE startups SET
-				startup_name = $1,
-				industry = $2,
-				description = $3,
-				business_stage = $4,
-				founded_year = $5,
-				team_size = $6,
-				location = $7,
-				website = $8,
-				funding_needed = $9
-			WHERE user_id = $10
+				founder_full_name = $1,
+				startup_name = $2,
+				industry = $3,
+				startup_tagline = $4,
+				description = $5,
+				business_stage = $6,
+				startup_type = $7,
+				founded_year = $8,
+				team_size = $9,
+				region = $10,
+				city = $11,
+				founder_role = $12,
+				location = $13,
+				website = $14,
+				funding_needed = $15
+			WHERE user_id = $16
 			RETURNING *
 			`,
       [
+        resolvedFounderName,
         startup_name,
-        industry,
-        description,
-        business_stage,
+        industry || null,
+        startup_tagline || null,
+        description || null,
+        business_stage || null,
+        startup_type || null,
         founded_year,
         team_size,
-        location,
+        region || null,
+        city || null,
+        founder_role || null,
+        location || null,
         website,
         funding_needed,
         userId,
       ],
     );
 
-    const startup = updateRes.rows[0];
+    const profileRes = await pool.query(
+      `SELECT s.*, u.first_name, u.last_name, u.email, u.phone_number
+       FROM startups s
+       JOIN users u ON u.user_id = s.user_id
+       WHERE s.user_id = $1`,
+      [userId],
+    );
+    const startup = profileRes.rows[0];
     const uploadedFiles = [];
 
     if (req.files && typeof req.files === "object") {
@@ -327,17 +391,24 @@ exports.updateStartupProfile = async (req, res) => {
       uploadedFiles.push(req.file);
     }
 
+    const docLabels = {
+      pitch_deck: "Pitch deck",
+      business_plan: "Business plan",
+    };
+
     for (const file of uploadedFiles) {
       try {
+        const description = docLabels[file.fieldname] || file.fieldname || null;
         await pool.query(
-          `INSERT INTO documents (startup_id, file_name, file_path, file_type, file_size_bytes, created_at)
-					 VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP)`,
+          `INSERT INTO documents (startup_id, file_name, file_path, file_type, file_size_bytes, description, created_at)
+					 VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`,
           [
             startup.startup_id,
             file.originalname,
             file.path,
             file.mimetype,
             file.size,
+            description,
           ],
         );
       } catch (docErr) {
@@ -345,7 +416,17 @@ exports.updateStartupProfile = async (req, res) => {
       }
     }
 
-    res.status(200).json({ message: "Startup profile updated", startup });
+    const docs = await pool.query(
+      `SELECT document_id, file_name, file_path, file_type, file_size_bytes, description, created_at
+       FROM documents WHERE startup_id = $1 ORDER BY created_at DESC`,
+      [startup.startup_id],
+    );
+
+    res.status(200).json({
+      message: "Startup profile updated",
+      startup,
+      documents: docs.rows,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -366,7 +447,14 @@ exports.getMyStartupProfile = async (req, res) => {
       return res.status(404).json({ error: "Startup profile not found" });
     }
 
-    res.json({ startup: result.rows[0] });
+    const startup = result.rows[0];
+    const docs = await pool.query(
+      `SELECT document_id, file_name, file_path, file_type, file_size_bytes, description, created_at
+       FROM documents WHERE startup_id = $1 ORDER BY created_at DESC`,
+      [startup.startup_id],
+    );
+
+    res.json({ startup, documents: docs.rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -512,7 +600,6 @@ exports.searchPublicStartups = async (req, res) => {
 exports.getStartupOffers = async (req, res) => {
   try {
     const userId = req.user.user_id;
-    const { type } = req.query;
 
     const startupResult = await pool.query(
       "SELECT startup_id FROM startups WHERE user_id = $1",
@@ -526,16 +613,36 @@ exports.getStartupOffers = async (req, res) => {
     const startupId = startupResult.rows[0].startup_id;
     const offers = [];
 
-    // Fetch investment offers
-    if (!type || type === "investor" || type === "all") {
-      const investmentOffers = await pool.query(
-        `SELECT 
+    const investmentOffers = await pool.query(
+      `SELECT 
           ir.investment_request_id as id,
           'Investor' as type,
           ir.status,
           ir.created_at,
           ir.requested_amount as amount,
           ir.proposal_message as message,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM notifications n
+              WHERE n.reference_type = 'investment_requests'
+                AND n.reference_id = ir.investment_request_id
+                AND n.title = 'New Funding Offer'
+            )
+            THEN 'incoming'
+            ELSE 'sent'
+          END as source_direction,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM notifications n
+              WHERE n.reference_type = 'investment_requests'
+                AND n.reference_id = ir.investment_request_id
+                AND n.title = 'New Funding Offer'
+            )
+            THEN 'Investor made this offer'
+            ELSE 'Startup sent this investment request'
+          END as source_label,
           i.investor_id,
           i.organization_name as company,
           i.investment_budget,
@@ -551,32 +658,38 @@ exports.getStartupOffers = async (req, res) => {
         FROM investment_requests ir
         JOIN investors i ON i.investor_id = ir.investor_id
         JOIN users u ON u.user_id = i.user_id
-        JOIN projects p ON p.project_id = ir.project_id
+        LEFT JOIN projects p ON p.project_id = ir.project_id
         WHERE ir.startup_id = $1
         ORDER BY ir.created_at DESC`,
-        [startupId],
-      );
+      [startupId],
+    );
 
-      investmentOffers.rows.forEach(offer => {
-        offers.push({
-          ...offer,
-          offerType: 'investment',
-          equity: null,
-          terms: `Investment offer for ${offer.project_title}`,
-        });
+    investmentOffers.rows.forEach(offer => {
+      offers.push({
+        ...offer,
+        offerType: 'investment',
+        equity: null,
+        canStartupRespond: offer.source_direction === 'incoming' && offer.status === 'pending',
+        terms: offer.source_direction === 'incoming'
+          ? `Funding offer for ${offer.project_title}`
+          : `Investment request for ${offer.project_title}`,
       });
-    }
+    });
 
-    // Fetch mentorship offers (where mentor has accepted the startup's request)
-    if (!type || type === "mentor" || type === "all") {
-      const mentorshipOffers = await pool.query(
-        `SELECT 
+    const mentorshipOffers = await pool.query(
+      `SELECT 
           mr.mentorship_request_id as id,
           'Mentor' as type,
           mr.status,
           mr.created_at,
           mr.subject,
           mr.message,
+          'sent' as source_direction,
+          CASE
+            WHEN mr.status = 'accepted' THEN 'Mentor accepted your request'
+            WHEN mr.status = 'rejected' THEN 'Mentor rejected your request'
+            ELSE 'Startup sent this mentorship request'
+          END as source_label,
           m.mentor_id,
           m.headline,
           m.expertise,
@@ -591,21 +704,22 @@ exports.getStartupOffers = async (req, res) => {
         FROM mentorship_requests mr
         JOIN mentors m ON m.mentor_id = mr.mentor_id
         JOIN users u ON u.user_id = m.user_id
-        WHERE mr.startup_id = $1 AND mr.status = 'accepted'
+        WHERE mr.startup_id = $1
         ORDER BY mr.created_at DESC`,
-        [startupId],
-      );
+      [startupId],
+    );
 
-      mentorshipOffers.rows.forEach(offer => {
-        offers.push({
-          ...offer,
-          offerType: 'mentorship',
-          amount: null,
-          terms: offer.subject || 'Mentorship offer',
-        });
+    mentorshipOffers.rows.forEach(offer => {
+      offers.push({
+        ...offer,
+        offerType: 'mentorship',
+        amount: null,
+        canStartupRespond: false,
+        terms: offer.subject || 'Mentorship request',
       });
-    }
+    });
 
+    offers.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json({ offers });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -638,6 +752,28 @@ exports.getOfferDetails = async (req, res) => {
           ir.created_at,
           ir.requested_amount as amount,
           ir.proposal_message as message,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM notifications n
+              WHERE n.reference_type = 'investment_requests'
+                AND n.reference_id = ir.investment_request_id
+                AND n.title = 'New Funding Offer'
+            )
+            THEN 'incoming'
+            ELSE 'sent'
+          END as source_direction,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM notifications n
+              WHERE n.reference_type = 'investment_requests'
+                AND n.reference_id = ir.investment_request_id
+                AND n.title = 'New Funding Offer'
+            )
+            THEN 'Investor made this offer'
+            ELSE 'Startup sent this investment request'
+          END as source_label,
           i.investor_id,
           i.organization_name as company,
           i.investment_budget,
@@ -657,7 +793,7 @@ exports.getOfferDetails = async (req, res) => {
         FROM investment_requests ir
         JOIN investors i ON i.investor_id = ir.investor_id
         JOIN users u ON u.user_id = i.user_id
-        JOIN projects p ON p.project_id = ir.project_id
+        LEFT JOIN projects p ON p.project_id = ir.project_id
         WHERE ir.investment_request_id = $1 AND ir.startup_id = $2`,
         [offerId, startupId],
       );
@@ -678,6 +814,12 @@ exports.getOfferDetails = async (req, res) => {
           mr.created_at,
           mr.subject,
           mr.message,
+          'sent' as source_direction,
+          CASE
+            WHEN mr.status = 'accepted' THEN 'Mentor accepted your request'
+            WHEN mr.status = 'rejected' THEN 'Mentor rejected your request'
+            ELSE 'Startup sent this mentorship request'
+          END as source_label,
           m.mentor_id,
           m.headline,
           m.expertise,
@@ -738,11 +880,22 @@ exports.updateOfferStatus = async (req, res) => {
     const startupId = startupResult.rows[0].startup_id;
 
     if (offerType === 'investment') {
+      const nextStatus = status === 'accepted' ? 'approved' : status;
       const requestResult = await pool.query(
-        `SELECT ir.*, p.startup_id
+        `SELECT ir.*,
+          CASE
+            WHEN EXISTS (
+              SELECT 1
+              FROM notifications n
+              WHERE n.reference_type = 'investment_requests'
+                AND n.reference_id = ir.investment_request_id
+                AND n.title = 'New Funding Offer'
+            )
+            THEN 'incoming'
+            ELSE 'sent'
+         END as source_direction
          FROM investment_requests ir
-         JOIN projects p ON p.project_id = ir.project_id
-         WHERE ir.investment_request_id = $1 AND p.startup_id = $2`,
+         WHERE ir.investment_request_id = $1 AND ir.startup_id = $2`,
         [offerId, startupId],
       );
 
@@ -751,6 +904,10 @@ exports.updateOfferStatus = async (req, res) => {
       }
 
       const currentStatus = requestResult.rows[0].status;
+      if (requestResult.rows[0].source_direction !== 'incoming') {
+        return res.status(403).json({ error: "Startup-created investment requests must be answered by the investor" });
+      }
+
       if (currentStatus !== 'pending') {
         return res.status(409).json({ error: "Only pending offers can be updated" });
       }
@@ -760,7 +917,7 @@ exports.updateOfferStatus = async (req, res) => {
          SET status = $1
          WHERE investment_request_id = $2
          RETURNING *`,
-        [status, offerId],
+        [nextStatus, offerId],
       );
 
       return res.json({ offer: updateResult.rows[0] });
