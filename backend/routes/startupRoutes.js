@@ -163,4 +163,28 @@ router.patch(
   startupController.updateOfferStatus,
 );
 
+// Session scheduling routes
+router.get(
+  "/sessions",
+  authenticate,
+  authorizeRoles("Startup"),
+  startupController.getStartupSessions,
+);
+
+router.post(
+  "/sessions",
+  authenticate,
+  authorizeRoles("Startup"),
+  requireApproval,
+  startupController.createStartupSession,
+);
+
+router.patch(
+  "/sessions/:sessionId",
+  authenticate,
+  authorizeRoles("Startup"),
+  requireApproval,
+  startupController.updateStartupSession,
+);
+
 module.exports = router;

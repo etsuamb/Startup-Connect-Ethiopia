@@ -1,4 +1,4 @@
-import { apiFetch, apiPatchJson, apiPostForm, apiPostJson, apiPutJson } from "./api";
+import { apiFetch, apiFetchBlob, apiPatchJson, apiPostForm, apiPostJson, apiPutJson } from "./api";
 
 /** Dashboard */
 export function fetchMentorDashboard() {
@@ -113,8 +113,32 @@ export function sendMentorChatFile(conversationId, formData) {
 	return apiPostForm(`/mentors/mentor-chat/conversations/${conversationId}/files`, formData);
 }
 
+export function downloadMentorChatFile(conversationId, messageId) {
+	return apiFetchBlob(`/mentors/mentor-chat/conversations/${conversationId}/files/${messageId}`);
+}
+
 export function fetchMentorChatNotifications() {
 	return apiFetch("/mentors/mentor-chat/notifications");
+}
+
+export function getMentorVideoStatus(conversationId) {
+	return apiFetch(`/mentors/mentor-chat/conversations/${conversationId}/video/status`);
+}
+
+export function startMentorVideoCall(conversationId) {
+	return apiPostJson(`/mentors/mentor-chat/conversations/${conversationId}/video/start`, {});
+}
+
+export function joinMentorVideoCall(conversationId) {
+	return apiPostJson(`/mentors/mentor-chat/conversations/${conversationId}/video/join`, {});
+}
+
+export function endMentorVideoCall(conversationId) {
+	return apiPostJson(`/mentors/mentor-chat/conversations/${conversationId}/video/end`, {});
+}
+
+export function setMentorVideoScreenShare(conversationId, action) {
+	return apiPostJson(`/mentors/mentor-chat/conversations/${conversationId}/video/screen-share`, { action });
 }
 
 /** History */

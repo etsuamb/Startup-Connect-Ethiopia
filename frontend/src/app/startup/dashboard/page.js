@@ -3,9 +3,62 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AiMentorWidget from "@/components/startup/AiMentorWidget";
-import NotificationBell from "@/components/NotificationBell";
 import Sidebar from "@/components/startup/Sidebar";
-import { getDocuments, getMyProjects, getStartupProfile, getDashboardActivities, getDashboardFeedback, getDashboardEvents, getNotifications } from "@/lib/startupApi";
+import ViewableFileTrigger from "@/components/startup/ViewableFileTrigger";
+import {
+  getDashboardActivities,
+  getDocuments,
+  getDashboardFeedback,
+  getInvestorRecommendations,
+  getMentorRecommendations,
+  getMyProjects,
+  getNotifications,
+  getStartupDashboardStatus,
+  getStartupFundingSummary,
+  getStartupOffers,
+  getStartupProfile,
+} from "@/lib/startupApi";
+
+function formatCurrency(value) {
+  const n = Number(value) || 0;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function formatTeamSize(size) {
+  if (size == null || size === "") return "Not set";
+  const n = Number(size);
+  if (Number.isNaN(n)) return String(size);
+  if (n <= 5) return "1–5";
+  if (n <= 10) return "5–10";
+  if (n <= 25) return "11–25";
+  if (n <= 50) return "26–50";
+  return `${n}+`;
+}
+
+function investorDisplayName(investor) {
+  return (
+    investor?.organization_name ||
+    `${investor?.first_name || ""} ${investor?.last_name || ""}`.trim() ||
+    "Investor"
+  );
+}
+
+function mentorDisplayName(mentor) {
+  return `${mentor?.first_name || ""} ${mentor?.last_name || ""}`.trim() || "Mentor";
+}
+
+function SectionCard({ children, className = "" }) {
+  return (
+    <div className={`rounded-2xl border border-gray-100 bg-white p-6 sm:p-8 shadow-sm ${className}`}>
+      {children}
+    </div>
+  );
+}
 
 export default function StartupDashboard() {
   const [startup, setStartup] = useState(null);
@@ -15,42 +68,68 @@ export default function StartupDashboard() {
   const [documents, setDocuments] = useState([]);
   const [offers, setOffers] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [feedback, setFeedback] = useState(null);
-  const [events, setEvents] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [investorMatches, setInvestorMatches] = useState([]);
+  const [mentorMatches, setMentorMatches] = useState([]);
+  const [feedbackItems, setFeedbackItems] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [profileRes, projectsRes, documentsRes, activitiesRes, feedbackRes, eventsRes, notificationsRes] = await Promise.all([
-          getStartupProfile(),
-          getMyProjects(),
-          getDocuments(),
-          getDashboardActivities(),
-          getDashboardFeedback(),
-          getDashboardEvents(),
-          getNotifications(),
-        ]);
-        setStartup(profileRes.startup ?? null);
-        setProjects(projectsRes.projects ?? []);
-        setDocuments(documentsRes.documents ?? []);
-        setActivities(activitiesRes.activity ?? []);
-        setFeedback(feedbackRes.feedback?.[0] ?? null);
-        setEvents(eventsRes.events ?? []);
-        setNotifications(notificationsRes.notifications ?? []);
-      } catch (err) {
-        setError(err.message ?? "Unable to load dashboard data.");
-      } finally {
-        setLoading(false);
-      }
+  const loadData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+
+      const [
+        profileRes,
+        statusRes,
+        fundingRes,
+        projectsRes,
+        documentsRes,
+        offersRes,
+        activitiesRes,
+        notificationsRes,
+        investorRecRes,
+        mentorRecRes,
+        feedbackRes,
+      ] = await Promise.all([
+        getStartupProfile(),
+        getStartupDashboardStatus(),
+        getStartupFundingSummary(),
+        getMyProjects(),
+        getDocuments(),
+        getStartupOffers().catch(() => ({ offers: [] })),
+        getDashboardActivities({ limit: 8 }),
+        getNotifications(),
+        getInvestorRecommendations({ limit: 3 }).catch(() => ({ recommendations: [] })),
+        getMentorRecommendations().catch(() => ({ recommendations: [] })),
+        getDashboardFeedback({ limit: 10 }).catch(() => ({ feedback: [] })),
+      ]);
+
+      setStartup(profileRes.startup ?? null);
+      setDashboardStatus(statusRes);
+      setFunding(fundingRes);
+      setProjects(projectsRes.projects ?? []);
+      setDocuments(documentsRes.documents ?? []);
+      setOffers(offersRes.offers ?? []);
+      setActivities(activitiesRes.activity ?? []);
+      setNotifications(notificationsRes.notifications ?? []);
+      setInvestorMatches(investorRecRes.recommendations ?? []);
+      setMentorMatches(mentorRecRes.recommendations ?? []);
+      setFeedbackItems(feedbackRes.feedback ?? []);
+    } catch (err) {
+      setError(err.message ?? "Unable to load dashboard data.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial dashboard data load.
     loadData();
   }, [loadData]);
 
@@ -165,24 +244,12 @@ export default function StartupDashboard() {
   const accountLabel = dashboardStatus?.status_label || "Active Startup";
   const isApproved = Boolean(startup?.is_approved);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#f6f8f9] font-sans text-gray-900 flex">
-        <Sidebar />
-        <main className="flex-grow flex items-center justify-center">
-          <div className="text-center px-6 py-10 bg-white rounded-3xl shadow-sm border border-gray-100">
-            <p className="text-sm font-bold text-gray-700">Loading your startup dashboard...</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#f6f8f9] font-sans text-gray-900 flex">
       <Sidebar />
       <main className="flex-grow flex flex-col overflow-y-auto">
-        <header className="flex justify-between items-center px-6 sm:px-8 py-5 bg-white border-b border-gray-100 w-full sticky top-0 z-10">
+        {/* Modern Header */}
+        <header className="px-4 sm:px-8 py-5 bg-white border-b border-gray-100 sticky top-0 z-10 flex justify-between items-center shadow-sm">
           <div className="relative w-full max-w-md hidden sm:block">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -192,34 +259,40 @@ export default function StartupDashboard() {
             <input
               type="text"
               placeholder="Search..."
-              className="w-full pl-10 pr-4 py-2.5 bg-[#f6f8f9] border border-gray-100 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#0f3d32]/20"
+              className="w-full rounded-full border border-gray-100 bg-[#f8fafc] px-4 py-2.5 pl-10 text-sm outline-none transition-colors focus:border-[#0f3d32] focus:bg-white focus:ring-2 focus:ring-[#0f3d32]/10"
             />
           </div>
-          <div className="flex items-center gap-6 ml-auto">
+          <div className="flex items-center gap-5 ml-auto">
             <div className="relative">
-              <button 
-                className="text-gray-400 hover:text-gray-600 transition relative"
+              <button
+                type="button"
+                className="text-gray-400 hover:text-gray-600 transition relative p-2 rounded-full hover:bg-gray-50"
                 onClick={() => setShowNotifications(!showNotifications)}
+                aria-label="Notifications"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-                {notifications.some(n => !n.is_read) && (
-                  <div className="absolute top-0 right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {stats.newMessages > 0 && (
+                  <span className="absolute top-1 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
                 )}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-100 z-50">
-                  <div className="p-4 border-b border-gray-100">
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 bg-gray-50">
                     <h3 className="font-bold text-gray-900 text-sm">Notifications</h3>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500 text-sm">No notifications</div>
+                      <p className="p-6 text-center text-gray-500 text-sm">No notifications</p>
                     ) : (
-                      notifications.map((notification) => (
-                        <div key={notification.notification_id} className={`p-4 border-b border-gray-50 hover:bg-gray-50 ${!notification.is_read ? 'bg-blue-50' : ''}`}>
+                      notifications.slice(0, 10).map((notification) => (
+                        <div
+                          key={notification.notification_id}
+                          className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors ${!notification.is_read ? "bg-emerald-50/30" : ""}`}
+                        >
                           <h4 className="font-bold text-gray-900 text-xs mb-1">{notification.title}</h4>
                           <p className="text-gray-600 text-xs">{notification.message}</p>
-                          <p className="text-gray-400 text-[10px] mt-1">{new Date(notification.created_at).toLocaleDateString()}</p>
                         </div>
                       ))
                     )}
@@ -227,25 +300,27 @@ export default function StartupDashboard() {
                 </div>
               )}
             </div>
-            <Link href="/startup/settings" className="flex items-center gap-3 hover:opacity-80 transition">
+            <Link href="/startup/settings" className="flex items-center gap-3 hover:opacity-80 transition group">
               <div className="hidden sm:flex flex-col items-end">
-                <span className="text-sm font-bold text-gray-900">{startup?.startup_name ?? "My Startup"}</span>
+                <span className="text-sm font-bold text-gray-900 group-hover:text-[#0f3d32] transition-colors">{startup?.startup_name ?? "My Startup"}</span>
                 <span className="text-xs text-gray-500">{accountLabel}</span>
               </div>
-              <div className="w-9 h-9 rounded-full bg-[#115b4c] text-white flex items-center justify-center font-bold text-xs shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[#0f3d32] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
                 {startup?.startup_name?.split(" ").map((w) => w[0]).slice(0, 2).join("") ?? "ST"}
               </div>
             </Link>
           </div>
         </header>
 
-        <div className="px-4 sm:px-8 pb-12 w-full max-w-[1280px] mx-auto">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-6 mb-8">
+        <div className="px-4 sm:px-8 py-8 w-full max-w-[1200px] mx-auto pb-24">
+          
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0f3d32]">Startup · Dashboard</p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-900">
                 Welcome back, {startup?.startup_name ?? "founder"}.
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 mt-1.5">
                 {isApproved
                   ? "Here is an overview of your startup activity and progress."
                   : "Your account is pending admin approval. Some actions remain limited until you are approved."}
@@ -254,293 +329,375 @@ export default function StartupDashboard() {
             <button
               type="button"
               onClick={() => loadData(true)}
-              disabled={refreshing}
-              className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60"
+              disabled={refreshing || loading}
+              className="inline-flex items-center gap-2 justify-center rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition disabled:opacity-50"
             >
+              {refreshing || loading ? (
+                <span className="w-4 h-4 rounded-full border-2 border-gray-400 border-t-transparent animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
 
           {error && (
-            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 flex items-center gap-3">
+               <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm font-semibold text-red-800">{error}</span>
+            </div>
           )}
 
-          {/* Summary stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {[
-              { label: "Active Projects", value: stats.activeProjects },
-              { label: "Pending Investments", value: stats.pendingInvestments },
-              { label: "New Messages", value: stats.newMessages },
-              { label: "Completed Projects", value: stats.completedProjects },
-            ].map((item) => (
-              <div key={item.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{item.label}</p>
-                <p className="mt-2 text-3xl font-black text-[#0f3d32]">{item.value}</p>
+          {loading ? (
+             <SectionCard>
+              <div className="py-16 text-center">
+                <div className="w-10 h-10 rounded-full border-2 border-[#0f3d32] border-t-transparent animate-spin mx-auto mb-4" />
+                <p className="text-sm font-semibold text-gray-500">Loading your dashboard...</p>
               </div>
-            ))}
-          </div>
-
-          {/* Profile + Documents */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm relative">
-              <div className="flex justify-between items-start mb-6">
-                <h3 className="font-bold text-gray-900">Startup Profile</h3>
-                <span
-                  className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
-                    isApproved ? "bg-[#dcfce7] text-[#166534]" : "bg-amber-100 text-amber-800"
-                  }`}
-                >
-                  {isApproved ? "Approved" : "Pending"}
-                </span>
-              </div>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
-                <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Founded by</dt>
-                  <dd className="mt-1 font-semibold text-gray-900">{founderName}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Stage</dt>
-                  <dd className="mt-1 font-semibold text-gray-900">{startup?.business_stage || "Not set"}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Location</dt>
-                  <dd className="mt-1 font-semibold text-gray-900">{location}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Team size</dt>
-                  <dd className="mt-1 font-semibold text-gray-900">{formatTeamSize(startup?.team_size)}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Founder role</dt>
-                  <dd className="mt-1 font-semibold text-gray-900">{startup?.founder_role || "Not set"}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Funding raised</dt>
-                  <dd className="mt-1 font-bold text-red-600">{formatCurrency(fundingRaised)}</dd>
-                </div>
-              </dl>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-2">Documents</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                {documents.length} uploaded profile document{documents.length === 1 ? "" : "s"}
-              </p>
-              {documents.length === 0 ? (
-                <p className="text-sm text-gray-400 rounded-xl border border-dashed border-gray-200 p-6 text-center">
-                  No documents uploaded yet.
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {documents.slice(0, 6).map((doc) => (
-                    <li
-                      key={doc.document_id}
-                      className="rounded-xl bg-[#f9fafb] border border-gray-100 px-4 py-3 hover:border-[#0f3d32]/30 hover:bg-[#f0faf7] transition"
-                    >
-                      <ViewableFileTrigger
-                        filePath={doc.file_path}
-                        fileName={doc.file_name}
-                        fileType={doc.file_type}
-                        description={doc.description}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <Link
-                href="/startup/project/documents"
-                className="mt-4 inline-block text-sm font-semibold text-[#0f3d32] hover:underline"
-              >
-                Manage documents
-              </Link>
-            </div>
-          </div>
-
-          {/* Funding + Mentorship */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-6">Funding Summary</h3>
-              <div className="mb-2 flex justify-between text-sm">
-                <span className="font-bold uppercase tracking-widest text-[10px] text-gray-400">Raised / Target</span>
-                <span className="font-bold text-gray-900">
-                  {formatCurrency(fundingRaised)} / {formatCurrency(fundingTarget)}
-                </span>
-              </div>
-              <div className="w-full bg-[#f0f2f5] rounded-full h-2.5 mb-6 overflow-hidden">
-                <div
-                  className="bg-[#0f3d32] h-full rounded-full transition-all"
-                  style={{ width: `${fundingProgress}%` }}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Total rounds</p>
-                  <p className="mt-1 text-xl font-bold text-gray-900">{investmentRounds}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Funding raised</p>
-                  <p className="mt-1 text-xl font-bold text-[#0f3d32]">{formatCurrency(fundingRaised)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Average rating</p>
-                  <p className="mt-1 text-xl font-bold text-gray-900">{averageRating ?? "—"}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#0f3d32] rounded-2xl p-6 shadow-md text-white flex flex-col justify-between min-h-[220px]">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#b8f0d9]">Hired mentorship</p>
-                {hiredMentorship ? (
-                  <>
-                    <h3 className="mt-3 text-xl font-bold">{hiredMentorship.name}</h3>
-                    <p className="mt-1 text-sm text-[#d2f8e3]">{hiredMentorship.role}</p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="mt-3 text-lg font-bold">No active mentorship</h3>
-                    <p className="mt-1 text-sm text-[#d2f8e3]">Find a mentor to get started.</p>
-                  </>
-                )}
-              </div>
-              <Link
-                href={hiredMentorship ? "/startup/mentorship" : "/startup/discover"}
-                className="mt-6 inline-flex items-center justify-center rounded-xl bg-white text-[#0f3d32] text-sm font-bold px-5 py-2.5 hover:bg-gray-50 transition"
-              >
-                {hiredMentorship ? "View mentorship" : "Find mentor"}
-              </Link>
-            </div>
-          </div>
-
-          {/* Projects, Offers, Matches */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Recent Projects</h3>
-              {recentProjects.length === 0 ? (
-                <p className="text-sm text-gray-500">No projects yet.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {recentProjects.map((project) => (
-                    <li key={project.project_id} className="text-sm">
-                      <Link
-                        href={`/startup/project/details/${project.project_id}`}
-                        className="font-semibold text-gray-900 hover:text-[#0f3d32]"
-                      >
-                        {project.project_title}
-                      </Link>
-                      <p className="text-gray-500 text-xs mt-0.5">
-                        {project.status || "active"} — {formatCurrency(project.amount_raised)} funded
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <Link href="/startup/project" className="mt-4 inline-block text-sm font-semibold text-[#0f3d32] hover:underline">
-                View all projects
-              </Link>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Investment Offers</h3>
-              {investmentOffersList.length === 0 ? (
-                <p className="text-sm text-gray-500">No investment offers yet.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {investmentOffersList.map((offer) => (
-                    <li key={offer.id} className="text-sm">
-                      <Link
-                        href={`/startup/offers/investment/${offer.id}`}
-                        className="font-semibold text-gray-900 hover:text-[#0f3d32]"
-                      >
-                        {offer.company || `${offer.first_name} ${offer.last_name}`.trim()}
-                      </Link>
-                      <p className="text-gray-500 text-xs mt-0.5">
-                        {formatCurrency(offer.amount)}
-                        {offer.status ? ` · ${offer.status}` : ""}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <Link href="/startup/offers" className="mt-4 inline-block text-sm font-semibold text-[#0f3d32] hover:underline">
-                View all offers
-              </Link>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <h3 className="font-bold text-gray-900 mb-4">Recent matched mentors & investors</h3>
-              {matchedList.length === 0 ? (
-                <p className="text-sm text-gray-500">Complete your profile to see recommendations.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {matchedList.map((match) => (
-                    <li key={`${match.href}-${match.name}`} className="flex items-center justify-between gap-2 text-sm">
-                      <div className="min-w-0">
-                        <Link href={match.href} className="font-semibold text-gray-900 hover:text-[#0f3d32] truncate block">
-                          {match.name}
-                        </Link>
-                        <p className="text-xs text-gray-500 truncate">{match.subtitle}</p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-[#eaf4f1] text-[#0f3d32] text-xs font-bold px-2.5 py-1">
-                        {match.match}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <Link
-                href="/startup/recommendations"
-                className="mt-4 inline-block text-sm font-semibold text-[#0f3d32] hover:underline"
-              >
-                View recommendations
-              </Link>
-            </div>
-          </div>
-
-          {/* Recent activity */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm mb-10">
-            <h3 className="font-bold text-gray-900 mb-4">Recent Activity</h3>
-            {activities.length === 0 ? (
-              <p className="text-sm text-gray-500">No recent activity.</p>
-            ) : (
-              <ul className="space-y-3">
-                {activities.slice(0, 6).map((item) => (
-                  <li key={`${item.type}-${item.id}`} className="flex gap-3 text-sm">
-                    <span className="mt-1.5 w-2 h-2 rounded-full bg-[#0f3d32] shrink-0" />
-                    <div>
-                      <p className="font-semibold text-gray-900">{item.headline}</p>
-                      {item.detail ? <p className="text-xs text-gray-500 mt-0.5">{item.detail}</p> : null}
+            </SectionCard>
+          ) : (
+            <>
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+                {[
+                  { label: "Active Projects", value: stats.activeProjects, icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4", color: "bg-emerald-500" },
+                  { label: "Pending Investments", value: stats.pendingInvestments, icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z", color: "bg-amber-500" },
+                  { label: "New Messages", value: stats.newMessages, icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z", color: "bg-blue-500" },
+                  { label: "Completed Projects", value: stats.completedProjects, icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z", color: "bg-purple-500" },
+                ].map((item) => (
+                  <div key={item.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div className={`absolute top-0 left-0 w-full h-1 ${item.color} opacity-80`} />
+                    <div className="flex justify-between items-start mb-2">
+                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{item.label}</p>
+                       <div className="p-1.5 bg-gray-50 rounded-lg text-gray-400 group-hover:text-gray-600 transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} />
+                          </svg>
+                       </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Quick actions */}
-          <div className="border-t border-gray-200 pt-8">
-            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center mb-6">
-              Quick Actions
-            </h3>
-            <div className="flex flex-wrap justify-center gap-8 sm:gap-12">
-              {[
-                { label: "Invite Team", href: "/startup/settings", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
-                { label: "Upload Doc", href: "/startup/project/documents", icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" },
-                { label: "Find Mentor", href: "/startup/discover", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
-                { label: "Find Investor", href: "/startup/discover", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
-                { label: "Create Project", href: "/startup/project/create", icon: "M12 4v16m8-8H4" },
-              ].map((action) => (
-                <Link key={action.label} href={action.href} className="flex flex-col items-center gap-2 group">
-                  <div className="w-14 h-14 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-600 group-hover:border-[#0f3d32] group-hover:text-[#0f3d32] transition">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d={action.icon} />
-                    </svg>
+                    <p className="mt-1 text-3xl font-black text-gray-900 tracking-tight group-hover:scale-105 transition-transform origin-left">{item.value}</p>
                   </div>
-                  <span className="text-[11px] font-bold text-gray-600">{action.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+
+              {/* Profile + Documents */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <SectionCard className="relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">Startup Profile</h3>
+                      <p className="text-xs text-gray-500 mt-1">Overview of your company details</p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full ${
+                        isApproved ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${isApproved ? "bg-emerald-500" : "bg-amber-500"}`} />
+                      {isApproved ? "Approved" : "Pending"}
+                    </span>
+                  </div>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 text-sm">
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Founded by</dt>
+                      <dd className="mt-1.5 font-semibold text-gray-900">{founderName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Stage</dt>
+                      <dd className="mt-1.5 font-semibold text-gray-900">{startup?.business_stage || "Not set"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Location</dt>
+                      <dd className="mt-1.5 font-semibold text-gray-900">{location}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Team size</dt>
+                      <dd className="mt-1.5 font-semibold text-gray-900">{formatTeamSize(startup?.team_size)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Founder role</dt>
+                      <dd className="mt-1.5 font-semibold text-gray-900">{startup?.founder_role || "Not set"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Funding raised</dt>
+                      <dd className="mt-1.5 font-bold text-[#0f3d32]">{formatCurrency(fundingRaised)}</dd>
+                    </div>
+                  </dl>
+                </SectionCard>
+
+                <SectionCard>
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                       <h3 className="text-lg font-bold text-gray-900">Documents</h3>
+                       <p className="text-xs text-gray-500 mt-1">
+                          {documents.length} uploaded profile document{documents.length === 1 ? "" : "s"}
+                       </p>
+                    </div>
+                    <Link
+                      href="/startup/project/documents"
+                      className="text-xs font-bold text-[#0f3d32] hover:text-[#0b2f26] bg-emerald-50 px-3 py-1.5 rounded-lg transition"
+                    >
+                      Manage
+                    </Link>
+                  </div>
+                  
+                  {documents.length === 0 ? (
+                    <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
+                      <p className="text-sm font-medium text-gray-500">No documents uploaded yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">Upload a pitch deck or business plan.</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {documents.slice(0, 4).map((doc) => (
+                        <li
+                          key={doc.document_id}
+                          className="rounded-xl bg-[#f8fafc] border border-gray-100 p-3 hover:border-[#0f3d32]/30 hover:bg-[#f0faf7] transition group"
+                        >
+                          <ViewableFileTrigger
+                            filePath={doc.file_path}
+                            fileName={doc.file_name}
+                            fileType={doc.file_type}
+                            description={doc.description}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </SectionCard>
+              </div>
+
+              {/* Funding + Mentorship */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <SectionCard className="lg:col-span-2">
+                  <h3 className="text-lg font-bold text-gray-900 mb-6">Funding Summary</h3>
+                  <div className="mb-2 flex justify-between items-end text-sm">
+                    <span className="font-bold uppercase tracking-widest text-[10px] text-gray-500">Raised / Target</span>
+                    <span className="font-black text-gray-900 text-lg">
+                      {formatCurrency(fundingRaised)} <span className="text-gray-400 font-medium text-sm">/ {formatCurrency(fundingTarget)}</span>
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#f8fafc] border border-gray-100 rounded-full h-3 mb-8 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-[#0f3d32] to-[#1a6654] h-full rounded-full transition-all duration-1000 ease-out relative"
+                      style={{ width: `${fundingProgress}%` }}
+                    >
+                       <div className="absolute top-0 right-0 bottom-0 w-8 bg-white/20 blur-sm -skew-x-12 animate-[shimmer_2s_infinite]" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-6 pt-6 border-t border-gray-100">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Total rounds</p>
+                      <p className="mt-1.5 text-2xl font-black text-gray-900">{investmentRounds}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Funding raised</p>
+                      <p className="mt-1.5 text-2xl font-black text-[#0f3d32]">{formatCurrency(fundingRaised)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Average rating</p>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                         <span className="text-2xl font-black text-gray-900">{averageRating ?? "—"}</span>
+                         {averageRating && <span className="text-amber-400 text-lg">★</span>}
+                      </div>
+                    </div>
+                  </div>
+                </SectionCard>
+
+                <div className="bg-gradient-to-br from-[#0f3d32] to-[#0a2921] rounded-2xl p-6 shadow-md text-white flex flex-col justify-between min-h-[240px] relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10 transition-transform group-hover:scale-150" />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-6">
+                       <svg className="w-5 h-5 text-[#b8f0d9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                       </svg>
+                       <p className="text-[10px] font-bold uppercase tracking-widest text-[#b8f0d9]">Mentorship</p>
+                    </div>
+                    
+                    {hiredMentorship ? (
+                      <>
+                        <h3 className="text-2xl font-black leading-tight">{hiredMentorship.name}</h3>
+                        <p className="mt-2 text-sm text-[#d2f8e3] font-medium">{hiredMentorship.role}</p>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="text-xl font-bold">No active mentor</h3>
+                        <p className="mt-2 text-sm text-[#d2f8e3]/80">Find a mentor to guide your startup&apos;s growth.</p>
+                      </>
+                    )}
+                  </div>
+                  <Link
+                    href={hiredMentorship ? "/startup/mentorship" : "/startup/discover"}
+                    className="relative z-10 mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white text-[#0f3d32] text-sm font-bold px-5 py-3 hover:bg-gray-50 transition shadow-sm"
+                  >
+                    {hiredMentorship ? "View mentorship" : "Find mentor"}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Projects, Offers, Matches */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <SectionCard>
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-lg font-bold text-gray-900">Recent Projects</h3>
+                     <Link href="/startup/project" className="text-xs font-bold text-gray-400 hover:text-[#0f3d32] transition">View all</Link>
+                  </div>
+                  {recentProjects.length === 0 ? (
+                    <div className="py-6 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                       <p className="text-sm font-medium text-gray-500">No projects yet</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-4">
+                      {recentProjects.map((project) => (
+                        <li key={project.project_id} className="text-sm group">
+                          <Link
+                            href={`/startup/project/details/${project.project_id}`}
+                            className="font-bold text-gray-900 group-hover:text-[#0f3d32] transition block truncate"
+                          >
+                            {project.project_title}
+                          </Link>
+                          <div className="flex items-center gap-2 mt-1">
+                             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                             <p className="text-gray-500 text-xs font-medium">
+                               {project.status || "active"} <span className="mx-1 text-gray-300">•</span> {formatCurrency(project.amount_raised)} funded
+                             </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </SectionCard>
+
+                <SectionCard>
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-lg font-bold text-gray-900">Investment Offers</h3>
+                     <Link href="/startup/offers" className="text-xs font-bold text-gray-400 hover:text-[#0f3d32] transition">View all</Link>
+                  </div>
+                  {investmentOffersList.length === 0 ? (
+                    <div className="py-6 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                       <p className="text-sm font-medium text-gray-500">No offers yet</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-4">
+                      {investmentOffersList.map((offer) => (
+                        <li key={offer.id} className="flex justify-between items-start gap-3 group">
+                          <div className="min-w-0">
+                            <Link
+                              href={`/startup/offers/investment/${offer.id}`}
+                              className="font-bold text-gray-900 group-hover:text-[#0f3d32] transition block truncate"
+                            >
+                              {offer.company || `${offer.first_name} ${offer.last_name}`.trim()}
+                            </Link>
+                            <p className="text-gray-500 text-xs font-medium mt-1">
+                              {formatCurrency(offer.amount)}
+                            </p>
+                          </div>
+                          {offer.status && (
+                             <span className="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600">
+                                {offer.status}
+                             </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </SectionCard>
+
+                <SectionCard>
+                  <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-lg font-bold text-gray-900">Top Matches</h3>
+                     <Link href="/startup/recommendations" className="text-xs font-bold text-gray-400 hover:text-[#0f3d32] transition">View all</Link>
+                  </div>
+                  {matchedList.length === 0 ? (
+                    <div className="py-6 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                       <p className="text-sm font-medium text-gray-500">Complete profile to see matches</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-4">
+                      {matchedList.map((match) => (
+                        <li key={`${match.href}-${match.name}`} className="flex items-center justify-between gap-3 group">
+                          <div className="min-w-0 flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
+                                <span className="text-indigo-700 font-bold text-xs">{match.name.charAt(0)}</span>
+                             </div>
+                             <div className="min-w-0">
+                               <Link href={match.href} className="font-bold text-gray-900 group-hover:text-[#0f3d32] transition block truncate text-sm">
+                                 {match.name}
+                               </Link>
+                               <p className="text-xs text-gray-500 font-medium truncate">{match.subtitle}</p>
+                             </div>
+                          </div>
+                          <span className="shrink-0 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-bold px-2 py-1">
+                            {match.match}%
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </SectionCard>
+              </div>
+
+              {/* Recent activity */}
+              <SectionCard className="mb-10">
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Recent Activity</h3>
+                {activities.length === 0 ? (
+                  <div className="py-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                     <p className="text-sm font-medium text-gray-500">No recent activity.</p>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <div className="absolute top-4 bottom-4 left-[15px] w-px bg-gray-100" />
+                    <ul className="space-y-6 relative z-10">
+                      {activities.slice(0, 6).map((item) => (
+                        <li key={`${item.type}-${item.id}`} className="flex gap-4">
+                          <div className="w-8 h-8 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center shrink-0 mt-0.5 z-10 text-gray-500">
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                             </svg>
+                          </div>
+                          <div className="bg-[#f8fafc] rounded-xl border border-gray-100 p-4 flex-grow hover:border-[#0f3d32]/20 transition-colors">
+                            <p className="font-bold text-gray-900 text-sm">{item.headline}</p>
+                            {item.detail && <p className="text-xs text-gray-500 font-medium mt-1">{item.detail}</p>}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </SectionCard>
+
+              {/* Quick actions */}
+              <div className="border-t border-gray-200 pt-10">
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center mb-8">
+                  Quick Actions
+                </h3>
+                <div className="flex flex-wrap justify-center gap-6 sm:gap-10">
+                  {[
+                    { label: "Invite Team", href: "/startup/settings", icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" },
+                    { label: "Upload Doc", href: "/startup/project/documents", icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" },
+                    { label: "Find Mentor", href: "/startup/discover", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
+                    { label: "Find Investor", href: "/startup/discover", icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
+                    { label: "Create Project", href: "/startup/project/create", icon: "M12 4v16m8-8H4" },
+                  ].map((action) => (
+                    <Link key={action.label} href={action.href} className="flex flex-col items-center gap-3 group">
+                      <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-500 group-hover:border-[#0f3d32] group-hover:text-[#0f3d32] group-hover:shadow-md group-hover:-translate-y-1 transition-all duration-300">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={action.icon} />
+                        </svg>
+                      </div>
+                      <span className="text-xs font-bold text-gray-600 group-hover:text-gray-900 transition-colors">{action.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </main>
       <AiMentorWidget />

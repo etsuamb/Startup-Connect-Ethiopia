@@ -6,79 +6,251 @@ import { useEffect, useState } from "react";
 import { fetchMentorDashboard } from "@/lib/mentorApi";
 import { clearSession } from "@/lib/authStorage";
 
-export default function Sidebar() {
-	const pathname = usePathname();
-	const router = useRouter();
-	const [profile, setProfile] = useState(null);
+const NAV_SECTIONS = [
+  {
+    label: "Main",
+    links: [
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        href: "/mentor/dashboard",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+          />
+        ),
+      },
+      {
+        id: "requests",
+        label: "Requests",
+        href: "/mentor/requests",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+          />
+        ),
+      },
+      {
+        id: "startups",
+        label: "My Startups",
+        href: "/mentor/startups",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M13 10V3L4 14h7v7l9-11h-7z"
+          />
+        ),
+      },
+      {
+        id: "sessions",
+        label: "Sessions",
+        href: "/mentor/sessions",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        ),
+      },
+    ],
+  },
+  {
+    label: "Communication",
+    links: [
+      {
+        id: "messages",
+        label: "Messages",
+        href: "/mentor/messages",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          />
+        ),
+      },
+    ],
+  },
+  {
+    label: "Resources",
+    links: [
+      {
+        id: "resources",
+        label: "Resources",
+        href: "/mentor/resources",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+          />
+        ),
+      },
+      {
+        id: "reports",
+        label: "Reports",
+        href: "/mentor/reports",
+        icon: (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        ),
+      },
+    ],
+  },
+];
 
-	useEffect(() => {
-		fetchMentorDashboard()
-			.then((d) => setProfile(d.profile))
-			.catch(() => {});
-	}, []);
+export default function MentorSidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [profile, setProfile] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
-	const links = [
-		{ id: "overview", label: "Overview", href: "/mentor/dashboard" },
-		{ id: "requests", label: "Requests", href: "/mentor/requests" },
-		{ id: "startups", label: "My Startups", href: "/mentor/startups" },
-		{ id: "sessions", label: "Sessions", href: "/mentor/sessions" },
-		{ id: "messages", label: "Messages", href: "/mentor/messages" },
-		{ id: "resources", label: "Resources", href: "/mentor/resources" },
-		{ id: "reports", label: "Reports", href: "/mentor/reports" },
-	];
+  useEffect(() => {
+    fetchMentorDashboard()
+      .then((d) => setProfile(d.profile))
+      .catch(() => {});
+  }, []);
 
-	function logout() {
-		clearSession();
-		router.push("/login");
-	}
+  const name = profile
+    ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || "Mentor"
+    : "Mentor";
+  const title = profile?.headline || profile?.professional_title || "Advisor";
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase() || "M";
 
-	const name = profile
-		? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
-		: "Mentor";
-	const title = profile?.headline || profile?.professional_title || "Advisor";
+  function logout() {
+    clearSession();
+    router.push("/login");
+  }
 
-	return (
-		<aside className="w-[260px] bg-[#0a3a2e] flex flex-col shrink-0 h-full overflow-y-auto text-white">
-			<div className="p-8 pb-6">
-				<Link href="/mentor/dashboard" className="font-bold text-white text-[22px]">
-					Mentor Portal
-				</Link>
-			</div>
+  return (
+    <aside className="hidden md:flex flex-col w-[260px] bg-[#061e16] border-r border-[#0f3d32] shrink-0 sticky top-0 h-screen overflow-y-auto relative">
+      {/* Decorative light beams */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[#061e16]" />
+        <div className="absolute top-[-10%] left-[10%] w-[150%] h-[30px] bg-[#008f64] opacity-30 transform -rotate-[55deg] blur-[2px]" />
+        <div className="absolute top-[10%] left-[10%] w-[150%] h-[40px] bg-[#008f64] opacity-25 transform -rotate-[55deg] blur-[2px]" />
+        <div className="absolute top-[35%] left-[0%] w-[150%] h-[20px] bg-[#008f64] opacity-20 transform -rotate-[55deg] blur-[3px]" />
+        <div className="absolute top-[60%] left-[-10%] w-[150%] h-[50px] bg-[#008f64] opacity-15 transform -rotate-[55deg] blur-[4px]" />
+        <div className="absolute top-[80%] left-[-20%] w-[150%] h-[25px] bg-[#008f64] opacity-30 transform -rotate-[55deg] blur-[2px]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#061e16]/60 via-transparent to-[#061e16]/90" />
+      </div>
 
-			<nav className="px-4 py-4 flex flex-col gap-1.5 flex-grow">
-				{links.map((item) => {
-					const isActive =
-						pathname === item.href ||
-						(item.href !== "/mentor/dashboard" && pathname?.startsWith(item.href));
-					return (
-						<Link
-							key={item.id}
-							href={item.href}
-							className={`px-4 py-3 rounded-xl text-[14px] font-bold transition ${
-								isActive
-									? "bg-[#115543] text-white"
-									: "text-[#86b5a5] hover:bg-[#0d4738] hover:text-white"
-							}`}
-						>
-							{item.label}
-						</Link>
-					);
-				})}
-			</nav>
+      {/* Logo */}
+      <div className="p-6 pb-4 relative z-10">
+        <Link href="/mentor/dashboard" className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#10b981] flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <div className="flex flex-col">
+            <span className="font-bold text-white text-[15px] tracking-tight leading-tight">StartupConnect</span>
+            <span className="text-[9px] font-bold text-[#10b981] uppercase tracking-widest leading-tight">Mentor Dashboard</span>
+          </div>
+        </Link>
+      </div>
 
-			<div className="p-4 mt-auto">
-				<div className="bg-[#082a21] rounded-xl p-4">
-					<p className="text-[13px] font-bold text-white">{name}</p>
-					<p className="text-[11px] text-[#86b5a5]">{title}</p>
-				</div>
-				<button
-					type="button"
-					onClick={logout}
-					className="w-full mt-4 px-4 py-2.5 text-[#86b5a5] hover:text-white font-bold text-[13px] text-left"
-				>
-					Logout
-				</button>
-			</div>
-		</aside>
-	);
+      {/* Navigation sections */}
+      <div className="flex flex-col gap-2 px-3 py-2 relative z-10 flex-1">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label}>
+            <p className="text-[9px] font-bold text-[#3d6b5f] uppercase tracking-widest px-3 mb-1.5">
+              {section.label}
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {section.links.map((link) => {
+                const isActive =
+                  pathname === link.href ||
+                  (link.href !== "/mentor/dashboard" && pathname?.startsWith(link.href));
+                return (
+                  <Link
+                    key={link.id}
+                    href={link.href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-150 relative overflow-hidden ${
+                      isActive
+                        ? "bg-[#0f3d32] text-white shadow-sm"
+                        : "text-[#7aab98] hover:text-white hover:bg-[#0a2921]"
+                    }`}
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {link.icon}
+                    </svg>
+                    {link.name || link.label}
+                    {isActive && (
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#10b981] rounded-l-full" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Profile footer */}
+      <div className="relative z-10 p-4 border-t border-[#0f3d32]">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((o) => !o)}
+          className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-[#0a2921] transition"
+        >
+          <div className="w-9 h-9 rounded-full bg-[#10b981] text-white flex items-center justify-center font-bold text-xs shrink-0">
+            {initials}
+          </div>
+          <div className="flex flex-col items-start min-w-0 flex-1">
+            <span className="truncate text-sm font-bold text-white leading-tight w-full text-left">
+              {name}
+            </span>
+            <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7aab98] leading-tight w-full text-left">
+              {title}
+            </span>
+          </div>
+          <svg
+            className={`w-4 h-4 text-[#7aab98] transition-transform ${menuOpen ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {menuOpen && (
+          <div className="mt-2 rounded-xl border border-[#0f3d32] bg-[#0a2921] p-1.5 shadow-lg">
+            <button
+              type="button"
+              onClick={logout}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-[#7aab98] hover:bg-[#0f3d32] hover:text-white transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
 }

@@ -283,6 +283,20 @@ export async function getAiMentorMessages(sessionId) {
   return apiFetch(`/ai-mentor/messages/${sessionId}`);
 }
 
+// ===== Session Scheduling (Mentors & Investors) =====
+
+export async function getStartupSessions() {
+  return apiFetch("/startups/sessions");
+}
+
+export async function createStartupSession(payload) {
+  return apiPostJson("/startups/sessions", payload);
+}
+
+export async function updateStartupSession(sessionId, payload) {
+  return apiPatchJson(`/startups/sessions/${sessionId}`, payload);
+}
+
 // Rating functions
 export async function createOrUpdateRating(payload) {
   return apiPostJson("/ratings", payload);

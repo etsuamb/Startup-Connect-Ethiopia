@@ -1146,3 +1146,172 @@ exports.updateOfferStatus = async (req, res) => {
     client.release();
   }
 };
+// ===== Startup Sessions (Mentors & Investors) =====
+
+exports.getStartupSessions = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const startupRes = await pool.query("SELECT startup_id FROM startups WHERE user_id = $1", [userId]);
+    
+    if (startupRes.rowCount === 0) {
+      return res.status(404).json({ error: "Startup profile not found" });
+    }
+    const startupId = startupRes.rows[0].startup_id;
+
+    // Fetch Mentorship Sessions
+    const mentorSessions = await pool.query(
+      `SELECT
+         ms.mentorship_session_id as id,
+         'mentor' as type,
+         u.first_name || ' ' || u.last_name as actor_name,
+         'Mentorship Session' as topic,
+         ms.scheduled_at,
+         ms.duration_minutes,
+         ms.meeting_link,
+         ms.status
+       FROM mentorship_sessions ms
+       JOIN mentorship_requests mr ON mr.mentorship_request_id = ms.mentorship_request_id
+       JOIN mentors m ON m.mentor_id = mr.mentor_id
+       JOIN users u ON u.user_id = m.user_id
+       WHERE mr.startup_id = $1`,
+      [startupId]
+    );
+
+    // Fetch Investor Meetings
+    const investorMeetings = await pool.query(
+      `SELECT
+         im.investor_meeting_id as id,
+         'investor' as type,
+         COALESCE(i.organization_name, u.first_name || ' ' || u.last_name) as actor_name,
+         im.topic,
+         im.scheduled_at,
+         im.duration_minutes,
+         im.meeting_link,
+         im.status
+       FROM investor_meetings im
+       JOIN investors i ON i.investor_id = im.investor_id
+       JOIN users u ON u.user_id = i.user_id
+       WHERE im.startup_id = $1`,
+      [startupId]
+    );
+
+    const sessions = [
+      ...mentorSessions.rows.map(s => ({ ...s, unique_id: `mentor_${s.id}` })),
+      ...investorMeetings.rows.map(s => ({ ...s, unique_id: `investor_${s.id}` }))
+    ].sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+
+    res.json({ sessions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.createStartupSession = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const startupRes = await pool.query("SELECT startup_id FROM startups WHERE user_id = $1", [userId]);
+    
+    if (startupRes.rowCount === 0) {
+      return res.status(404).json({ error: "Startup profile not found" });
+    }
+    const startupId = startupRes.rows[0].startup_id;
+
+    const { type, request_id, scheduled_at, topic, meeting_link } = req.body;
+    const normalizedType = {
+      mentor: "mentor",
+      mentorship: "mentor",
+      investor: "investor",
+      investment: "investor",
+    }[String(type || "").trim().toLowerCase()];
+    const when = new Date(scheduled_at);
+
+    if (Number.isNaN(when.getTime())) {
+      return res.status(400).json({ error: "Invalid scheduled_at time" });
+    }
+
+    if (normalizedType === "mentor") {
+      // Validate request belongs to startup
+      const reqCheck = await pool.query(
+        "SELECT mentorship_request_id FROM mentorship_requests WHERE mentorship_request_id = $1 AND startup_id = $2 AND status = 'accepted'",
+        [request_id, startupId]
+      );
+      if (reqCheck.rowCount === 0) {
+        return res.status(403).json({ error: "Invalid or unaccepted mentorship request" });
+      }
+
+      const insertRes = await pool.query(
+        `INSERT INTO mentorship_sessions (mentorship_request_id, scheduled_at, duration_minutes, meeting_link, status)
+         VALUES ($1, $2, 30, $3, 'scheduled') RETURNING mentorship_session_id as id`,
+        [request_id, when.toISOString(), meeting_link || null]
+      );
+      return res.json({ session_id: `mentor_${insertRes.rows[0].id}`, message: "Mentorship session scheduled" });
+
+    } else if (normalizedType === "investor") {
+      // Validate request belongs to startup
+      const reqCheck = await pool.query(
+        "SELECT investor_id FROM investment_requests WHERE investment_request_id = $1 AND startup_id = $2 AND status IN ('approved', 'accepted')",
+        [request_id, startupId]
+      );
+      if (reqCheck.rowCount === 0) {
+        return res.status(403).json({ error: "Invalid or unaccepted investment request" });
+      }
+      const investorId = reqCheck.rows[0].investor_id;
+
+      const insertRes = await pool.query(
+        `INSERT INTO investor_meetings (startup_id, investor_id, investment_request_id, scheduled_at, topic, meeting_link, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending') RETURNING investor_meeting_id as id`,
+        [startupId, investorId, request_id, when.toISOString(), topic || "Investment Discussion", meeting_link || null]
+      );
+      return res.json({ session_id: `investor_${insertRes.rows[0].id}`, message: "Investor meeting scheduled" });
+
+    } else {
+      return res.status(400).json({ error: "Invalid session type" });
+    }
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.updateStartupSession = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const { sessionId } = req.params;
+    const { status } = req.body;
+
+    const startupRes = await pool.query("SELECT startup_id FROM startups WHERE user_id = $1", [userId]);
+    if (startupRes.rowCount === 0) {
+      return res.status(404).json({ error: "Startup profile not found" });
+    }
+    const startupId = startupRes.rows[0].startup_id;
+
+    if (sessionId.startsWith("mentor_")) {
+      const id = parseInt(sessionId.split("_")[1], 10);
+      const ownershipCheck = await pool.query(
+        `SELECT ms.mentorship_session_id FROM mentorship_sessions ms
+         JOIN mentorship_requests mr ON mr.mentorship_request_id = ms.mentorship_request_id
+         WHERE ms.mentorship_session_id = $1 AND mr.startup_id = $2`,
+        [id, startupId]
+      );
+      if (ownershipCheck.rowCount === 0) return res.status(403).json({ error: "Access denied" });
+
+      await pool.query("UPDATE mentorship_sessions SET status = $1 WHERE mentorship_session_id = $2", [status, id]);
+      return res.json({ message: "Session updated" });
+
+    } else if (sessionId.startsWith("investor_")) {
+      const id = parseInt(sessionId.split("_")[1], 10);
+      const ownershipCheck = await pool.query(
+        "SELECT investor_meeting_id FROM investor_meetings WHERE investor_meeting_id = $1 AND startup_id = $2",
+        [id, startupId]
+      );
+      if (ownershipCheck.rowCount === 0) return res.status(403).json({ error: "Access denied" });
+
+      await pool.query("UPDATE investor_meetings SET status = $1 WHERE investor_meeting_id = $2", [status, id]);
+      return res.json({ message: "Meeting updated" });
+    }
+
+    return res.status(400).json({ error: "Invalid session format" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
