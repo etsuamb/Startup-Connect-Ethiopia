@@ -8,14 +8,19 @@ import { getInvestorProfile } from "@/lib/investorApi";
 export default function Sidebar() {
   const pathname = usePathname();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [profileName, setProfileName] = useState(() => getUserName() || "");
-  const [profileRole, setProfileRole] = useState(() => {
-    const storedRole = getRole();
-    return storedRole ? storedRole.charAt(0).toUpperCase() + storedRole.slice(1) : "Investor";
-  });
+  const [profileName, setProfileName] = useState("");
+  const [profileRole, setProfileRole] = useState("Investor");
 
   useEffect(() => {
     let ignore = false;
+    queueMicrotask(() => {
+      if (ignore) return;
+      const storedName = getUserName();
+      const storedRole = getRole();
+      if (storedName) setProfileName(storedName);
+      if (storedRole) setProfileRole(storedRole.charAt(0).toUpperCase() + storedRole.slice(1));
+    });
+
     getInvestorProfile()
       .then((data) => {
         if (ignore) return;
@@ -86,7 +91,7 @@ export default function Sidebar() {
 
   const systemLinks = [
     { 
-      name: "Feedback", 
+      name: "Rating", 
       href: "/investor/feedback", 
       icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path> 
     },

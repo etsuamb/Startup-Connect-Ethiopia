@@ -20,8 +20,13 @@ export async function apiFetch(path, options = {}) {
 		data = { raw: text };
 	}
 	if (!res.ok) {
+		const chapaMessage = data?.chapa_message
+			? typeof data.chapa_message === "string"
+				? data.chapa_message
+				: JSON.stringify(data.chapa_message)
+			: null;
 		const err = new Error(
-			(data && (data.message || data.error)) || res.statusText || "Request failed",
+			chapaMessage || (data && (data.message || data.error)) || res.statusText || "Request failed",
 		);
 		err.status = res.status;
 		err.data = data;

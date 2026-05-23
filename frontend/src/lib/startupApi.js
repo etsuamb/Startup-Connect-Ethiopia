@@ -82,8 +82,9 @@ export async function searchMentors(params = {}) {
   return apiFetch(`/startups/mentors/search?${queryString}`);
 }
 
-export async function getInvestorRecommendations() {
-  return apiFetch("/startups/recommendations/investors");
+export async function getInvestorRecommendations(params = {}) {
+  const query = buildQuery(params);
+  return apiFetch(`/startups/recommendations/investors${query ? `?${query}` : ""}`);
 }
 
 export async function getMentorRecommendations() {
@@ -237,4 +238,16 @@ export async function getOfferDetails(offerType, offerId) {
 
 export async function updateOfferStatus(offerType, offerId, status) {
   return apiPatchJson(`/startups/offers/${offerType}/${offerId}`, { status });
+}
+
+export async function sendAiMentorMessage(payload) {
+  return apiPostJson("/ai-mentor/chat", payload);
+}
+
+export async function getAiMentorSessions() {
+  return apiFetch("/ai-mentor/sessions");
+}
+
+export async function getAiMentorMessages(sessionId) {
+  return apiFetch(`/ai-mentor/messages/${sessionId}`);
 }

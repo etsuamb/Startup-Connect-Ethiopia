@@ -144,6 +144,22 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS market JSONB;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS mentor_requested BOOLEAN DEFAULT FALSE;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS mentor_preferred_field VARCHAR(120);
 
+CREATE TABLE IF NOT EXISTS ai_mentor_sessions (
+    ai_mentor_session_id SERIAL PRIMARY KEY,
+    startup_id INTEGER NOT NULL REFERENCES startups(startup_id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL DEFAULT 'AI Mentor Chat',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS ai_mentor_messages (
+    ai_mentor_message_id SERIAL PRIMARY KEY,
+    session_id INTEGER NOT NULL REFERENCES ai_mentor_sessions(ai_mentor_session_id) ON DELETE CASCADE,
+    sender VARCHAR(20) NOT NULL CHECK (sender IN ('startup', 'ai')),
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS documents (
     document_id SERIAL PRIMARY KEY,
     startup_id INTEGER REFERENCES startups(startup_id) ON DELETE CASCADE,
@@ -183,9 +199,14 @@ CREATE TABLE IF NOT EXISTS investment_requests (
     project_id INTEGER NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
     requested_amount DECIMAL(14,2) NOT NULL CHECK (requested_amount > 0),
     proposal_message TEXT,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'withdrawn')),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'accepted', 'rejected', 'withdrawn')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE investment_requests DROP CONSTRAINT IF EXISTS investment_requests_status_check;
+ALTER TABLE investment_requests
+    ADD CONSTRAINT investment_requests_status_check
+    CHECK (status IN ('pending', 'approved', 'accepted', 'rejected', 'withdrawn'));
 
 CREATE TABLE IF NOT EXISTS investments (
     investment_id SERIAL PRIMARY KEY,
@@ -197,6 +218,23 @@ CREATE TABLE IF NOT EXISTS investments (
     closed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS investor_meetings (
+    investor_meeting_id SERIAL PRIMARY KEY,
+    startup_id INTEGER NOT NULL REFERENCES startups(startup_id) ON DELETE CASCADE,
+    investor_id INTEGER NOT NULL REFERENCES investors(investor_id) ON DELETE CASCADE,
+    investment_request_id INTEGER REFERENCES investment_requests(investment_request_id) ON DELETE SET NULL,
+    topic VARCHAR(255) NOT NULL DEFAULT 'Investment follow-up',
+    scheduled_at TIMESTAMPTZ NOT NULL,
+    duration_minutes INTEGER NOT NULL DEFAULT 30 CHECK (duration_minutes > 0),
+    meeting_link TEXT,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_investor_meetings_startup ON investor_meetings (startup_id, scheduled_at DESC);
+CREATE INDEX IF NOT EXISTS idx_investor_meetings_investor ON investor_meetings (investor_id, scheduled_at DESC);
 
 CREATE TABLE IF NOT EXISTS mentorship_requests (
     mentorship_request_id SERIAL PRIMARY KEY,

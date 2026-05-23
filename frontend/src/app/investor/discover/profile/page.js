@@ -343,7 +343,7 @@ function StartupProfileContent() {
 												MESSAGE STARTUP
 											</Link>
 											<Link href={`/investor/feedback?startupId=${startup.startup_id}`} className="w-full py-3 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition flex justify-center items-center gap-2 shadow-sm">
-												GIVE FEEDBACK
+												RATE STARTUP
 											</Link>
 										</div>
 									</div>
