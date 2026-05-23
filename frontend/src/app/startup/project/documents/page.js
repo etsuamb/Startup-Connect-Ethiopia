@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -229,6 +229,19 @@ export default function StartupProjectDocuments() {
                       <div className="mt-3 flex items-center justify-between text-[11px] text-gray-500">
                         <span>{doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "Unknown date"}</span>
                         <span>{doc.file_size_bytes ? `${(doc.file_size_bytes / 1024).toFixed(1)} KB` : "Unknown size"}</span>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
+                        <a
+                          href={doc.file_path ? `/${doc.file_path.replace(/\\/g, "/")}` : "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-[#0f3d32] hover:text-[#0a2921] hover:underline transition inline-flex items-center gap-1"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          View Document
+                        </a>
                       </div>
                     </div>
                   ))}

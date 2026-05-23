@@ -21,6 +21,23 @@ async function getMentorshipPair(startupId, mentorId) {
 	return r.rows[0] || null;
 }
 
+async function hasAcceptedMentorshipPair(startupId, mentorId) {
+	const pair = await getMentorshipPair(startupId, mentorId);
+	return pair?.status === "accepted";
+}
+
+async function ensureAcceptedMentorConversations(startupId) {
+	await pool.query(
+		`INSERT INTO mentor_chat_conversations (startup_id, mentor_id)
+     SELECT DISTINCT startup_id, mentor_id
+     FROM mentorship_requests
+     WHERE startup_id = $1
+       AND status = 'accepted'
+     ON CONFLICT (startup_id, mentor_id) DO NOTHING`,
+		[startupId],
+	);
+}
+
 async function loadMentorConversation(convId) {
 	const r = await pool.query(
 		`SELECT c.*, su.user_id AS startup_user_id, mu.user_id AS mentor_user_id
@@ -61,9 +78,9 @@ exports.createOrGetConversation = async (req, res) => {
 			const m = await pool.query("SELECT mentor_id FROM mentors WHERE mentor_id = $1", [mid]);
 			if (!m.rowCount) return res.status(404).json({ error: "Mentor not found" });
 			const pair = await getMentorshipPair(s.startup_id, mid);
-			if (!pair) {
+			if (!pair || pair.status !== "accepted") {
 				return res.status(404).json({
-					error: "No mentorship relationship exists between this startup and mentor",
+					error: "Chat is available only after the mentorship request has been accepted",
 				});
 			}
 			const ex = await pool.query(
@@ -88,9 +105,9 @@ exports.createOrGetConversation = async (req, res) => {
 			const st = await pool.query("SELECT startup_id FROM startups WHERE startup_id = $1", [sid]);
 			if (!st.rowCount) return res.status(404).json({ error: "Startup not found" });
 			const pair = await getMentorshipPair(sid, ment.mentor_id);
-			if (!pair) {
+			if (!pair || pair.status !== "accepted") {
 				return res.status(404).json({
-					error: "No mentorship relationship exists between this startup and mentor",
+					error: "Chat is available only after the mentorship request has been accepted",
 				});
 			}
 			const ex = await pool.query(
@@ -120,6 +137,7 @@ exports.listConversations = async (req, res) => {
 		if (role === "Startup") {
 			const s = await getStartupByUserId(userId);
 			if (!s) return res.status(403).json({ error: "Startup profile required" });
+			await ensureAcceptedMentorConversations(s.startup_id);
 			const r = await pool.query(
 				`SELECT c.mentor_conversation_id, c.startup_id, c.mentor_id, c.created_at, c.last_message_at,
               mu.first_name AS mentor_first_name, mu.last_name AS mentor_last_name, mu.email AS mentor_email,
@@ -134,6 +152,12 @@ exports.listConversations = async (req, res) => {
        INNER JOIN mentors m ON m.mentor_id = c.mentor_id
        INNER JOIN users mu ON mu.user_id = m.user_id
        WHERE c.startup_id = $1
+         AND EXISTS (
+           SELECT 1 FROM mentorship_requests mr
+           WHERE mr.startup_id = c.startup_id
+             AND mr.mentor_id = c.mentor_id
+             AND mr.status = 'accepted'
+         )
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC`,
 				[s.startup_id, userId],
 			);
@@ -155,6 +179,12 @@ exports.listConversations = async (req, res) => {
        INNER JOIN startups s ON s.startup_id = c.startup_id
        INNER JOIN users su ON su.user_id = s.user_id
        WHERE c.mentor_id = $1
+         AND EXISTS (
+           SELECT 1 FROM mentorship_requests mr
+           WHERE mr.startup_id = c.startup_id
+             AND mr.mentor_id = c.mentor_id
+             AND mr.status = 'accepted'
+         )
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC`,
 				[ment.mentor_id, userId],
 			);
@@ -179,6 +209,9 @@ exports.getMessages = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "This mentor chat is available only for accepted mentorships" });
+		}
 
 		const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
 		const offset = Math.max(0, Number(req.query.offset) || 0);
@@ -225,6 +258,9 @@ exports.sendTextMessage = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "This mentor chat is available only for accepted mentorships" });
+		}
 
 		const body = req.body || {};
 		const text =
@@ -267,6 +303,9 @@ exports.uploadMentorChatFile = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "This mentor chat is available only for accepted mentorships" });
+		}
 
 		const file = req.file;
 		if (!file || !file.buffer) {
@@ -456,6 +495,9 @@ exports.videoStart = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "Video calls require an accepted mentorship" });
+		}
 
 		await client.query("BEGIN");
 		await endStaleMentorVideoCalls(client, convId);
@@ -499,6 +541,9 @@ exports.videoJoin = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "Video calls require an accepted mentorship" });
+		}
 
 		const r = await pool.query(
 			`SELECT * FROM mentor_chat_video_calls
@@ -541,6 +586,9 @@ exports.videoEnd = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "Video calls require an accepted mentorship" });
+		}
 
 		const r = await pool.query(
 			`SELECT * FROM mentor_chat_video_calls
@@ -583,6 +631,9 @@ exports.videoStatus = async (req, res) => {
 		const conv = await loadMentorConversation(convId);
 		if (!conv) return res.status(404).json({ error: "Conversation not found" });
 		if (!isParticipant(conv, userId)) return res.status(403).json({ error: "Forbidden" });
+		if (!(await hasAcceptedMentorshipPair(conv.startup_id, conv.mentor_id))) {
+			return res.status(403).json({ error: "Video calls require an accepted mentorship" });
+		}
 
 		const r = await pool.query(
 			`SELECT * FROM mentor_chat_video_calls

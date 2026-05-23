@@ -10,6 +10,7 @@ const {
 
 const startupController = require("../controllers/startupController");
 const startupDashboardController = require("../controllers/startupDashboardController");
+const { buildMentorChatRoutes } = require("./mentorChatRoutes");
 
 // Public featured startup listing
 router.get("/featured", startupController.listFeaturedStartups);
@@ -82,6 +83,11 @@ router.post(
   authenticate,
   authorizeRoles("Startup"),
   startupDashboardController.postQuickActions,
+);
+
+router.use(
+  "/mentor-chat",
+  buildMentorChatRoutes([authenticate, authorizeRoles("Startup")]),
 );
 
 // Create startup profile

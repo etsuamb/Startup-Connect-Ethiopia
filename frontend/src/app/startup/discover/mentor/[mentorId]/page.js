@@ -206,7 +206,7 @@ export default function MentorDetailsPage() {
                   Make an Offer
                 </Link>
                 <Link
-                  href="/startup/mentorship"
+                  href={`/startup/discover/mentor/${mentorId}/offer`}
                   className="inline-flex items-center justify-center rounded-2xl border border-gray-300 bg-white px-8 py-4 text-sm font-semibold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50"
                 >
                   Request Mentorship
