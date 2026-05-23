@@ -151,3 +151,108 @@ export function founderDisplayName(startup) {
     "Founder"
   );
 }
+
+function extractSection(text, labels) {
+  if (!text) return "";
+  const normalized = String(text);
+  for (const label of labels) {
+    const pattern = new RegExp(`${label}\\s*:\\s*`, "i");
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const start = match.index + match[0].length;
+    const rest = normalized.slice(start);
+    const nextHeader = rest.search(/\n(?:Use of funds|Expected milestones|Expected outcomes|Mentorship goals|Message to investor|Message to mentor|Payment offer)\s*:/i);
+    const body = (nextHeader >= 0 ? rest.slice(0, nextHeader) : rest).trim();
+    if (body) return body;
+  }
+  return "";
+}
+
+/** Parse structured application body saved in proposal_message or mentorship message. */
+export function parseApplicationMessage(rawMessage, kind) {
+  const text = String(rawMessage || "").trim();
+  if (!text) {
+    return {
+      useOfFunds: "",
+      milestones: "",
+      message: "",
+      paymentOffer: "",
+      raw: "",
+    };
+  }
+
+  if (kind === "investment") {
+    const useOfFunds = extractSection(text, ["Use of funds"]);
+    const milestones = extractSection(text, ["Expected milestones"]);
+    const message = extractSection(text, ["Message to investor"]);
+    const structured = useOfFunds || milestones || message;
+    return {
+      useOfFunds: useOfFunds || (!structured ? text : ""),
+      milestones,
+      message,
+      paymentOffer: "",
+      raw: text,
+    };
+  }
+
+  const useOfFunds = extractSection(text, ["Mentorship goals"]);
+  const milestones = extractSection(text, ["Expected outcomes"]);
+  const message = extractSection(text, ["Message to mentor"]);
+  const paymentMatch = text.match(/Payment offer:\s*\$?([\d,.]+)/i);
+  const paymentOffer = paymentMatch ? paymentMatch[1].replace(/,/g, "") : "";
+  const structured = useOfFunds || milestones || message || paymentOffer;
+
+  return {
+    useOfFunds: useOfFunds || (!structured ? text : ""),
+    milestones,
+    message,
+    paymentOffer,
+    raw: text,
+  };
+}
+
+export function formatApplicationStatus(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "approved") return "Accepted";
+  if (s === "pending") return "Pending";
+  if (s === "rejected") return "Rejected";
+  if (s === "cancelled") return "Cancelled";
+  return status ? String(status).charAt(0).toUpperCase() + String(status).slice(1) : "Unknown";
+}
+
+export function statusBadgeClass(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "pending") return "bg-gray-100 text-gray-600";
+  if (s === "approved" || s === "accepted") return "bg-[#f0fdf4] text-[#16a34a]";
+  if (s === "rejected") return "bg-red-50 text-red-700";
+  return "bg-gray-100 text-gray-500";
+}
+
+export function offerToContact(offer, kind) {
+  if (kind === "investment") {
+    return {
+      organization_name: offer.company,
+      first_name: offer.first_name,
+      last_name: offer.last_name,
+      country: offer.country,
+      location_preference: offer.location_preference,
+      investment_stage: offer.investment_stage,
+      investor_type: offer.investor_type,
+      preferred_industry: offer.preferred_industry,
+      investment_budget: offer.investment_budget,
+      user_approved: true,
+      investor_listed: true,
+    };
+  }
+  return {
+    first_name: offer.first_name,
+    last_name: offer.last_name,
+    country: offer.country,
+    professional_title: offer.professional_title,
+    primary_industry: offer.primary_industry,
+    mentor_type: offer.headline,
+    session_pricing: offer.session_pricing,
+    user_approved: true,
+    mentor_listed: true,
+  };
+}

@@ -849,6 +849,7 @@ exports.getOfferDetails = async (req, res) => {
           ir.created_at,
           ir.requested_amount as amount,
           ir.proposal_message as message,
+          ir.project_id,
           ${INVESTMENT_SOURCE_DIRECTION_SQL} as source_direction,
           CASE
             WHEN ${INVESTMENT_INCOMING_EXISTS}
@@ -861,6 +862,7 @@ exports.getOfferDetails = async (req, res) => {
           i.preferred_industry,
           i.investment_stage,
           i.location_preference,
+          i.country,
           i.bio,
           i.investor_type,
           i.portfolio_size,
@@ -868,10 +870,14 @@ exports.getOfferDetails = async (req, res) => {
           u.last_name,
           u.email,
           u.phone_number,
+          s.startup_name,
+          s.industry as startup_industry,
           p.project_title,
+          p.industry as project_industry,
           p.funding_goal,
           p.description as project_description
         FROM investment_requests ir
+        JOIN startups s ON s.startup_id = ir.startup_id
         JOIN investors i ON i.investor_id = ir.investor_id
         JOIN users u ON u.user_id = i.user_id
         LEFT JOIN projects p ON p.project_id = ir.project_id
@@ -925,8 +931,11 @@ exports.getOfferDetails = async (req, res) => {
           u.first_name,
           u.last_name,
           u.email,
-          u.phone_number
+          u.phone_number,
+          s.startup_name,
+          s.industry as startup_industry
         FROM mentorship_requests mr
+        JOIN startups s ON s.startup_id = mr.startup_id
         JOIN mentors m ON m.mentor_id = mr.mentor_id
         JOIN users u ON u.user_id = m.user_id
         WHERE mr.mentorship_request_id = $1 AND mr.startup_id = $2`,
