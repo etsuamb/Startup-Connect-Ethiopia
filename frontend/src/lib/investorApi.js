@@ -86,6 +86,11 @@ export function getInvestorRatings(params = {}) {
 	return apiFetch(`/investors/ratings${qs ? `?${qs}` : ""}`);
 }
 
+export function getInvestorMentorRatings(params = {}) {
+	const qs = toQuery(params);
+	return apiFetch(`/investors/mentor-ratings${qs ? `?${qs}` : ""}`);
+}
+
 export function submitInvestorRating(startupId, payload) {
 	return apiPostJson(`/investors/startups/${startupId}/feedback`, payload);
 }

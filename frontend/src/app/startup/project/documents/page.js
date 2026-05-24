@@ -15,9 +15,9 @@ import {
   publishProject,
   uploadDocument,
 } from "@/lib/startupApi";
-import { openUploadedFileForView } from "@/lib/viewUploadedFile";
+import { canPreviewDocument, openUploadedFileForView } from "@/lib/viewUploadedFile";
 
-const MANDATORY_SLOTS = [
+const REQUIRED_SLOTS = [
   {
     key: "pitch_deck",
     title: "Pitch Deck",
@@ -42,9 +42,12 @@ const MANDATORY_SLOTS = [
     accept: ".pdf,.xls,.xlsx,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     icon: "sheet",
   },
+];
+
+const OPTIONAL_SLOTS = [
   {
     key: "demo_video",
-    title: "Demo Video",
+    title: "Demo Video (Optional)",
     label: "Demo video",
     hint: "MP4 only, max 50MB",
     accept: ".mp4,video/mp4",
@@ -227,10 +230,10 @@ export default function StartupProjectDocuments() {
   }, [currentProjectId, loadDocuments]);
 
   const mandatoryUploaded = useMemo(() => {
-    return MANDATORY_SLOTS.filter((slot) => findDocForSlot(projectDocuments, slot)).length;
+    return REQUIRED_SLOTS.filter((slot) => findDocForSlot(projectDocuments, slot)).length;
   }, [projectDocuments]);
 
-  const canPublish = mandatoryUploaded === MANDATORY_SLOTS.length && currentProjectId;
+  const canPublish = mandatoryUploaded === REQUIRED_SLOTS.length && currentProjectId;
 
   async function refreshDocs() {
     if (!currentProjectId) return;
@@ -327,7 +330,7 @@ export default function StartupProjectDocuments() {
       await publishProject(currentProjectId);
       setShowSuccessPopup(true);
     } catch (err) {
-      setError(err.message || "Could not publish project. Upload all mandatory documents first.");
+      setError(err.message || "Could not publish project. Upload all required documents first.");
     } finally {
       setPublishing(false);
     }
@@ -477,7 +480,7 @@ export default function StartupProjectDocuments() {
 
           {/* Upload cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-10">
-            {MANDATORY_SLOTS.map((slot) => {
+            {[...REQUIRED_SLOTS, ...OPTIONAL_SLOTS].map((slot) => {
               const doc = findDocForSlot(projectDocuments, slot);
               const cardErr = cardErrors[slot.key];
               const isError = Boolean(cardErr);
@@ -560,7 +563,7 @@ export default function StartupProjectDocuments() {
             <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">Successfully Uploaded Documents</h2>
               <p className="text-xs font-bold text-gray-500">
-                {mandatoryUploaded}/{MANDATORY_SLOTS.length} Mandatory Documents Uploaded
+                {mandatoryUploaded}/{REQUIRED_SLOTS.length} Required Documents Uploaded
               </p>
             </div>
 
@@ -583,7 +586,10 @@ export default function StartupProjectDocuments() {
                   <tbody>
                     {tableDocs.map((doc) => {
                       const badge = statusBadge(doc);
-                      const canView = Boolean(doc.file_path && !String(doc.file_path).startsWith("db://"));
+                      const canView = canPreviewDocument({
+                        documentId: doc.document_id,
+                        filePath: doc.file_path,
+                      });
                       return (
                         <tr key={doc.document_id} className="border-b border-gray-50 hover:bg-[#fafafa]">
                           <td className="px-6 py-4 font-medium text-gray-900">
@@ -592,6 +598,7 @@ export default function StartupProjectDocuments() {
                               disabled={!canView}
                               onClick={() =>
                                 openUploadedFileForView({
+                                  documentId: doc.document_id,
                                   filePath: doc.file_path,
                                   fileName: doc.file_name,
                                   fileType: doc.file_type,
@@ -633,6 +640,7 @@ export default function StartupProjectDocuments() {
                                 disabled={!canView}
                                 onClick={() =>
                                   openUploadedFileForView({
+                                    documentId: doc.document_id,
                                     filePath: doc.file_path,
                                     fileName: doc.file_name,
                                     fileType: doc.file_type,
@@ -761,7 +769,7 @@ export default function StartupProjectDocuments() {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Project Published!</h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Your project is now live for investors. All mandatory documents are on file.
+                  Your project is now live for investors. All required documents are on file.
                 </p>
                 <button
                   onClick={closePopup}

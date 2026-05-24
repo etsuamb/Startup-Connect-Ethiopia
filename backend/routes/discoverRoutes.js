@@ -10,6 +10,16 @@ router.use(authenticate, authorizeRoles("Startup"));
 
 router.get("/mentors", requireApproval, discoverController.searchMentors);
 router.get("/investors", requireApproval, discoverController.searchInvestors);
+router.get(
+	"/investors/:investorId",
+	requireApproval,
+	discoverController.getDiscoverInvestor,
+);
+router.get(
+	"/mentors/:mentorId",
+	requireApproval,
+	discoverController.getDiscoverMentor,
+);
 
 router.post(
 	"/mentors/:mentorId/request",

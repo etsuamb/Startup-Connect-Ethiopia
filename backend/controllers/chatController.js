@@ -1,6 +1,22 @@
 const pool = require("../config/db");
 const crypto = require("crypto");
 
+/** SQL fragment: conversation row c is unlocked for investor chat */
+const CHAT_UNLOCK_EXISTS = `(
+  EXISTS (
+    SELECT 1 FROM investment_requests ir
+    WHERE ir.startup_id = c.startup_id
+      AND ir.investor_id = c.investor_id
+      AND ir.status IN ('approved', 'accepted')
+  )
+  OR EXISTS (
+    SELECT 1 FROM startup_investor_interests si
+    WHERE si.startup_id = c.startup_id
+      AND si.investor_id = c.investor_id
+      AND si.status = 'acknowledged'
+  )
+)`;
+
 async function getStartupByUserId(userId) {
 	const r = await pool.query(
 		"SELECT startup_id, user_id FROM startups WHERE user_id = $1",
@@ -27,16 +43,29 @@ async function hasAcceptedInvestmentPair(startupId, investorId) {
      LIMIT 1`,
 		[startupId, investorId],
 	);
-	return r.rowCount > 0;
+	if (r.rowCount > 0) return true;
+
+	const interest = await pool.query(
+		`SELECT 1 FROM startup_investor_interests
+     WHERE startup_id = $1 AND investor_id = $2 AND status = 'acknowledged'
+     LIMIT 1`,
+		[startupId, investorId],
+	);
+	return interest.rowCount > 0;
 }
 
 async function ensureAcceptedInvestorConversations(startupId) {
 	await pool.query(
 		`INSERT INTO chat_conversations (startup_id, investor_id)
-     SELECT DISTINCT startup_id, investor_id
-     FROM investment_requests
-     WHERE startup_id = $1
-       AND status IN ('approved', 'accepted')
+     SELECT startup_id, investor_id FROM (
+       SELECT DISTINCT startup_id, investor_id
+       FROM investment_requests
+       WHERE startup_id = $1 AND status IN ('approved', 'accepted')
+       UNION
+       SELECT DISTINCT startup_id, investor_id
+       FROM startup_investor_interests
+       WHERE startup_id = $1 AND status = 'acknowledged'
+     ) unlocked
      ON CONFLICT (startup_id, investor_id) DO NOTHING`,
 		[startupId],
 	);
@@ -178,12 +207,7 @@ exports.listConversations = async (req, res) => {
        INNER JOIN investors inv ON inv.investor_id = c.investor_id
        INNER JOIN users iu ON iu.user_id = inv.user_id
        WHERE c.startup_id = $1
-         AND EXISTS (
-           SELECT 1 FROM investment_requests ir
-           WHERE ir.startup_id = c.startup_id
-             AND ir.investor_id = c.investor_id
-             AND ir.status IN ('approved', 'accepted')
-         )
+         AND ${CHAT_UNLOCK_EXISTS}
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC`,
 				[s.startup_id, userId],
 			);
@@ -205,12 +229,7 @@ exports.listConversations = async (req, res) => {
        INNER JOIN startups s ON s.startup_id = c.startup_id
        INNER JOIN users su ON su.user_id = s.user_id
        WHERE c.investor_id = $1
-         AND EXISTS (
-           SELECT 1 FROM investment_requests ir
-           WHERE ir.startup_id = c.startup_id
-             AND ir.investor_id = c.investor_id
-             AND ir.status IN ('approved', 'accepted')
-         )
+         AND ${CHAT_UNLOCK_EXISTS}
        ORDER BY c.last_message_at DESC NULLS LAST, c.created_at DESC`,
 				[inv.investor_id, userId],
 			);
@@ -412,12 +431,7 @@ exports.getChatNotifications = async (req, res) => {
                WHERE cm.conversation_id = c.conversation_id AND cm.sender_user_id <> $2 AND cm.read_at_startup IS NULL) AS unread
        FROM chat_conversations c
        WHERE c.startup_id = $1
-         AND EXISTS (
-           SELECT 1 FROM investment_requests ir
-           WHERE ir.startup_id = c.startup_id
-             AND ir.investor_id = c.investor_id
-             AND ir.status IN ('approved', 'accepted')
-         )`,
+         AND ${CHAT_UNLOCK_EXISTS}`,
 				[s.startup_id, userId],
 			);
 			for (const row of r.rows) {
@@ -440,12 +454,7 @@ exports.getChatNotifications = async (req, res) => {
                WHERE cm.conversation_id = c.conversation_id AND cm.sender_user_id <> $2 AND cm.read_at_investor IS NULL) AS unread
        FROM chat_conversations c
        WHERE c.investor_id = $1
-         AND EXISTS (
-           SELECT 1 FROM investment_requests ir
-           WHERE ir.startup_id = c.startup_id
-             AND ir.investor_id = c.investor_id
-             AND ir.status IN ('approved', 'accepted')
-         )`,
+         AND ${CHAT_UNLOCK_EXISTS}`,
 				[inv.investor_id, userId],
 			);
 			for (const row of r.rows) {
@@ -462,12 +471,7 @@ exports.getChatNotifications = async (req, res) => {
        INNER JOIN startups s ON s.startup_id = c.startup_id
        INNER JOIN investors i ON i.investor_id = c.investor_id
        WHERE (s.user_id = $1 OR i.user_id = $1)
-         AND EXISTS (
-           SELECT 1 FROM investment_requests ir
-           WHERE ir.startup_id = c.startup_id
-             AND ir.investor_id = c.investor_id
-             AND ir.status IN ('approved', 'accepted')
-         )
+         AND ${CHAT_UNLOCK_EXISTS}
          AND v.status IN ('ringing', 'active')
        ORDER BY v.created_at DESC
        LIMIT 20`,

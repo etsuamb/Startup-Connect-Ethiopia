@@ -9,9 +9,10 @@ import { getToken } from "@/lib/authStorage";
 import {
   decryptChatText,
   decryptMessages,
-  encryptChatText,
   isEncryptedChatPayload,
 } from "@/lib/chatEncryption";
+import { useRealtimeChat } from "@/hooks/useRealtimeChat";
+import { MODERATION_WARNING } from "@/lib/socketClient";
 
 function readCurrentUserId() {
   try {
@@ -130,7 +131,25 @@ export default function StartupChatView({
   const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const typingDebounceRef = useRef(null);
   const currentUserId = useMemo(readCurrentUserId, []);
+
+  const socketChannel = chatKind === "mentor" ? "mentor" : "investor";
+  const {
+    connected: socketConnected,
+    typingUserId,
+    moderationAlert,
+    clearModerationAlert,
+    setHandlers: setSocketHandlers,
+    sendMessage: sendSocketMessage,
+    emitTyping,
+    emitStopTyping,
+    markRead: markReadSocket,
+  } = useRealtimeChat({
+    channel: socketChannel,
+    conversationId: selected?.id ?? null,
+    enabled: Boolean(selected?.id),
+  });
 
   const founderName =
     profile?.founder_full_name ||
@@ -229,13 +248,33 @@ export default function StartupChatView({
         setMessagesLoading(true);
         setError(null);
         await fetchMessages(selected.id);
+        markReadSocket();
       } catch (err) {
         setError(err.message || "Unable to load messages.");
       } finally {
         setMessagesLoading(false);
       }
     })();
-  }, [selected?.id, fetchMessages]);
+  }, [selected?.id, fetchMessages, markReadSocket]);
+
+  useEffect(() => {
+    setSocketHandlers({
+      onMessage: (msg) => {
+        const id = msg.chat_message_id || msg.mentor_chat_message_id;
+        setMessages((current) => {
+          if (id && current.some((m) => messageId(m) === id)) return current;
+          return [
+            ...current,
+            {
+              ...msg,
+              display_body: msg.text_body || "",
+            },
+          ];
+        });
+        refreshConversations();
+      },
+    });
+  }, [setSocketHandlers, refreshConversations, messageId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -326,10 +365,7 @@ export default function StartupChatView({
         const formData = new FormData();
         formData.append("file", selectedFile);
         const caption = messageText.trim();
-        if (caption) {
-          const encryptedCaption = await encryptChatText(caption, selected.id);
-          formData.append("caption", encryptedCaption);
-        }
+        if (caption) formData.append("caption", caption);
         const data = await sendFile(selected.id, formData);
         const next = {
           ...data.message,
@@ -350,21 +386,51 @@ export default function StartupChatView({
     if (!messageText.trim()) return;
     const plain = messageText.trim();
     setMessageText("");
+    emitStopTyping();
     setSending(true);
+    clearModerationAlert();
     try {
-      const encrypted = await encryptChatText(plain, selected.id);
-      const data = await sendText(selected.id, encrypted);
-      setMessages((current) => [
-        ...current,
-        { ...data.message, display_body: plain },
-      ]);
+      let sent;
+      if (socketConnected) {
+        try {
+          sent = await sendSocketMessage(plain);
+        } catch {
+          const data = await sendText(selected.id, plain);
+          sent = data.message;
+        }
+      } else {
+        const data = await sendText(selected.id, plain);
+        sent = data.message;
+      }
+      const id = sent?.chat_message_id || sent?.mentor_chat_message_id;
+      setMessages((current) => {
+        if (id && current.some((m) => messageId(m) === id)) return current;
+        return [...current, { ...sent, display_body: plain }];
+      });
       await refreshConversations();
     } catch (err) {
-      setError(err.message || "Unable to send message.");
+      const isModeration =
+        err?.data?.code === "MODERATION_BLOCKED" ||
+        err?.status === 422 ||
+        String(err.message || "").includes("transaction protection");
+      if (isModeration) {
+        clearModerationAlert();
+        setError(err.message || MODERATION_WARNING);
+      } else {
+        setError(err.message || "Unable to send message.");
+      }
       setMessageText(plain);
     } finally {
       setSending(false);
     }
+  }
+
+  function handleMessageInputChange(event) {
+    setMessageText(event.target.value);
+    if (!selected?.id) return;
+    emitTyping();
+    if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+    typingDebounceRef.current = setTimeout(() => emitStopTyping(), 1500);
   }
 
   function openCallModal(mode) {
@@ -582,6 +648,22 @@ export default function StartupChatView({
               )}
             </div>
 
+            {(moderationAlert || (error && String(error).includes("transaction protection"))) && (
+              <div className="mx-4 sm:mx-8 mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex gap-3 justify-between items-start">
+                <p>{moderationAlert || error}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearModerationAlert();
+                    setError(null);
+                  }}
+                  className="text-amber-800 font-bold shrink-0 hover:underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* Messages */}
             <div className="flex-grow overflow-y-auto px-4 sm:px-8 py-6">
               {!selected ? (
@@ -671,6 +753,11 @@ export default function StartupChatView({
                       </div>
                     );
                   })}
+                  {typingUserId && Number(typingUserId) !== Number(currentUserId) && (
+                    <p className="text-xs text-gray-400 italic px-12">
+                      {selected.contactName?.split(" ")[0] || "Contact"} is typing…
+                    </p>
+                  )}
                   <div ref={messagesEndRef} />
                 </div>
               )}
@@ -724,7 +811,8 @@ export default function StartupChatView({
                 <div className="flex-grow relative">
                   <input
                     value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
+                    onChange={handleMessageInputChange}
+                    onBlur={emitStopTyping}
                     disabled={!selected || sending}
                     placeholder={
                       selected

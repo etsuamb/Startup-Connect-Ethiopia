@@ -18,6 +18,7 @@ import {
 import {
   checkRatingEligibility,
   createOrUpdateRating,
+  getDiscoverMentor,
   getMentorRatings,
   getMentorRecommendations,
   getStartupGivenRatings,
@@ -83,6 +84,7 @@ export default function MentorDetailsPage() {
   const params = useParams();
   const { mentorId } = params;
   const [mentor, setMentor] = useState(null);
+  const [privacy, setPrivacy] = useState(null);
   const [startup, setStartup] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,8 +109,8 @@ export default function MentorDetailsPage() {
       try {
         setLoading(true);
         setError(null);
-        const [searchRes, offersData, profileRes, recRes] = await Promise.all([
-          searchMentors({ query: "" }),
+        const [detailRes, offersData, profileRes, recRes] = await Promise.all([
+          getDiscoverMentor(mentorId).catch(() => null),
           getStartupOffers().catch(() => ({ offers: [] })),
           getStartupProfile().catch(() => null),
           getMentorRecommendations().catch(() => ({ recommendations: [] })),
@@ -116,9 +118,17 @@ export default function MentorDetailsPage() {
         setOfferLookup(buildSentOfferLookup(offersData.offers || []));
         setStartup(profileRes?.startup || profileRes || null);
         setRecommendations(recRes.recommendations || []);
-        const found = searchRes.mentors?.find((m) => m.mentor_id === parseInt(mentorId, 10));
-        if (found) setMentor(found);
-        else setError("Mentor not found");
+        if (detailRes?.mentor) {
+          setMentor(detailRes.mentor);
+          setPrivacy(detailRes.privacy || detailRes.mentor.privacy || null);
+        } else {
+          const searchRes = await searchMentors({ query: "" });
+          const found = searchRes.mentors?.find((m) => m.mentor_id === parseInt(mentorId, 10));
+          if (found) {
+            setMentor(found);
+            setPrivacy(found.privacy || null);
+          } else setError("Mentor not found");
+        }
       } catch (err) {
         setError(err.message || "Failed to load mentor details.");
       } finally {
@@ -298,6 +308,7 @@ export default function MentorDetailsPage() {
         offerLookup={offerLookup}
         contactId={mentorId}
         startup={startup}
+        privacy={privacy}
         footerExtra={
           <>
             {ratingSuccess && (

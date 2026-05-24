@@ -4,6 +4,7 @@ const {
 	authorizeRoles,
 } = require("../middleware/authMiddleware");
 const ctrl = require("../controllers/adminDashboardController");
+const monitoring = require("../controllers/adminMonitoringController");
 
 const adminOnly = [authenticate, authorizeRoles("Admin")];
 
@@ -54,5 +55,10 @@ router.get("/analytics/system", ...adminOnly, ctrl.analyticsSystem);
 router.get("/analytics/startups", ...adminOnly, ctrl.analyticsStartups);
 router.get("/analytics/funding", ...adminOnly, ctrl.analyticsFunding);
 router.get("/analytics/engagement", ...adminOnly, ctrl.analyticsEngagement);
+
+// Monitoring (security + suspicious activity)
+router.get("/monitoring/summary", ...adminOnly, monitoring.getMonitoringSummary);
+router.get("/monitoring/login-attempts", ...adminOnly, monitoring.listLoginAttempts);
+router.get("/monitoring/security-events", ...adminOnly, monitoring.listSecurityEvents);
 
 module.exports = router;

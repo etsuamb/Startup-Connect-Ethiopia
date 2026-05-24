@@ -19,6 +19,28 @@ import {
   getStartupProfile,
 } from "@/lib/startupApi";
 
+function normalizeDocText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function startupDocumentTypeLabel(doc) {
+  const description = normalizeDocText(doc?.description);
+  const fileName = normalizeDocText(doc?.file_name);
+  if (description.includes("founder") && description.includes("id")) return "Founder ID";
+  if (description.includes("business registration") || description.includes("registration proof")) return "Business Registration";
+  if (description.includes("support") || description.includes("affiliation")) return "Support Letter";
+  if (description.includes("tin")) return "TIN Certificate";
+  if (description.includes("proof of address") || description.includes("address")) return "Proof of Address";
+  if (description.includes("logo") || fileName.includes("logo")) return "Company Logo";
+  if (description.includes("pitch")) return "Pitch Deck";
+  if (description.includes("business plan")) return "Business Plan";
+  return doc?.description || "Startup Document";
+}
+
 function formatCurrency(value) {
   const n = Number(value) || 0;
   return new Intl.NumberFormat("en-US", {
@@ -448,7 +470,7 @@ export default function StartupDashboard() {
                   {documents.length === 0 ? (
                     <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-6 text-center">
                       <p className="text-sm font-medium text-gray-500">No documents uploaded yet.</p>
-                      <p className="text-xs text-gray-400 mt-1">Upload a pitch deck or business plan.</p>
+                      <p className="text-xs text-gray-400 mt-1">Upload your startup verification or project documents.</p>
                     </div>
                   ) : (
                     <ul className="space-y-3">
@@ -458,10 +480,11 @@ export default function StartupDashboard() {
                           className="rounded-xl bg-[#f8fafc] border border-gray-100 p-3 hover:border-[#0f3d32]/30 hover:bg-[#f0faf7] transition group"
                         >
                           <ViewableFileTrigger
+                            documentId={doc.document_id}
                             filePath={doc.file_path}
                             fileName={doc.file_name}
                             fileType={doc.file_type}
-                            description={doc.description}
+                            description={`Type: ${startupDocumentTypeLabel(doc)}`}
                           />
                         </li>
                       ))}
@@ -529,15 +552,25 @@ export default function StartupDashboard() {
                       </>
                     )}
                   </div>
-                  <Link
-                    href={hiredMentorship ? "/startup/mentorship" : "/startup/discover"}
-                    className="relative z-10 mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-white text-[#0f3d32] text-sm font-bold px-5 py-3 hover:bg-gray-50 transition shadow-sm"
-                  >
-                    {hiredMentorship ? "View mentorship" : "Find mentor"}
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </Link>
+                  <div className="relative z-10 mt-6 flex flex-col gap-2">
+                    <Link
+                      href={hiredMentorship ? "/startup/mentorship" : "/startup/discover"}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-[#0f3d32] text-sm font-bold px-5 py-3 hover:bg-gray-50 transition shadow-sm"
+                    >
+                      {hiredMentorship ? "View mentorship" : "Find mentor"}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </Link>
+                    {hiredMentorship ? (
+                      <Link
+                        href="/startup/mentorship-resources"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 text-white text-xs font-bold px-5 py-2.5 hover:bg-white/10 transition"
+                      >
+                        Mentor resources
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 

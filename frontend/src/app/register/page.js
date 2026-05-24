@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveRegistrationAccountInfo } from "@/lib/registerAccountStorage";
+import { validateRegistrationEmail } from "@/lib/authApi";
 
 export default function RegisterAccountInfo() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function RegisterAccountInfo() {
     phoneTail: "",
   });
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [emailChecking, setEmailChecking] = useState(false);
   const [showPassword, setShowPassword] = useState({
     password: false,
     confirmPassword: false,
@@ -33,9 +36,34 @@ export default function RegisterAccountInfo() {
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const handleSubmit = (e) => {
+  async function validateEmailField() {
+    const email = formData.email.trim();
+    if (!email) {
+      setEmailError("");
+      return true;
+    }
+    setEmailChecking(true);
+    setEmailError("");
+    try {
+      await validateRegistrationEmail(email);
+      return true;
+    } catch (ex) {
+      setEmailError(ex.message || "Invalid email address");
+      return false;
+    } finally {
+      setEmailChecking(false);
+    }
+  }
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    const emailOk = await validateEmailField();
+    if (!emailOk) {
+      setError("Please use a valid, real email address.");
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords must match.");
@@ -166,11 +194,23 @@ export default function RegisterAccountInfo() {
                   type="email"
                   name="email"
                   value={formData.email}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    handleChange(e);
+                    if (emailError) setEmailError("");
+                  }}
+                  onBlur={validateEmailField}
                   required
-                  placeholder="abebe@example.com"
-                  className="w-full px-4 py-3 bg-[#fafbfc] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4d3c] focus:border-transparent transition text-[14px] text-gray-800 placeholder-gray-400"
+                  placeholder="you@gmail.com"
+                  className={`w-full px-4 py-3 bg-[#fafbfc] border rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0a4d3c] focus:border-transparent transition text-[14px] text-gray-800 placeholder-gray-400 ${
+                    emailError ? "border-red-400" : "border-gray-200"
+                  }`}
                 />
+                {emailChecking ? (
+                  <p className="text-xs text-gray-500 mt-1">Checking email…</p>
+                ) : null}
+                {emailError ? (
+                  <p className="text-xs text-red-600 mt-1 font-medium">{emailError}</p>
+                ) : null}
               </div>
 
               <div>

@@ -6,6 +6,7 @@ const upload = multer({
 });
 
 const mentorChatController = require("../controllers/mentorChatController");
+const { chatModerationMiddleware } = require("../middleware/chatModerationMiddleware");
 
 /**
  * Mentor–startup chat + video (paths: /conversations, /notifications, …).
@@ -18,11 +19,17 @@ function buildMentorChatRoutes(accessMiddleware) {
 	router.post("/conversations", ...chain, mentorChatController.createOrGetConversation);
 	router.get("/conversations", ...chain, mentorChatController.listConversations);
 	router.get("/conversations/:id/messages", ...chain, mentorChatController.getMessages);
-	router.post("/conversations/:id/messages", ...chain, mentorChatController.sendTextMessage);
+	router.post(
+		"/conversations/:id/messages",
+		...chain,
+		chatModerationMiddleware({ channel: "mentor" }),
+		mentorChatController.sendTextMessage,
+	);
 	router.post(
 		"/conversations/:id/files",
 		...chain,
 		upload.single("file"),
+		chatModerationMiddleware({ channel: "mentor" }),
 		mentorChatController.uploadMentorChatFile,
 	);
 	router.get("/notifications", ...chain, mentorChatController.getMentorChatNotifications);

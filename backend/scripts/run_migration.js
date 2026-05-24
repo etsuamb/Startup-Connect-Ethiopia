@@ -45,10 +45,25 @@ async function runSqlFile(filePath) {
 }
 
 async function main() {
-	const sqlPath = path.resolve(process.cwd(), "001_init.sql");
+	const files = [
+		"001_init.sql",
+		"002_chat_system.sql",
+		"003_admin_monitoring.sql",
+		"004_profile_privacy.sql",
+		"005_auth_security.sql",
+	];
 	await ensureUploads();
-	console.log("Applying migration:", sqlPath);
-	await runSqlFile(sqlPath);
+	for (const file of files) {
+		const sqlPath = path.resolve(process.cwd(), file);
+		try {
+			await fs.access(sqlPath);
+		} catch {
+			console.warn("Skipping missing migration:", file);
+			continue;
+		}
+		console.log("Applying migration:", sqlPath);
+		await runSqlFile(sqlPath);
+	}
 	console.log("Migration complete");
 	await pool.end();
 }

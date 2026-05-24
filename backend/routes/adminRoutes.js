@@ -6,7 +6,9 @@ const {
 } = require("../middleware/authMiddleware");
 const mentorshipAdvancedController = require("../controllers/mentorshipAdvancedController");
 const adminController = require("../controllers/adminController");
+const adminPaymentController = require("../controllers/adminPaymentController");
 const adminDashboardRoutes = require("./adminDashboardRoutes");
+const adminChatModerationController = require("../controllers/adminChatModerationController");
 
 router.use("/dashboard", adminDashboardRoutes);
 
@@ -230,6 +232,20 @@ router.get(
 	adminController.getUser,
 );
 
+router.post(
+	"/users/:userId/suspend",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminController.suspendUser,
+);
+
+router.post(
+	"/users/:userId/unsuspend",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminController.unsuspendUser,
+);
+
 router.delete(
 	"/users/:userId",
 	authenticate,
@@ -282,6 +298,21 @@ router.get(
 	adminController.reportsOverview,
 );
 
+// Payments monitoring
+router.get(
+	"/payments",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminPaymentController.getAllPayments,
+);
+
+router.get(
+	"/payments/stats",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminPaymentController.getPaymentStats,
+);
+
 // Maintenance
 router.get(
 	"/maintenance/status",
@@ -295,6 +326,44 @@ router.post(
 	authenticate,
 	authorizeRoles("Admin"),
 	adminController.clearOldAuditLogs,
+);
+
+// Chat moderation dashboard
+router.get(
+	"/chat-moderation/logs",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminChatModerationController.listModerationLogs,
+);
+router.get(
+	"/chat-moderation/violations",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminChatModerationController.listUserViolations,
+);
+router.get(
+	"/chat-moderation/stats",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminChatModerationController.getModerationStats,
+);
+router.post(
+	"/chat-moderation/users/:userId/suspend",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminChatModerationController.suspendUserChat,
+);
+router.post(
+	"/chat-moderation/users/:userId/unsuspend",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminChatModerationController.unsuspendUserChat,
+);
+router.post(
+	"/chat-moderation/users/:userId/warn",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminChatModerationController.warnUser,
 );
 
 module.exports = router;

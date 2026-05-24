@@ -150,6 +150,90 @@ export function fetchMentorshipOverview() {
 	return apiFetch("/admin/mentorship/overview");
 }
 
+/** Payments monitoring */
+export function fetchPayments(params = {}) {
+	const q = new URLSearchParams();
+	if (params.status) q.set("status", params.status);
+	if (params.payment_method) q.set("payment_method", params.payment_method);
+	if (params.page) q.set("page", String(params.page));
+	if (params.limit) q.set("limit", String(params.limit));
+	const qs = q.toString();
+	return apiFetch(`/admin/payments${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchPaymentStats() {
+	return apiFetch("/admin/payments/stats");
+}
+
+/** Chat moderation monitoring */
+export function fetchChatModerationLogs(params = {}) {
+	const q = new URLSearchParams();
+	if (params.limit) q.set("limit", String(params.limit));
+	if (params.offset) q.set("offset", String(params.offset));
+	if (params.user_id) q.set("user_id", String(params.user_id));
+	if (params.channel) q.set("channel", String(params.channel));
+	const qs = q.toString();
+	return apiFetch(`/admin/chat-moderation/logs${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchChatViolations() {
+	return apiFetch("/admin/chat-moderation/violations");
+}
+
+export function fetchChatModerationStats(hours = 24) {
+	return apiFetch(`/admin/chat-moderation/stats?hours=${encodeURIComponent(String(hours))}`);
+}
+
+export function suspendUserChat(userId, { hours = 72, notes = "" } = {}) {
+	return apiFetch(`/admin/chat-moderation/users/${userId}/suspend`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ hours, notes }),
+	});
+}
+
+export function unsuspendUserChat(userId, { notes = "" } = {}) {
+	return apiFetch(`/admin/chat-moderation/users/${userId}/unsuspend`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ notes }),
+	});
+}
+
+export function warnChatUser(userId, message) {
+	return apiFetch(`/admin/chat-moderation/users/${userId}/warn`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ message }),
+	});
+}
+
+/** Monitoring: failed logins and security events (dashboard APIs) */
+export function fetchMonitoringSummary(hours = 24) {
+	return apiFetch(`/admin/dashboard/monitoring/summary?hours=${encodeURIComponent(String(hours))}`);
+}
+
+export function fetchLoginAttempts(params = {}) {
+	const q = new URLSearchParams();
+	if (params.limit) q.set("limit", String(params.limit));
+	if (params.offset) q.set("offset", String(params.offset));
+	if (params.email) q.set("email", String(params.email));
+	if (params.ip) q.set("ip", String(params.ip));
+	if (params.success !== undefined) q.set("success", String(params.success));
+	const qs = q.toString();
+	return apiFetch(`/admin/dashboard/monitoring/login-attempts${qs ? `?${qs}` : ""}`);
+}
+
+export function fetchSecurityEvents(params = {}) {
+	const q = new URLSearchParams();
+	if (params.limit) q.set("limit", String(params.limit));
+	if (params.offset) q.set("offset", String(params.offset));
+	if (params.type) q.set("type", String(params.type));
+	if (params.severity) q.set("severity", String(params.severity));
+	const qs = q.toString();
+	return apiFetch(`/admin/dashboard/monitoring/security-events${qs ? `?${qs}` : ""}`);
+}
+
 /** Admin password change with email verification */
 export function changeAdminPassword(currentPassword, newPassword) {
 	return apiPutJson("/auth/admin/change-password", {

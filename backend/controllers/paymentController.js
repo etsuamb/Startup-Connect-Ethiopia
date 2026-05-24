@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const pool = require("../config/db");
+const paymentGatewayService = require("../services/paymentGatewayService");
 
 const CHAPA_BASE_URL = process.env.CHAPA_BASE_URL || "https://api.chapa.co/v1";
 const CHAPA_PUBLIC_KEY = process.env.CHAPA_PUBLIC_KEY;
@@ -48,6 +49,14 @@ async function ensurePaymentGatewayColumns() {
 	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS checkout_url TEXT");
 	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_reference VARCHAR(180)");
 	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (platform_fee >= 0)");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_amount DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (net_amount >= 0)");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS gateway_details JSONB");
+	
+	// Drop old constraint and add new one to support processing/cancelled
+	await pool.query("ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check");
+	await pool.query("ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'))");
+	
 	await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS payments_tx_ref_uidx ON payments(tx_ref) WHERE tx_ref IS NOT NULL");
 }
 
@@ -227,18 +236,21 @@ exports.initializeChapaPayment = async (req, res) => {
 			});
 		}
 
+		const fees = paymentGatewayService.calculateFees(amount);
 		await client.query("BEGIN");
 		const paymentRes = await client.query(
 			`INSERT INTO payments (
-				from_user_id, to_user_id, amount, currency, payment_method, status,
+				from_user_id, to_user_id, amount, platform_fee, net_amount, currency, payment_method, status,
 				reference_type, reference_id, tx_ref, checkout_url, updated_at
 			 )
-			 VALUES ($1, $2, $3, $4, 'chapa', 'pending', 'investment_request', $5, $6, $7, CURRENT_TIMESTAMP)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa', 'pending', 'investment_request', $7, $8, $9, CURRENT_TIMESTAMP)
 			 RETURNING *`,
 			[
 				req.user.user_id,
 				offer.startup_user_id,
 				amount,
+				fees.platform_fee,
+				fees.net_amount,
 				currency,
 				offer.investment_request_id,
 				txRef,
@@ -279,18 +291,21 @@ exports.createChapaHostedPayment = async (req, res) => {
 		const returnUrl = frontendReturnUrl(txRef);
 		const phoneNumber = normalizeChapaPhone(offer.phone_number);
 
+		const fees = paymentGatewayService.calculateFees(amount);
 		await client.query("BEGIN");
 		const paymentRes = await client.query(
 			`INSERT INTO payments (
-				from_user_id, to_user_id, amount, currency, payment_method, status,
+				from_user_id, to_user_id, amount, platform_fee, net_amount, currency, payment_method, status,
 				reference_type, reference_id, tx_ref, checkout_url, updated_at
 			 )
-			 VALUES ($1, $2, $3, $4, 'chapa_hosted', 'pending', 'investment_request', $5, $6, $7, CURRENT_TIMESTAMP)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa_hosted', 'pending', 'investment_request', $7, $8, $9, CURRENT_TIMESTAMP)
 			 RETURNING *`,
 			[
 				req.user.user_id,
 				offer.startup_user_id,
 				amount,
+				fees.platform_fee,
+				fees.net_amount,
 				currency,
 				offer.investment_request_id,
 				txRef,
@@ -447,18 +462,21 @@ exports.createStartupMentorshipChapaPayment = async (req, res) => {
 		const returnUrl = frontendReturnUrl(txRef, "startup");
 		const phoneNumber = normalizeChapaPhone(payer.phone_number);
 
+		const fees = paymentGatewayService.calculateFees(amount);
 		await client.query("BEGIN");
 		const paymentRes = await client.query(
 			`INSERT INTO payments (
-				from_user_id, to_user_id, amount, currency, payment_method, status,
+				from_user_id, to_user_id, amount, platform_fee, net_amount, currency, payment_method, status,
 				reference_type, reference_id, tx_ref, checkout_url, updated_at
 			 )
-			 VALUES ($1, $2, $3, $4, 'chapa_hosted', 'pending', 'mentorship_request', $5, $6, $7, CURRENT_TIMESTAMP)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa_hosted', 'pending', 'mentorship_request', $7, $8, $9, CURRENT_TIMESTAMP)
 			 RETURNING *`,
 			[
 				req.user.user_id,
 				offer.mentor_user_id,
 				amount,
+				fees.platform_fee,
+				fees.net_amount,
 				currency,
 				offer.mentorship_request_id,
 				txRef,

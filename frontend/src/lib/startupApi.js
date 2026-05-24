@@ -97,6 +97,15 @@ export async function searchMentors(params = {}) {
   return apiFetch(`/startups/mentors/search?${queryString}`);
 }
 
+/** Discover detail with relationship-based contact unlock */
+export async function getDiscoverInvestor(investorId) {
+  return apiFetch(`/startups/discover/investors/${investorId}`);
+}
+
+export async function getDiscoverMentor(mentorId) {
+  return apiFetch(`/startups/discover/mentors/${mentorId}`);
+}
+
 export async function getInvestorRecommendations(params = {}) {
   const query = buildQuery(params);
   return apiFetch(`/startups/recommendations/investors${query ? `?${query}` : ""}`);
@@ -112,6 +121,14 @@ export async function createInvestmentRequest(payload) {
 
 export async function createMentorshipRequest(payload) {
   return apiPostJson("/startups/mentorship-requests", payload);
+}
+
+export async function getMentorshipResources() {
+  return apiFetch("/mentorship/resources");
+}
+
+export async function getMentorshipReports() {
+  return apiFetch("/mentorship/reports");
 }
 
 export async function sendInvestorMessage(investorId, message) {

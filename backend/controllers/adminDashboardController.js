@@ -1045,6 +1045,7 @@ exports.analyticsSystem = async (_req, res) => {
 				(SELECT COUNT(*)::int FROM users WHERE is_active = true) AS active_users,
 				(SELECT COUNT(*)::int FROM users WHERE is_approved = true) AS approved_users,
 				(SELECT COUNT(*)::int FROM users WHERE is_approved = false) AS pending_users,
+				(SELECT COUNT(*)::int FROM users WHERE is_active = true AND is_approved = true) AS total_verified_users,
 				(SELECT COUNT(*)::int FROM startups) AS total_startups,
 				(SELECT COUNT(*)::int FROM investors) AS total_investors,
 				(SELECT COUNT(*)::int FROM mentors) AS total_mentors,
@@ -1052,6 +1053,11 @@ exports.analyticsSystem = async (_req, res) => {
 				(SELECT COUNT(*)::int FROM investment_requests) AS total_funding_requests,
 				(SELECT COUNT(*)::int FROM investments) AS total_investments,
 				(SELECT COUNT(*)::int FROM mentorship_sessions) AS total_events,
+				(SELECT COUNT(*)::int FROM payments) AS total_payment_transactions,
+				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed') AS completed_payment_transactions,
+				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed' AND reference_type = 'MENTORSHIP_SESSION') AS total_mentorship_transactions,
+				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed' AND reference_type = 'investment_request') AS total_investment_transactions,
+				(SELECT COALESCE(SUM(platform_fee), 0)::numeric FROM payments WHERE status = 'completed') AS revenue_from_platform_fees,
 				(SELECT COUNT(*)::int FROM chat_conversations) +
 					(SELECT COUNT(*)::int FROM mentor_chat_conversations) AS total_conversations,
 				(SELECT COUNT(*)::int FROM documents) +

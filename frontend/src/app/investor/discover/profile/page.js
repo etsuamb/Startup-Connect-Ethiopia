@@ -9,6 +9,7 @@ import {
 	getInvestorFundingOffers,
 	getInvestorStartupDetails,
 } from "@/lib/investorApi";
+import { isSensitiveVisible, privacyMessage } from "@/lib/profilePrivacy";
 
 function formatCurrency(value) {
 	const amount = Number(value || 0);
@@ -69,6 +70,7 @@ function StartupProfileContent() {
 	const [projects, setProjects] = useState([]);
 	const [documents, setDocuments] = useState([]);
 	const [offer, setOffer] = useState(null);
+	const [privacy, setPrivacy] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 	const [actionError, setActionError] = useState("");
@@ -93,6 +95,7 @@ function StartupProfileContent() {
 				]);
 				if (ignore) return;
 				setStartup(data.startup || null);
+				setPrivacy(data.privacy || data.startup?.privacy || null);
 				setProjects(Array.isArray(data.projects) ? data.projects : []);
 				setDocuments(Array.isArray(data.documents) ? data.documents : []);
 				const startupOffers = Array.isArray(offerData.funding_offers)
@@ -142,7 +145,10 @@ function StartupProfileContent() {
 		return { fundingGoal: target, raised, percent };
 	}, [projects, startup]);
 
-	const location = startup?.location || startup?.city || startup?.region || "Location not set";
+	const sensitiveVisible = isSensitiveVisible({ privacy: privacy || startup?.privacy });
+	const location = sensitiveVisible
+		? startup?.location || startup?.city || startup?.region || "Location not set"
+		: [startup?.region, startup?.country].filter(Boolean).join(", ") || "Region available after relationship unlock";
 	const offerStatus = String(offer?.status || "pending").toLowerCase();
 	const canAcceptOffer = Boolean(offer?.investment_request_id) && offerStatus === "pending";
 	const acceptLabel = accepting ? "ACCEPTING..." : offer ? statusLabel(offerStatus).toUpperCase() : "NO OFFER";
@@ -185,6 +191,13 @@ function StartupProfileContent() {
 						{actionError ? (
 							<div className="mb-5 bg-red-50 border border-red-100 rounded-xl p-4 text-sm font-semibold text-red-700">
 								{actionError}
+							</div>
+						) : null}
+
+						{!sensitiveVisible && privacy && startup ? (
+							<div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+								<p className="font-semibold mb-1">Protected founder contact & links</p>
+								<p className="leading-relaxed">{privacyMessage({ privacy })}</p>
 							</div>
 						) : null}
 

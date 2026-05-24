@@ -1,4 +1,6 @@
 const pool = require("../config/db");
+const profileAccessService = require("../services/profileAccessService");
+const profileSanitizer = require("../services/profileSanitizer");
 const multer = require("multer");
 
 // UC_44c: Update Mentor Profile
@@ -298,7 +300,7 @@ exports.listStartups = async (req, res) => {
 		const result = await pool.query(query, params);
 
 		res.json({
-			startups: result.rows,
+			startups: result.rows.map((row) => profileSanitizer.sanitizeStartupPublic(row)),
 			total,
 			page: pageNum,
 			limit: limitNum,
@@ -324,6 +326,11 @@ exports.getStartupDetails = async (req, res) => {
 		}
 
 		const startup = startupRes.rows[0];
+		const access = await profileAccessService.evaluateSensitiveAccess(
+			req.user.user_id,
+			startup.user_id,
+			{ endpoint: "mentor.getStartupDetails" },
+		);
 
 		// Get documents
 		const documentsRes = await pool.query(
@@ -331,7 +338,11 @@ exports.getStartupDetails = async (req, res) => {
 			[startupId]
 		);
 
-		res.json({ startup, documents: documentsRes.rows });
+		res.json({
+			startup: profileSanitizer.sanitizeStartup(startup, access),
+			documents: profileSanitizer.sanitizeDocuments(documentsRes.rows, access),
+			privacy: access.privacy,
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}

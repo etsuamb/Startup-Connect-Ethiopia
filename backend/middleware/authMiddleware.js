@@ -48,7 +48,7 @@ exports.requireApproval = async (req, res, next) => {
 	try {
 		const userId = req.user.user_id;
 		const r = await pool.query(
-			"SELECT is_approved, is_active FROM users WHERE user_id = $1",
+			"SELECT is_approved, is_active, email_verified, role FROM users WHERE user_id = $1",
 			[userId],
 		);
 		if (r.rows.length === 0)
@@ -56,6 +56,12 @@ exports.requireApproval = async (req, res, next) => {
 		const u = r.rows[0];
 		if (!u.is_active)
 			return res.status(403).json({ message: "Account disabled" });
+		if (u.role !== "Admin" && u.email_verified === false) {
+			return res.status(403).json({
+				message: "Please verify your email address before accessing this feature.",
+				code: "EMAIL_NOT_VERIFIED",
+			});
+		}
 		if (!u.is_approved)
 			return res
 				.status(403)

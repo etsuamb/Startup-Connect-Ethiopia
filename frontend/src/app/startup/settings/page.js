@@ -2,8 +2,9 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
 import Sidebar from "@/components/startup/Sidebar";
 import { getStartupProfile, updateStartupProfile, getNotificationSettings, updateNotificationSettings } from "@/lib/startupApi";
-import { openUploadedFileForView } from "@/lib/viewUploadedFile";
+import { canPreviewDocument, openUploadedFileForView } from "@/lib/viewUploadedFile";
 import ViewableFileTrigger from "@/components/startup/ViewableFileTrigger";
+import AccountSecurityPanel from "@/components/auth/AccountSecurityPanel";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fieldValue(value) {
@@ -16,6 +17,41 @@ function normalizeWebsite(url) {
   if (!trimmed) return "";
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
   return `https://${trimmed}`;
+}
+
+const STARTUP_DOCUMENT_TYPES = [
+  { key: "founder_id", label: "Founder or representative ID", accept: "application/pdf,.pdf,image/*" },
+  { key: "business_registration_proof", label: "Business registration proof", accept: "application/pdf,.pdf,image/*" },
+  { key: "support_affiliation_letter", label: "Support or affiliation letter", accept: "application/pdf,.pdf,image/*" },
+  { key: "tin_certificate", label: "TIN certificate", accept: "application/pdf,.pdf,image/*" },
+  { key: "logo", label: "Company logo", accept: "image/*,.pdf,application/pdf" },
+  { key: "proof_of_address", label: "Proof of address", accept: "application/pdf,.pdf,image/*" },
+];
+
+function normalizeDocText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isDocOfType(doc, typeKey) {
+  const description = normalizeDocText(doc?.description);
+  const fileName = normalizeDocText(doc?.file_name);
+  if (!description && !fileName) return false;
+  if (typeKey === "founder_id") return description.includes("founder") && description.includes("id");
+  if (typeKey === "business_registration_proof") return description.includes("business registration") || description.includes("registration proof");
+  if (typeKey === "support_affiliation_letter") return description.includes("support") || description.includes("affiliation");
+  if (typeKey === "tin_certificate") return description.includes("tin");
+  if (typeKey === "proof_of_address") return description.includes("proof of address") || description.includes("address");
+  if (typeKey === "logo") return description.includes("logo") || fileName.includes("logo");
+  return false;
+}
+
+function getDocumentTypeLabel(doc) {
+  const found = STARTUP_DOCUMENT_TYPES.find((type) => isDocOfType(doc, type.key));
+  return found?.label || doc?.description || "Other document";
 }
 
 function applyProfileToState(profile, setters) {
@@ -326,10 +362,8 @@ export default function StartupSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [documents, setDocuments] = useState([]);
-  const [pitchDeck, setPitchDeck] = useState(null);
-  const [businessPlan, setBusinessPlan] = useState(null);
-  const [showPitchDeckInput, setShowPitchDeckInput] = useState(false);
-  const [showBusinessPlanInput, setShowBusinessPlanInput] = useState(false);
+  const [docFiles, setDocFiles] = useState({});
+  const [showDocInputs, setShowDocInputs] = useState({});
   const [toast, setToast] = useState({ message: null, type: null });
 
   // 2FA state
@@ -346,16 +380,20 @@ export default function StartupSettingsPage() {
   // Danger zone
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
-  const currentPitchDeck = documents.find(
-    (doc) => (doc.description || "").toLowerCase().replace(/_/g, " ") === "pitch deck"
+  const registrationDocuments = useMemo(() => {
+    return STARTUP_DOCUMENT_TYPES.map((type) => ({
+      ...type,
+      current: documents.find((doc) => isDocOfType(doc, type.key)) || null,
+    }));
+  }, [documents]);
+
+  const otherDocuments = useMemo(
+    () =>
+      documents.filter(
+        (doc) => !STARTUP_DOCUMENT_TYPES.some((type) => isDocOfType(doc, type.key)),
+      ),
+    [documents],
   );
-  const currentBusinessPlan = documents.find(
-    (doc) => (doc.description || "").toLowerCase().replace(/_/g, " ") === "business plan"
-  );
-  const otherDocuments = documents.filter((doc) => {
-    const desc = (doc.description || "").toLowerCase().replace(/_/g, " ");
-    return desc !== "pitch deck" && desc !== "business plan";
-  });
 
   // ── Form State ──
   const [firstName, setFirstName] = useState("");
@@ -415,8 +453,8 @@ export default function StartupSettingsPage() {
       }
       applyProfileToState(profile, formSetters);
       setDocuments(data.documents || []);
-      setShowPitchDeckInput(false);
-      setShowBusinessPlanInput(false);
+      setShowDocInputs({});
+      setDocFiles({});
     } catch (err) {
       showToast(err.message || "Unable to load startup profile.", "error");
     } finally {
@@ -490,18 +528,17 @@ export default function StartupSettingsPage() {
     if (foundedYear.trim()) formData.append("founded_year", foundedYear.trim());
     if (teamSize.trim()) formData.append("team_size", teamSize.trim());
     if (fundingNeeded.trim()) formData.append("funding_needed", fundingNeeded.trim());
-    if (pitchDeck) formData.append("pitch_deck", pitchDeck);
-    if (businessPlan) formData.append("business_plan", businessPlan);
+    Object.entries(docFiles).forEach(([key, file]) => {
+      if (file) formData.append(key, file);
+    });
 
     setSaving(true);
     try {
       const data = await updateStartupProfile(formData);
       if (data.startup) applyProfileToState(data.startup, formSetters);
       if (data.documents) setDocuments(data.documents);
-      setPitchDeck(null);
-      setBusinessPlan(null);
-      setShowPitchDeckInput(false);
-      setShowBusinessPlanInput(false);
+      setDocFiles({});
+      setShowDocInputs({});
       showToast(data.message || "Settings saved successfully.");
     } catch (err) {
       showToast(err.message || "Unable to save settings.", "error");
@@ -724,20 +761,50 @@ export default function StartupSettingsPage() {
   }
 
   // ─── Documents Tab ──────────────────────────────────────────────────────────
-  function renderDocumentSlot(label, currentDoc, showInput, setShowInput, file, setFile, accept) {
+  function renderDocumentSlot(type) {
+    const currentDoc = type.current;
+    const canViewCurrent = currentDoc
+      ? canPreviewDocument({
+          documentId: currentDoc.document_id,
+          filePath: currentDoc.file_path,
+        })
+      : false;
+    const showInput = Boolean(showDocInputs[type.key]);
+    const file = docFiles[type.key] || null;
+
+    function setFile(fileValue) {
+      setDocFiles((prev) => ({ ...prev, [type.key]: fileValue }));
+    }
+
+    function setShowInput(value) {
+      setShowDocInputs((prev) => ({ ...prev, [type.key]: value }));
+    }
+
     return (
       <div>
-        <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">{label}</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">{type.label}</p>
         {currentDoc && !showInput ? (
           <div className="flex items-center justify-between p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 transition">
             <button
               type="button"
-              onClick={() => openUploadedFileForView({ filePath: currentDoc.file_path, fileName: currentDoc.file_name, fileType: currentDoc.file_type })}
-              className="flex items-center gap-3 min-w-0 text-left hover:opacity-80 transition"
+              disabled={!canViewCurrent}
+              onClick={() =>
+                openUploadedFileForView({
+                  documentId: currentDoc.document_id,
+                  filePath: currentDoc.file_path,
+                  fileName: currentDoc.file_name,
+                  fileType: currentDoc.file_type,
+                })
+              }
+              className={`flex items-center gap-3 min-w-0 text-left transition ${
+                canViewCurrent ? "hover:opacity-80 cursor-pointer" : "opacity-60 cursor-not-allowed"
+              }`}
+              title={canViewCurrent ? "Tap to view" : "Preview unavailable"}
             >
               <IconFile />
               <div className="min-w-0">
                 <p className="text-sm font-bold text-gray-900 truncate">{currentDoc.file_name}</p>
+                <p className="text-[11px] text-[#0f3d32] font-semibold mt-0.5">{getDocumentTypeLabel(currentDoc)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Uploaded {new Date(currentDoc.created_at).toLocaleDateString()}
                 </p>
@@ -756,11 +823,11 @@ export default function StartupSettingsPage() {
             <div className="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-5 text-center hover:border-[#0f3d32]/30 transition">
               <input
                 type="file"
-                accept={accept}
+                accept={type.accept}
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
                 className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-[#0f3d32]/10 file:text-[#0f3d32] hover:file:bg-[#0f3d32]/20 cursor-pointer"
               />
-              <p className="mt-2 text-xs text-gray-400">PDF files only, max 10MB</p>
+              <p className="mt-2 text-xs text-gray-400">Upload a clearer or updated file to replace the current one.</p>
             </div>
             {currentDoc && (
               <div className="flex justify-between items-center text-xs px-1">
@@ -777,15 +844,23 @@ export default function StartupSettingsPage() {
   }
 
   function renderDocumentsTab() {
+    const hasDocumentChanges = Object.values(docFiles).some(Boolean);
+
     return (
       <form onSubmit={handleSaveProfile} className="space-y-6">
         <SectionCard>
-          <SectionHeader title="Core Documents" description="Upload your pitch deck and business plan. These are visible to investors." />
+          <SectionHeader
+            title="Startup Registration Documents"
+            description="Manage the documents submitted during startup verification. Each file is labeled by document type."
+          />
 
           <div className="space-y-6">
-            {renderDocumentSlot("Pitch Deck", currentPitchDeck, showPitchDeckInput, setShowPitchDeckInput, pitchDeck, setPitchDeck, "application/pdf,.pdf")}
-            <div className="border-t border-gray-100" />
-            {renderDocumentSlot("Business Plan", currentBusinessPlan, showBusinessPlanInput, setShowBusinessPlanInput, businessPlan, setBusinessPlan, "application/pdf,.pdf")}
+            {registrationDocuments.map((type, index) => (
+              <div key={type.key}>
+                {renderDocumentSlot(type)}
+                {index !== registrationDocuments.length - 1 && <div className="border-t border-gray-100 mt-6" />}
+              </div>
+            ))}
           </div>
         </SectionCard>
 
@@ -796,10 +871,11 @@ export default function StartupSettingsPage() {
               {otherDocuments.map((doc) => (
                 <li key={doc.document_id} className="rounded-xl bg-gray-50 border border-gray-100 hover:border-[#0f3d32]/20 hover:bg-[#f0faf7] transition">
                   <ViewableFileTrigger
+                    documentId={doc.document_id}
                     filePath={doc.file_path}
                     fileName={doc.file_name}
                     fileType={doc.file_type}
-                    description={doc.created_at ? `Uploaded ${new Date(doc.created_at).toLocaleDateString()}` : doc.description}
+                    description={getDocumentTypeLabel(doc)}
                   >
                     <span className="flex justify-between gap-3 items-center w-full px-4 py-3">
                       <span className="flex items-center gap-3 min-w-0">
@@ -807,6 +883,9 @@ export default function StartupSettingsPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                         </svg>
                         <span className="truncate text-sm font-medium text-gray-900">{doc.description || doc.file_name}</span>
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0f3d32] bg-[#eaf4f1] border border-[#cde5dd] px-2 py-0.5 rounded-md">
+                        {getDocumentTypeLabel(doc)}
                       </span>
                       <span className="text-xs font-bold text-[#0f3d32] shrink-0">View →</span>
                     </span>
@@ -817,7 +896,7 @@ export default function StartupSettingsPage() {
           </SectionCard>
         )}
 
-        {(pitchDeck || businessPlan) && (
+        {hasDocumentChanges && (
           <div className="flex justify-end">
             <button
               type="submit"
@@ -872,124 +951,12 @@ export default function StartupSettingsPage() {
           </div>
         </SectionCard>
 
-        {/* Two-Factor Authentication */}
         <SectionCard>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <SectionHeader
-                title="Two-Factor Authentication (2FA)"
-                description="Add an extra layer of security to your account. Once enabled, you'll need to enter a verification code from your authenticator app when logging in."
-              />
-            </div>
-            {twoFAEnabled && twoFAStep === "idle" && (
-              <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                Active
-              </span>
-            )}
-          </div>
-
-          {twoFAStep === "idle" && !twoFAEnabled && (
-            <div className="rounded-xl bg-gray-50 border border-gray-100 p-6 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mx-auto mb-4">
-                <IconShield />
-              </div>
-              <p className="text-sm font-bold text-gray-900 mb-1">2FA is not enabled</p>
-              <p className="text-xs text-gray-500 mb-5 max-w-sm mx-auto">
-                Two-factor authentication adds an extra layer of security. You'll need an authenticator app like Google Authenticator or Authy.
-              </p>
-              <button
-                type="button"
-                onClick={handleEnable2FA}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#0f3d32] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0b2f26] transition"
-              >
-                <IconShield />
-                Enable 2FA
-              </button>
-            </div>
-          )}
-
-          {twoFAStep === "setup" && (
-            <div className="space-y-5">
-              <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
-                <p className="text-sm font-bold text-blue-900 mb-1">Setup Instructions</p>
-                <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                  <li>Download an authenticator app (Google Authenticator, Authy, or similar)</li>
-                  <li>Scan the QR code below or enter the secret key manually</li>
-                  <li>Enter the 6-digit verification code from your app</li>
-                </ol>
-              </div>
-
-              {/* Simulated QR Code Placeholder */}
-              <div className="flex flex-col items-center gap-4 py-4">
-                <div className="w-44 h-44 rounded-2xl bg-white border-2 border-gray-200 flex items-center justify-center">
-                  <div className="grid grid-cols-8 grid-rows-8 gap-0.5 w-32 h-32">
-                    {Array.from({ length: 64 }, (_, i) => (
-                      <div key={i} className={`w-full aspect-square rounded-[1px] ${Math.random() > 0.5 ? "bg-gray-900" : "bg-white"}`} />
-                    ))}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Secret Key</p>
-                  <code className="text-sm font-mono font-bold text-gray-900 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 select-all">
-                    JBSWY3DPEHPK3PXP
-                  </code>
-                </div>
-              </div>
-
-              <form onSubmit={handleVerify2FA} className="max-w-xs mx-auto space-y-4">
-                <FormField label="Verification code">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={twoFACode}
-                    onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, ""))}
-                    className={`${inputClass} text-center text-lg tracking-[0.5em] font-mono font-bold`}
-                    placeholder="000000"
-                    autoFocus
-                  />
-                </FormField>
-                {twoFAError && <p className="text-xs text-red-600 font-semibold text-center">{twoFAError}</p>}
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setTwoFAStep("idle"); setTwoFACode(""); setTwoFAError(null); }}
-                    className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 rounded-xl bg-[#0f3d32] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0b2f26] transition"
-                  >
-                    Verify & Enable
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {twoFAStep === "idle" && twoFAEnabled && (
-            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-5 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                  <IconShield />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-emerald-900">2FA is enabled</p>
-                  <p className="text-xs text-emerald-700 mt-0.5">Your account is protected with two-factor authentication.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleDisable2FA}
-                className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition"
-              >
-                Disable 2FA
-              </button>
-            </div>
-          )}
+          <SectionHeader
+            title="Two-Factor Authentication (2FA)"
+            description="Optional extra security at login via authenticator app or email OTP."
+          />
+          <AccountSecurityPanel showToast={showToast} />
         </SectionCard>
 
         {/* Active Sessions */}

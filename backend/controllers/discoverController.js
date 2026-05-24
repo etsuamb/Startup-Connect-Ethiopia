@@ -1,4 +1,6 @@
 const pool = require("../config/db");
+const profileAccessService = require("../services/profileAccessService");
+const profileSanitizer = require("../services/profileSanitizer");
 
 async function getStartupIdByUserId(userId) {
 	const r = await pool.query(
@@ -108,7 +110,6 @@ exports.searchMentors = async (req, res) => {
         m.bio,
         m.professional_title,
         m.languages,
-        m.linkedin_or_portfolio,
         m.primary_industry,
         m.secondary_industry,
         m.city_location,
@@ -131,7 +132,7 @@ exports.searchMentors = async (req, res) => {
 		const { rows } = await pool.query(listSql, params);
 
 		return res.json({
-			mentors: rows,
+			mentors: rows.map((row) => profileSanitizer.sanitizeMentorPublic(row)),
 			pagination: { page, limit, total },
 		});
 	} catch (err) {
@@ -211,7 +212,6 @@ exports.searchInvestors = async (req, res) => {
         i.preferred_industry,
         i.investment_stage,
         i.location_preference,
-        i.linked_in_or_website,
         i.bio,
         i.country,
         i.portfolio_size,
@@ -229,8 +229,76 @@ exports.searchInvestors = async (req, res) => {
 		const { rows } = await pool.query(listSql, params);
 
 		return res.json({
-			investors: rows,
+			investors: rows.map((row) => profileSanitizer.sanitizeInvestorPublic(row)),
 			pagination: { page, limit, total },
+		});
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+/** GET /api/startups/discover/investors/:investorId — detail with relationship-based contact unlock */
+exports.getDiscoverInvestor = async (req, res) => {
+	try {
+		const investorId = Number.parseInt(req.params.investorId, 10);
+		if (!Number.isInteger(investorId) || investorId <= 0) {
+			return res.status(400).json({ error: "Invalid investor id" });
+		}
+
+		const r = await pool.query(
+			`SELECT i.*, u.user_id, u.first_name, u.last_name, u.email, u.phone_number,
+              u.is_approved AS user_approved, COALESCE(i.is_approved, false) AS investor_listed
+       FROM investors i
+       INNER JOIN users u ON u.user_id = i.user_id
+       WHERE i.investor_id = $1 AND u.role = 'Investor' AND u.is_active = TRUE`,
+			[investorId],
+		);
+		if (!r.rowCount) return res.status(404).json({ error: "Investor not found" });
+
+		const row = r.rows[0];
+		const access = await profileAccessService.evaluateSensitiveAccess(
+			req.user.user_id,
+			row.user_id,
+			{ endpoint: "discover.getInvestor" },
+		);
+
+		return res.json({
+			investor: profileSanitizer.sanitizeInvestor(row, access),
+			privacy: access.privacy,
+		});
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+/** GET /api/startups/discover/mentors/:mentorId */
+exports.getDiscoverMentor = async (req, res) => {
+	try {
+		const mentorId = Number.parseInt(req.params.mentorId, 10);
+		if (!Number.isInteger(mentorId) || mentorId <= 0) {
+			return res.status(400).json({ error: "Invalid mentor id" });
+		}
+
+		const r = await pool.query(
+			`SELECT m.*, u.user_id, u.first_name, u.last_name, u.email, u.phone_number,
+              u.is_approved AS user_approved, COALESCE(m.is_approved, false) AS mentor_listed
+       FROM mentors m
+       INNER JOIN users u ON u.user_id = m.user_id
+       WHERE m.mentor_id = $1 AND u.role = 'Mentor' AND u.is_active = TRUE`,
+			[mentorId],
+		);
+		if (!r.rowCount) return res.status(404).json({ error: "Mentor not found" });
+
+		const row = r.rows[0];
+		const access = await profileAccessService.evaluateSensitiveAccess(
+			req.user.user_id,
+			row.user_id,
+			{ endpoint: "discover.getMentor" },
+		);
+
+		return res.json({
+			mentor: profileSanitizer.sanitizeMentor(row, access),
+			privacy: access.privacy,
 		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });

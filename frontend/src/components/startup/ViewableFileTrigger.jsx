@@ -1,11 +1,12 @@
 "use client";
 
-import { openUploadedFileForView, fileTypeBadge } from "@/lib/viewUploadedFile";
+import { openUploadedFileForView, fileTypeBadge, canPreviewDocument } from "@/lib/viewUploadedFile";
 
 /**
  * Clickable row/button to preview an uploaded file (no download attribute).
  */
 export default function ViewableFileTrigger({
+  documentId,
   filePath,
   fileName,
   fileType,
@@ -14,11 +15,11 @@ export default function ViewableFileTrigger({
   showBadge = true,
   children,
 }) {
-  const canView = Boolean(filePath && !String(filePath).startsWith("db://"));
+  const canView = canPreviewDocument({ documentId, filePath });
 
   function handleClick() {
     if (!canView) return;
-    openUploadedFileForView({ filePath, fileName, fileType });
+    openUploadedFileForView({ documentId, filePath, fileName, fileType });
   }
 
   function handleKeyDown(event) {

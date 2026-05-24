@@ -15,6 +15,7 @@ import {
   parseTagList,
 } from "@/lib/discoverProfileUtils";
 import {
+  getDiscoverInvestor,
   getInvestorRecommendations,
   getStartupOffers,
   getStartupProfile,
@@ -83,6 +84,7 @@ export default function InvestorDetailsPage() {
   const params = useParams();
   const { investorId } = params;
   const [investor, setInvestor] = useState(null);
+  const [privacy, setPrivacy] = useState(null);
   const [startup, setStartup] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -95,8 +97,8 @@ export default function InvestorDetailsPage() {
       try {
         setLoading(true);
         setError(null);
-        const [searchRes, offersData, profileRes, recRes] = await Promise.all([
-          searchInvestors({ query: "" }),
+        const [detailRes, offersData, profileRes, recRes] = await Promise.all([
+          getDiscoverInvestor(investorId).catch(() => null),
           getStartupOffers().catch(() => ({ offers: [] })),
           getStartupProfile().catch(() => null),
           getInvestorRecommendations({ limit: 50 }).catch(() => ({ recommendations: [] })),
@@ -104,9 +106,17 @@ export default function InvestorDetailsPage() {
         setOfferLookup(buildSentOfferLookup(offersData.offers || []));
         setStartup(profileRes?.startup || profileRes || null);
         setRecommendations(recRes.recommendations || []);
-        const found = searchRes.investors?.find((i) => i.investor_id === parseInt(investorId, 10));
-        if (found) setInvestor(found);
-        else setError("Investor not found");
+        if (detailRes?.investor) {
+          setInvestor(detailRes.investor);
+          setPrivacy(detailRes.privacy || detailRes.investor.privacy || null);
+        } else {
+          const searchRes = await searchInvestors({ query: "" });
+          const found = searchRes.investors?.find((i) => i.investor_id === parseInt(investorId, 10));
+          if (found) {
+            setInvestor(found);
+            setPrivacy(found.privacy || null);
+          } else setError("Investor not found");
+        }
       } catch (err) {
         setError(err.message || "Failed to load investor details.");
       } finally {
@@ -191,6 +201,7 @@ export default function InvestorDetailsPage() {
         offerLookup={offerLookup}
         contactId={investorId}
         startup={startup}
+        privacy={privacy}
         footerExtra={
           sentOffer ? (
             <div className="rounded-2xl border border-[#cfe8dc] bg-[#f0faf5] p-5 text-sm text-[#0f3d32]">

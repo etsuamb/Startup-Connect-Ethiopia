@@ -527,6 +527,79 @@ exports.deleteUser = async (req, res) => {
 	}
 };
 
+// POST /api/admin/users/:userId/suspend  body: { reason?: string }
+exports.suspendUser = async (req, res) => {
+	const { userId } = req.params;
+	const admin = req.user;
+	const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : null;
+	try {
+		const r = await pool.query(
+			`UPDATE users SET is_active = false WHERE user_id = $1
+       RETURNING user_id, email, is_active`,
+			[userId],
+		);
+		if (!r.rowCount) return res.status(404).json({ message: "User not found" });
+
+		await pool.query(
+			`INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+			[admin.user_id, "suspend_user", "users", userId, reason || null, null],
+		);
+		await pool.query(
+			`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+			[
+				userId,
+				"account",
+				"Account suspended",
+				reason
+					? `Your account was suspended by an administrator: ${reason}`
+					: "Your account was suspended by an administrator.",
+				"users",
+				userId,
+			],
+		);
+		return res.json({ message: "User suspended", user: r.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// POST /api/admin/users/:userId/unsuspend
+exports.unsuspendUser = async (req, res) => {
+	const { userId } = req.params;
+	const admin = req.user;
+	try {
+		const r = await pool.query(
+			`UPDATE users SET is_active = true WHERE user_id = $1
+       RETURNING user_id, email, is_active`,
+			[userId],
+		);
+		if (!r.rowCount) return res.status(404).json({ message: "User not found" });
+
+		await pool.query(
+			`INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, details, metadata)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+			[admin.user_id, "unsuspend_user", "users", userId, null, null],
+		);
+		await pool.query(
+			`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+			[
+				userId,
+				"account",
+				"Account reinstated",
+				"Your account suspension has been lifted by an administrator.",
+				"users",
+				userId,
+			],
+		);
+		return res.json({ message: "User reinstated", user: r.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 // GET /api/admin/startups
 exports.listStartups = async (req, res) => {
 	const { limit = 100, offset = 0 } = req.query;

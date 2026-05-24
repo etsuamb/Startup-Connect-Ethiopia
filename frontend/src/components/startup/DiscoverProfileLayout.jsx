@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { getSentInvestorOffer, getSentMentorOffer } from "@/lib/offerUtils";
 import { initials } from "@/lib/discoverProfileUtils";
+import { isSensitiveVisible, privacyMessage } from "@/lib/profilePrivacy";
 
 function CheckIcon({ matched }) {
   return (
@@ -42,6 +43,7 @@ function OverviewRow({ label, value }) {
  * @param {object} props.offerLookup
  * @param {string|number} props.contactId
  * @param {object} props.startup - for header display
+ * @param {object} [props.privacy] - API privacy meta
  * @param {React.ReactNode} [props.footerExtra]
  * @param {React.ReactNode} [props.belowMain]
  */
@@ -54,9 +56,12 @@ export default function DiscoverProfileLayout({
   offerLookup,
   contactId,
   startup,
+  privacy: privacyProp,
   footerExtra,
   belowMain,
 }) {
+  const privacy = privacyProp || contact?.privacy;
+  const sensitiveVisible = isSensitiveVisible({ privacy: privacy });
   const sentOffer =
     kind === "investor"
       ? getSentInvestorOffer(offerLookup, contactId)
@@ -183,6 +188,35 @@ export default function DiscoverProfileLayout({
                 </div>
               </div>
             </section>
+
+            {!sensitiveVisible && privacy && (
+              <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                <p className="font-semibold mb-1">Protected contact information</p>
+                <p className="text-amber-800/90 leading-relaxed">{privacyMessage({ privacy })}</p>
+              </section>
+            )}
+
+            {sensitiveVisible && (contact?.email || contact?.phone_number) && (
+              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-gray-900 mb-4">
+                  Verified contact
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  {contact.email && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Email</p>
+                      <p className="mt-1 font-semibold text-gray-900 break-all">{contact.email}</p>
+                    </div>
+                  )}
+                  {contact.phone_number && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Phone</p>
+                      <p className="mt-1 font-semibold text-gray-900">{contact.phone_number}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* Overview */}
             <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">

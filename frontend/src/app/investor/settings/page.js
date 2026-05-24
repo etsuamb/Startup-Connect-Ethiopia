@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Sidebar from "@/components/investor/Sidebar";
 import { getInvestorSettings, updateInvestorSettings } from "@/lib/investorApi";
+import AccountSecurityPanel from "@/components/auth/AccountSecurityPanel";
 
 const inputClass =
   "w-full bg-white border border-gray-200 text-gray-800 py-3.5 px-4 rounded-xl outline-none focus:border-[#0a4d3c]/50 focus:ring-4 focus:ring-[#0a4d3c]/10 transition text-[14px]";
@@ -25,8 +26,6 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -53,7 +52,6 @@ export default function SettingsPage() {
     setLocationPreference(valueOf(settings?.location_preference));
     setLinkedInOrWebsite(valueOf(settings?.linked_in_or_website));
     setBio(valueOf(settings?.bio));
-    setTwoFactorAuth(Boolean(settings?.two_factor_enabled));
   }, []);
 
   const loadSettings = useCallback(async () => {
@@ -101,7 +99,6 @@ export default function SettingsPage() {
         location_preference: locationPreference.trim(),
         linked_in_or_website: linkedInOrWebsite.trim(),
         bio: bio.trim(),
-        two_factor_enabled: twoFactorAuth,
       });
       applySettings(data.settings || data.investor);
       setSuccess(data.message || "Investor settings saved.");
@@ -207,20 +204,9 @@ export default function SettingsPage() {
                 </section>
 
                 <section className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900 mb-1">Two-factor Authentication</h2>
-                      <p className="text-[13px] text-gray-500">Add an extra layer of security to your account.</p>
-                    </div>
-                    <button
-                      type="button"
-                      aria-pressed={twoFactorAuth}
-                      className={`w-[42px] h-6 flex items-center rounded-full p-1 transition-colors ${twoFactorAuth ? "bg-[#0a3a2e]" : "bg-gray-300"}`}
-                      onClick={() => setTwoFactorAuth((value) => !value)}
-                    >
-                      <span className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${twoFactorAuth ? "translate-x-[18px]" : ""}`} />
-                    </button>
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">Security & 2FA</h2>
+                  <p className="text-[13px] text-gray-500 mb-6">Manage two-factor authentication for your account.</p>
+                  <AccountSecurityPanel showToast={(message, type) => (type === "error" ? setError(message) : setSuccess(message))} />
                 </section>
 
                 <div className="mt-2 flex justify-end">

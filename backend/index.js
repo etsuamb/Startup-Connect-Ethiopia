@@ -1,8 +1,11 @@
+const http = require("http");
 const express = require("express");
 const pool = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
+const initializeSocket = require("./socket");
 
 const app = express();
+const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 5000;
 
 // Middleware
@@ -78,7 +81,10 @@ app.use("/api/startups/discover", discoverRoutes);
 const ratingRoutes = require("./routes/ratingRoutes");
 app.use("/api/ratings", ratingRoutes);
 
+// Real-time chat (Socket.IO)
+initializeSocket(server);
+
 // Start server LAST
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} (HTTP + Socket.IO)`);
 });

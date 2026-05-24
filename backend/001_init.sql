@@ -310,11 +310,14 @@ CREATE TABLE IF NOT EXISTS payments (
     from_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     to_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     amount DECIMAL(14,2) NOT NULL CHECK (amount > 0),
+    platform_fee DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (platform_fee >= 0),
+    net_amount DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (net_amount >= 0),
     currency CHAR(3) NOT NULL DEFAULT 'USD',
     payment_method VARCHAR(50),
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled')),
     reference_type VARCHAR(50),
     reference_id INTEGER,
+    gateway_details JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (from_user_id <> to_user_id)
 );
@@ -459,16 +462,25 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     chat_message_id SERIAL PRIMARY KEY,
     conversation_id INTEGER NOT NULL REFERENCES chat_conversations(conversation_id) ON DELETE CASCADE,
     sender_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    message_type VARCHAR(20) NOT NULL CHECK (message_type IN ('text', 'file')),
+    message_type VARCHAR(20) NOT NULL DEFAULT 'text',
     text_body TEXT,
     file_name VARCHAR(255),
-    file_mime VARCHAR(120),
-    file_size_bytes BIGINT CHECK (file_size_bytes IS NULL OR file_size_bytes >= 0),
+    file_mime VARCHAR(100),
+    file_size_bytes BIGINT,
     file_data BYTEA,
     read_at_startup TIMESTAMPTZ,
     read_at_investor TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (message_type IN ('text', 'file'))
+);
+
+CREATE TABLE IF NOT EXISTS chat_moderation_logs (
+    log_id SERIAL PRIMARY KEY,
+    sender_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    conversation_id INTEGER NOT NULL REFERENCES chat_conversations(conversation_id) ON DELETE CASCADE,
+    attempted_message TEXT NOT NULL,
+    flagged_reason VARCHAR(100) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages (conversation_id, created_at DESC);

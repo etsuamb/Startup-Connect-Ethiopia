@@ -1,4 +1,6 @@
 const pool = require("../config/db");
+const profileAccessService = require("../services/profileAccessService");
+const profileSanitizer = require("../services/profileSanitizer");
 const bcrypt = require("bcrypt");
 
 const hasStrongPassword = (password) => {
@@ -363,7 +365,12 @@ exports.listStartups = async (req, res) => {
 			[limitNum, offset]
 		);
 
-		res.json({ startups: result.rows, total, page: pageNum, limit: limitNum });
+		res.json({
+			startups: result.rows.map((row) => profileSanitizer.sanitizeStartupPublic(row)),
+			total,
+			page: pageNum,
+			limit: limitNum,
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -430,7 +437,7 @@ exports.searchStartups = async (req, res) => {
 		const result = await pool.query(query, params);
 
 		res.json({
-			startups: result.rows,
+			startups: result.rows.map((row) => profileSanitizer.sanitizeStartupPublic(row)),
 			total,
 			page: pageNum,
 			limit: limitNum,
@@ -672,6 +679,11 @@ exports.getStartupDetails = async (req, res) => {
 		}
 
 		const startup = startupRes.rows[0];
+		const access = await profileAccessService.evaluateSensitiveAccess(
+			req.user.user_id,
+			startup.user_id,
+			{ endpoint: "investor.getStartupDetails" },
+		);
 
 		// Get documents
 		const documentsRes = await pool.query(
@@ -685,7 +697,12 @@ exports.getStartupDetails = async (req, res) => {
 			[startupId]
 		);
 
-		res.json({ startup, documents: documentsRes.rows, projects: projectsRes.rows });
+		res.json({
+			startup: profileSanitizer.sanitizeStartup(startup, access),
+			documents: profileSanitizer.sanitizeDocuments(documentsRes.rows, access),
+			projects: projectsRes.rows,
+			privacy: access.privacy,
+		});
 	} catch (err) {
 		res.status(500).json({ error: err.message });
 	}
@@ -1361,6 +1378,39 @@ exports.getRatings = async (req, res) => {
 			 ORDER BY f.created_at DESC
 			 LIMIT $2`,
 			[investorRes.rows[0].investor_id, limit]
+		);
+
+		return res.json({ ratings: result.rows });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+/** Startup ratings of mentors — visible to investors for due diligence */
+exports.getMentorRatingsFromStartups = async (req, res) => {
+	try {
+		const limit = Math.min(Number(req.query.limit) || 20, 100);
+
+		const result = await pool.query(
+			`SELECT
+         r.review_id,
+         r.rating,
+         r.comment,
+         r.created_at,
+         s.startup_id,
+         s.startup_name,
+         s.industry AS startup_industry,
+         m.mentor_id,
+         m.headline AS mentor_headline,
+         mu.first_name AS mentor_first_name,
+         mu.last_name AS mentor_last_name
+       FROM reviews r
+       JOIN startups s ON s.startup_id = r.startup_id
+       JOIN mentors m ON m.mentor_id = r.mentor_id
+       JOIN users mu ON mu.user_id = m.user_id
+       ORDER BY r.created_at DESC
+       LIMIT $1`,
+			[limit],
 		);
 
 		return res.json({ ratings: result.rows });

@@ -71,6 +71,13 @@ router.get(
 	startupController.getDocuments
 );
 
+router.get(
+	"/documents/:documentId/file",
+	authenticate,
+	authorizeRoles("Startup", "Investor", "Mentor", "Admin"),
+	startupController.getDocumentFile
+);
+
 router.delete(
 	"/documents/:documentId",
 	authenticate,

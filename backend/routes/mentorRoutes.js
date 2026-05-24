@@ -16,7 +16,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 /** Mentor–startup chat + video. Base: /api/mentors/mentor-chat */
 router.use(
 	"/mentor-chat",
-	buildMentorChatRoutes([authenticate, authorizeRoles("Mentor")]),
+	buildMentorChatRoutes([authenticate, authorizeRoles("Mentor"), requireApproval]),
 );
 
 // ——— Dashboard & profile (static paths before /:mentorId) ———

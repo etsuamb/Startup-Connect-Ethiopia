@@ -8,9 +8,10 @@ const upload = multer({
 const {
 	authenticate,
 	authorizeRoles,
-	requireApprovalIfStartup,
+	requireApproval,
 } = require("../middleware/authMiddleware");
 const chatController = require("../controllers/chatController");
+const { chatModerationMiddleware } = require("../middleware/chatModerationMiddleware");
 
 /**
  * Chat + video session API (same paths under /api/chat or /api/startups/chat).
@@ -23,11 +24,17 @@ function buildChatRoutes(accessMiddleware) {
 	router.post("/conversations", ...chain, chatController.createOrGetConversation);
 	router.get("/conversations", ...chain, chatController.listConversations);
 	router.get("/conversations/:id/messages", ...chain, chatController.getMessages);
-	router.post("/conversations/:id/messages", ...chain, chatController.sendTextMessage);
+	router.post(
+		"/conversations/:id/messages",
+		...chain,
+		chatModerationMiddleware({ channel: "investor" }),
+		chatController.sendTextMessage,
+	);
 	router.post(
 		"/conversations/:id/files",
 		...chain,
 		upload.single("file"),
+		chatModerationMiddleware({ channel: "investor" }),
 		chatController.uploadChatFile,
 	);
 	router.get("/notifications", ...chain, chatController.getChatNotifications);
@@ -53,7 +60,7 @@ function buildChatRoutes(accessMiddleware) {
 
 const defaultAccess = [
 	authenticate,
-	requireApprovalIfStartup,
+	requireApproval,
 	authorizeRoles("Startup", "Investor"),
 ];
 const router = buildChatRoutes(defaultAccess);

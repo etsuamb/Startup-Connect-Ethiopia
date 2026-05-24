@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const profileSanitizer = require("../services/profileSanitizer");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -373,6 +374,72 @@ exports.getDocuments = async (req, res) => {
 	}
 };
 
+/** GET /api/startups/documents/:documentId/file — stream document for in-app preview */
+exports.getDocumentFile = async (req, res) => {
+	try {
+		const userId = req.user.user_id;
+		const role = req.user.role;
+		const documentId = Number(req.params.documentId);
+
+		if (!Number.isInteger(documentId) || documentId <= 0) {
+			return res.status(400).json({ error: "Invalid document id" });
+		}
+
+		let query;
+		let params;
+
+		if (role === "Startup") {
+			query = `SELECT d.* FROM documents d
+         JOIN startups s ON s.startup_id = d.startup_id
+         WHERE d.document_id = $1 AND s.user_id = $2`;
+			params = [documentId, userId];
+		} else if (role === "Investor" || role === "Admin") {
+			query = "SELECT * FROM documents WHERE document_id = $1";
+			params = [documentId];
+		} else if (role === "Mentor") {
+			query = `SELECT d.* FROM documents d
+         JOIN mentorship_requests mr ON mr.startup_id = d.startup_id
+         JOIN mentors m ON m.mentor_id = mr.mentor_id
+         WHERE d.document_id = $1 AND m.user_id = $2 AND mr.status = 'accepted'`;
+			params = [documentId, userId];
+		} else {
+			return res.status(403).json({ error: "Not allowed to view this document" });
+		}
+
+		const docRes = await pool.query(query, params);
+		if (!docRes.rows.length) {
+			return res.status(404).json({ error: "Document not found" });
+		}
+
+		const doc = docRes.rows[0];
+		const safeName = String(doc.file_name || "document").replace(/[^\w.\- ()]/g, "_");
+		const contentType = doc.file_type || "application/octet-stream";
+
+		res.setHeader("Content-Type", contentType);
+		res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+
+		if (doc.file_data) {
+			return res.send(doc.file_data);
+		}
+
+		if (!doc.file_path || String(doc.file_path).startsWith("db://")) {
+			return res.status(404).json({ error: "File content is not available" });
+		}
+
+		const uploadsDir = path.resolve(process.cwd(), "uploads");
+		const absPath = path.resolve(process.cwd(), doc.file_path);
+		if (!absPath.startsWith(uploadsDir)) {
+			return res.status(400).json({ error: "Invalid file path" });
+		}
+		if (!fs.existsSync(absPath)) {
+			return res.status(404).json({ error: "File missing on server" });
+		}
+		return res.sendFile(absPath);
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 exports.deleteDocument = async (req, res) => {
 	try {
 		const userId = req.user.user_id;
@@ -524,7 +591,7 @@ exports.searchInvestors = async (req, res) => {
 		const result = await pool.query(query, params);
 
 		res.json({
-			investors: result.rows,
+			investors: result.rows.map((row) => profileSanitizer.sanitizeInvestorPublic(row)),
 			total,
 			page: pageNum,
 			limit: limitNum,
@@ -587,7 +654,7 @@ exports.searchMentors = async (req, res) => {
 		const result = await pool.query(query, params);
 
 		res.json({
-			mentors: result.rows,
+			mentors: result.rows.map((row) => profileSanitizer.sanitizeMentorPublic(row)),
 			total,
 			page: pageNum,
 			limit: limitNum,
@@ -766,7 +833,7 @@ exports.getInvestorRecommendations = async (req, res) => {
 				const score = Number(finalScore.toFixed(2));
 
 				return {
-					investor: {
+					investor: profileSanitizer.sanitizeInvestorPublic({
 						investor_id: investor.investor_id,
 						investor_type: investor.investor_type,
 						organization_name: investor.organization_name,
@@ -779,8 +846,9 @@ exports.getInvestorRecommendations = async (req, res) => {
 						bio: investor.bio,
 						first_name: investor.first_name,
 						last_name: investor.last_name,
-						email: investor.email,
-					},
+						user_approved: true,
+						investor_listed: investor.is_approved,
+					}),
 					score,
 					match_percent: Math.round(score * 100),
 					similarityScore: Number(similarityScore.toFixed(3)),
@@ -834,7 +902,7 @@ exports.getMentorRecommendations = async (req, res) => {
 		);
 
 		const recommendations = result.rows.map((mentor) => ({
-			mentor,
+			mentor: profileSanitizer.sanitizeMentorPublic(mentor),
 			score: 0.8,
 			reason: `Expertise in ${industry}`,
 		}));

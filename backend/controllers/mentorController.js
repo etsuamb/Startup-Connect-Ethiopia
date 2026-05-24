@@ -1,5 +1,7 @@
 const crypto = require("crypto");
 const pool = require("../config/db");
+const profileAccessService = require("../services/profileAccessService");
+const profileSanitizer = require("../services/profileSanitizer");
 
 async function insertMentorDocumentFromMemory(mentorId, file, description) {
 	if (!file || !file.buffer) return;
@@ -171,7 +173,7 @@ exports.getAllMentors = async (_req, res) => {
       ORDER BY m.created_at DESC`,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json(result.rows.map((row) => profileSanitizer.sanitizeMentorPublic(row)));
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -210,9 +212,14 @@ exports.getMentorById = async (req, res) => {
 		);
 
 		const mentor = mentorResult.rows[0];
-		mentor.documents = docs.rows;
+		const access = await profileAccessService.evaluateSensitiveAccess(
+			req.user.user_id,
+			mentor.user_id,
+			{ endpoint: "mentor.getMentorById" },
+		);
+		mentor.documents = profileSanitizer.sanitizeDocuments(docs.rows, access);
 
-		return res.status(200).json(mentor);
+		return res.status(200).json(profileSanitizer.sanitizeMentor(mentor, access));
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}

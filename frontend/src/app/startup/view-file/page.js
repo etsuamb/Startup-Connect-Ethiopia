@@ -1,15 +1,21 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { fileDisplayKind } from "@/lib/viewUploadedFile";
+import { fileDisplayKind, fetchDocumentBlob } from "@/lib/viewUploadedFile";
 
 function FileViewerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawUrl = searchParams.get("url") || "";
+  const documentId = searchParams.get("documentId") || "";
   const fileName = searchParams.get("name") || "Document";
   const fileType = searchParams.get("type") || "";
+
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [resolvedType, setResolvedType] = useState(fileType);
+  const [loading, setLoading] = useState(Boolean(documentId));
+  const [error, setError] = useState("");
 
   const safeUrl = useMemo(() => {
     if (!rawUrl.startsWith("/uploads/")) return null;
@@ -17,13 +23,53 @@ function FileViewerContent() {
     return rawUrl;
   }, [rawUrl]);
 
-  const kind = fileDisplayKind(fileName, fileType);
+  useEffect(() => {
+    if (!documentId) return undefined;
 
-  if (!safeUrl) {
+    let objectUrl;
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        const { blob, contentType } = await fetchDocumentBlob(documentId);
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+        if (contentType) setResolvedType(contentType);
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Could not load document.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [documentId]);
+
+  const previewUrl = documentId ? blobUrl : safeUrl;
+  const kind = fileDisplayKind(fileName, resolvedType || fileType);
+
+  if (documentId && loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f6f8f9] p-6">
+        <p className="text-sm text-gray-500">Loading preview…</p>
+      </div>
+    );
+  }
+
+  if (error || !previewUrl) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f6f8f9] p-6">
         <div className="bg-white rounded-2xl border border-gray-200 p-8 max-w-md text-center shadow-sm">
-          <p className="text-sm font-semibold text-gray-900">Invalid or unavailable file link.</p>
+          <p className="text-sm font-semibold text-gray-900">
+            {error || "Invalid or unavailable file link."}
+          </p>
           <button
             type="button"
             onClick={() => router.back()}
@@ -54,11 +100,15 @@ function FileViewerContent() {
 
       <div className="flex-grow flex items-center justify-center p-2 sm:p-4 overflow-auto">
         {kind === "image" && (
-          <img src={safeUrl} alt={fileName} className="max-w-full max-h-[calc(100vh-80px)] object-contain rounded-lg shadow-2xl" />
+          <img
+            src={previewUrl}
+            alt={fileName}
+            className="max-w-full max-h-[calc(100vh-80px)] object-contain rounded-lg shadow-2xl"
+          />
         )}
         {kind === "video" && (
           <video
-            src={safeUrl}
+            src={previewUrl}
             controls
             playsInline
             className="max-w-full max-h-[calc(100vh-80px)] rounded-lg shadow-2xl bg-black"
@@ -69,13 +119,13 @@ function FileViewerContent() {
         {kind === "audio" && (
           <div className="w-full max-w-lg rounded-2xl bg-white p-8 shadow-xl text-center">
             <p className="text-sm font-bold text-gray-900 mb-4">{fileName}</p>
-            <audio src={safeUrl} controls className="w-full" />
+            <audio src={previewUrl} controls className="w-full" />
           </div>
         )}
         {(kind === "pdf" || kind === "other") && (
           <iframe
             title={fileName}
-            src={kind === "pdf" ? safeUrl : safeUrl}
+            src={previewUrl}
             className="w-full h-[calc(100vh-72px)] max-w-6xl bg-white rounded-lg shadow-2xl border-0"
           />
         )}

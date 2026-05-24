@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/investor/Sidebar";
 import {
   getInvestorRatings,
+  getInvestorMentorRatings,
   getInvestorStartups,
   submitInvestorRating,
 } from "@/lib/investorApi";
@@ -27,6 +28,31 @@ function formatDate(value) {
   });
 }
 
+function mentorDisplayName(rating) {
+  const first = rating?.mentor_first_name || "";
+  const last = rating?.mentor_last_name || "";
+  const full = `${first} ${last}`.trim();
+  return full || rating?.mentor_headline || "Mentor";
+}
+
+function ReadOnlyStars({ rating }) {
+  const value = Math.max(0, Math.min(5, Number(rating) || 0));
+  return (
+    <div className="flex gap-0.5" aria-label={`${value} out of 5 stars`}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <svg
+          key={star}
+          className={`w-4 h-4 ${star <= value ? "text-[#8a611c]" : "text-gray-200"}`}
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
 function RatingContent() {
   const searchParams = useSearchParams();
   const startupIdFromUrl = searchParams.get("startupId") || "";
@@ -35,6 +61,7 @@ function RatingContent() {
   const [ratings, setRatings] = useState(DEFAULT_RATINGS);
   const [comment, setComment] = useState("");
   const [recentRatings, setRecentRatings] = useState([]);
+  const [mentorRatings, setMentorRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -47,14 +74,16 @@ function RatingContent() {
       try {
         setLoading(true);
         setError("");
-        const [startupData, ratingData] = await Promise.all([
+        const [startupData, ratingData, mentorRatingData] = await Promise.all([
           getInvestorStartups({ limit: 100 }),
           getInvestorRatings({ limit: 10 }),
+          getInvestorMentorRatings({ limit: 30 }),
         ]);
         if (ignore) return;
         const loadedStartups = Array.isArray(startupData.startups) ? startupData.startups : [];
         setStartups(loadedStartups);
         setRecentRatings(Array.isArray(ratingData.ratings) ? ratingData.ratings : []);
+        setMentorRatings(Array.isArray(mentorRatingData.ratings) ? mentorRatingData.ratings : []);
         if (!startupIdFromUrl && loadedStartups.length) {
           setSelectedStartupId(String(loadedStartups[0].startup_id));
         }
@@ -251,6 +280,64 @@ function RatingContent() {
                 </div>
               </div>
             </div>
+
+            <section className="mt-14 pt-10 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+                <div>
+                  <h2 className="text-[26px] font-bold text-gray-900 tracking-tight">Mentor ratings from startups</h2>
+                  <p className="text-gray-500 text-[15px] max-w-3xl mt-2">
+                    When founders rate mentors after mentorship, those reviews appear here with the rating, feedback, mentor name, and which startup submitted it.
+                  </p>
+                </div>
+                <span className="px-3 py-1.5 bg-[#eaf4f1] text-[#0f3d32] text-[11px] font-bold rounded-full shrink-0 self-start">
+                  {mentorRatings.length} review{mentorRatings.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {loading ? (
+                <p className="text-sm text-gray-500">Loading mentor ratings…</p>
+              ) : mentorRatings.length ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {mentorRatings.map((item) => (
+                    <article
+                      key={item.review_id}
+                      className="bg-white border border-gray-200 rounded-[16px] p-6 shadow-sm hover:shadow-md transition"
+                    >
+                      <div className="flex justify-between items-start gap-4 mb-4">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-[#0f3d32] mb-1">Mentor rated</p>
+                          <h3 className="font-bold text-[16px] text-gray-900 truncate">{mentorDisplayName(item)}</h3>
+                          {item.mentor_headline ? (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{item.mentor_headline}</p>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <ReadOnlyStars rating={item.rating} />
+                          <p className="text-[11px] font-bold text-[#8a611c] mt-1">{item.rating}/5</p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-[#f8f9fa] border border-gray-100 px-4 py-3 mb-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Rated by startup</p>
+                        <p className="text-sm font-bold text-gray-900">{item.startup_name || "Startup"}</p>
+                        {item.startup_industry ? (
+                          <p className="text-xs text-gray-500 mt-0.5">{item.startup_industry}</p>
+                        ) : null}
+                      </div>
+
+                      <p className="text-[13px] text-gray-600 leading-relaxed">
+                        {item.comment?.trim() || "No written feedback provided."}
+                      </p>
+                      <p className="text-[11px] text-gray-400 font-medium mt-4">{formatDate(item.created_at)}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-[16px] p-8 text-sm text-gray-500 shadow-sm">
+                  No startup mentor ratings yet. Ratings will show here after founders submit mentor reviews.
+                </div>
+              )}
+            </section>
           </div>
         </main>
       </div>

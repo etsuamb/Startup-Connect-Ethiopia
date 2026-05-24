@@ -399,6 +399,12 @@ exports.updateStartupProfile = async (req, res) => {
     }
 
     const docLabels = {
+      founder_id: "Founder or representative ID",
+      business_registration_proof: "Business registration proof",
+      support_affiliation_letter: "Support or affiliation letter",
+      tin_certificate: "TIN certificate",
+      logo: "Company logo",
+      proof_of_address: "Proof of address",
       pitch_deck: "Pitch deck",
       business_plan: "Business plan",
     };
@@ -406,6 +412,12 @@ exports.updateStartupProfile = async (req, res) => {
     for (const file of uploadedFiles) {
       try {
         const description = docLabels[file.fieldname] || file.fieldname || null;
+        if (description) {
+          await pool.query(
+            `DELETE FROM documents WHERE startup_id = $1 AND LOWER(COALESCE(description, '')) = LOWER($2)`,
+            [startup.startup_id, description],
+          );
+        }
         await pool.query(
           `INSERT INTO documents (startup_id, file_name, file_path, file_type, file_size_bytes, description, created_at)
 					 VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP)`,

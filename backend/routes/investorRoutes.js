@@ -180,4 +180,12 @@ router.get(
 	investorController.getRatings,
 );
 
+router.get(
+	"/mentor-ratings",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.getMentorRatingsFromStartups,
+);
+
 module.exports = router;

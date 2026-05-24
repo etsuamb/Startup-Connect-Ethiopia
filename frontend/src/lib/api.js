@@ -26,8 +26,12 @@ export async function apiFetch(path, options = {}) {
 				: JSON.stringify(data.chapa_message)
 			: null;
 		const err = new Error(
-			chapaMessage || (data && (data.message || data.error)) || res.statusText || "Request failed",
+			chapaMessage ||
+				(data && (data.message || data.error)) ||
+				res.statusText ||
+				"Request failed",
 		);
+		err.code = data?.code;
 		err.status = res.status;
 		err.data = data;
 		throw err;
