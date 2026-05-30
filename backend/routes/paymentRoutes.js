@@ -8,6 +8,7 @@ const {
 const paymentController = require("../controllers/paymentController");
 
 router.post("/webhooks/chapa", paymentController.handleChapaWebhook);
+router.get("/webhooks/chapa", paymentController.handleChapaWebhook);
 
 router.get(
 	"/investment-items",

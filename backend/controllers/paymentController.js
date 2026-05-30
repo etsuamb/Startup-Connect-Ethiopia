@@ -7,6 +7,7 @@ const CHAPA_PUBLIC_KEY = process.env.CHAPA_PUBLIC_KEY;
 const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY;
 const CHAPA_RETURN_URL = process.env.CHAPA_RETURN_URL || "http://localhost:3000";
 const CHAPA_CALLBACK_URL = process.env.CHAPA_CALLBACK_URL;
+const PAYMENT_CONTRACT_VERSION = "startupconnect-payment-v1";
 
 function requireChapaConfig() {
 	if (!CHAPA_SECRET_KEY || !CHAPA_PUBLIC_KEY) {
@@ -44,31 +45,119 @@ function normalizeChapaPhone(value) {
 	return null;
 }
 
-async function ensurePaymentGatewayColumns() {
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS tx_ref VARCHAR(120)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS checkout_url TEXT");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_reference VARCHAR(180)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (platform_fee >= 0)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_amount DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (net_amount >= 0)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS gateway_details JSONB");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(30) NOT NULL DEFAULT 'not_applicable'");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_authorized_at TIMESTAMPTZ");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_released_at TIMESTAMPTZ");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_refunded_at TIMESTAMPTZ");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS fraud_flags JSONB NOT NULL DEFAULT '[]'::jsonb");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_suspicious BOOLEAN NOT NULL DEFAULT false");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS chargeback_status VARCHAR(30)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS admin_notes TEXT");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS risk_score INTEGER NOT NULL DEFAULT 0");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_action_status VARCHAR(40)");
-	
-	// Drop old constraint and add new one to support processing/cancelled
-	await pool.query("ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check");
-	await pool.query("ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'))");
-	
-	await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS payments_tx_ref_uidx ON payments(tx_ref) WHERE tx_ref IS NOT NULL");
+function normalizeGatewayStatus(value) {
+	return String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function statusFromChapaVerification(chapaData) {
+	const data = chapaData?.data || {};
+	const candidates = [
+		data.status,
+		data.payment_status,
+		data.transaction_status,
+		data.charge_status,
+		chapaData?.payment_status,
+		chapaData?.transaction_status,
+	];
+	const normalized = candidates.map(normalizeGatewayStatus).filter(Boolean);
+
+	if (normalized.some((status) => ["success", "successful", "completed", "complete", "paid", "settled"].includes(status))) {
+		return "completed";
+	}
+	if (normalized.some((status) => ["failed", "failure", "declined", "rejected", "error"].includes(status))) {
+		return "failed";
+	}
+	if (normalized.some((status) => ["cancelled", "canceled", "cancel"].includes(status))) {
+		return "cancelled";
+	}
+	return "pending";
+}
+
+function extractChapaTxRef(req) {
+	return (
+		req.body?.tx_ref ||
+		req.body?.trx_ref ||
+		req.body?.data?.tx_ref ||
+		req.body?.data?.trx_ref ||
+		req.query?.tx_ref ||
+		req.query?.trx_ref
+	);
+}
+
+function requirePaymentContractAcceptance(req) {
+	if (req.body?.payment_contract_accepted !== true) {
+		const err = new Error("Payment contract agreement is required before checkout");
+		err.status = 400;
+		throw err;
+	}
+
+	return {
+		version: String(req.body?.payment_contract_version || PAYMENT_CONTRACT_VERSION).slice(0, 80),
+		snapshot: {
+			version: PAYMENT_CONTRACT_VERSION,
+			accepted: true,
+			accepted_at: new Date().toISOString(),
+			summary: [
+				"Payment is authorized through Chapa for the selected accepted offer.",
+				"StartupConnect records the transaction status after provider verification.",
+				"Platform fees and escrow/release handling follow StartupConnect payment terms.",
+				"Refunds, disputes, and chargebacks are reviewed under platform policy.",
+			],
+		},
+	};
+}
+
+let paymentGatewayColumnsPromise;
+
+function ensurePaymentGatewayColumns() {
+	if (!paymentGatewayColumnsPromise) {
+		paymentGatewayColumnsPromise = configurePaymentGatewayColumns().catch((err) => {
+			paymentGatewayColumnsPromise = null;
+			throw err;
+		});
+	}
+	return paymentGatewayColumnsPromise;
+}
+
+async function configurePaymentGatewayColumns() {
+	const client = await pool.connect();
+	try {
+		await client.query("BEGIN");
+		await client.query("SELECT pg_advisory_xact_lock(hashtext('payment_gateway_columns'))");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS tx_ref VARCHAR(120)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS checkout_url TEXT");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_reference VARCHAR(180)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (platform_fee >= 0)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_amount DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (net_amount >= 0)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS gateway_details JSONB");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(30) NOT NULL DEFAULT 'not_applicable'");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_authorized_at TIMESTAMPTZ");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_released_at TIMESTAMPTZ");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_refunded_at TIMESTAMPTZ");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS fraud_flags JSONB NOT NULL DEFAULT '[]'::jsonb");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_suspicious BOOLEAN NOT NULL DEFAULT false");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS chargeback_status VARCHAR(30)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS admin_notes TEXT");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS risk_score INTEGER NOT NULL DEFAULT 0");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_action_status VARCHAR(40)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_contract_version VARCHAR(80)");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_contract_accepted_at TIMESTAMPTZ");
+		await client.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_contract_snapshot JSONB");
+
+		// Replace the legacy status constraint once to support processing/cancelled.
+		await client.query("ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check");
+		await client.query("ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'))");
+
+		await client.query("CREATE UNIQUE INDEX IF NOT EXISTS payments_tx_ref_uidx ON payments(tx_ref) WHERE tx_ref IS NOT NULL");
+		await client.query("COMMIT");
+	} catch (err) {
+		await client.query("ROLLBACK").catch(() => {});
+		throw err;
+	} finally {
+		client.release();
+	}
 }
 
 function buildPaymentFraudFlags(payment, recentCount = 0) {
@@ -141,6 +230,39 @@ async function getPayableMentorshipRequest(client, userId, requestId) {
 	return { ...offer, payable_amount: amount, startup_name: startup.startup_name };
 }
 
+async function getExistingCompletedPayment(client, referenceType, referenceId, fromUserId) {
+	const result = await client.query(
+		`SELECT *
+		 FROM payments
+		 WHERE reference_type = $1
+		   AND reference_id = $2
+		   AND from_user_id = $3
+		   AND status = 'completed'
+		 ORDER BY updated_at DESC NULLS LAST, created_at DESC
+		 LIMIT 1`,
+		[referenceType, referenceId, fromUserId],
+	);
+	return result.rows[0] || null;
+}
+
+async function refreshPendingChapaPayments(rows) {
+	const txRefs = [
+		...new Set(
+			rows
+				.filter((row) => row?.tx_ref && row?.status !== "completed")
+				.map((row) => row.tx_ref),
+		),
+	];
+
+	for (const txRef of txRefs) {
+		try {
+			await verifyAndUpdatePayment(txRef);
+		} catch (_err) {
+			// Keep listing payments even when the provider is temporarily unreachable.
+		}
+	}
+}
+
 async function getPayableOffer(client, userId, offerId) {
 	const investorId = await getInvestorId(userId);
 	if (!investorId) {
@@ -183,6 +305,21 @@ exports.getInvestmentPaymentItems = async (req, res) => {
 		const investorId = await getInvestorId(req.user.user_id);
 		if (!investorId) return res.status(404).json({ message: "Investor profile not found" });
 
+		const pending = await pool.query(
+			`SELECT DISTINCT pay.tx_ref, pay.status
+			 FROM investment_requests ir
+			 JOIN payments pay
+			   ON pay.reference_type = 'investment_request'
+			  AND pay.reference_id = ir.investment_request_id
+			  AND pay.from_user_id = $2
+			 WHERE ir.investor_id = $1
+			   AND ir.status IN ('approved')
+			   AND pay.status IN ('pending', 'processing')
+			   AND pay.tx_ref IS NOT NULL`,
+			[investorId, req.user.user_id],
+		);
+		await refreshPendingChapaPayments(pending.rows);
+
 		const result = await pool.query(
 			`SELECT ir.investment_request_id, ir.requested_amount, ir.status AS offer_status, ir.created_at,
 					s.startup_id, s.startup_name, s.industry, s.business_stage, s.user_id AS startup_user_id,
@@ -197,7 +334,7 @@ exports.getInvestmentPaymentItems = async (req, res) => {
 				WHERE reference_type = 'investment_request'
 				  AND reference_id = ir.investment_request_id
 				  AND from_user_id = $2
-				ORDER BY created_at DESC
+				ORDER BY CASE WHEN status = 'completed' THEN 0 ELSE 1 END, created_at DESC
 				LIMIT 1
 			 ) pay ON true
 			 WHERE ir.investor_id = $1
@@ -205,7 +342,6 @@ exports.getInvestmentPaymentItems = async (req, res) => {
 			 ORDER BY ir.created_at DESC`,
 			[investorId, req.user.user_id],
 		);
-
 		res.json({ payments: result.rows });
 	} catch (err) {
 		res.status(err.status || 500).json({ error: err.message });
@@ -222,8 +358,21 @@ exports.initializeChapaPayment = async (req, res) => {
 		if (!Number.isInteger(offerId)) {
 			return res.status(400).json({ error: "offer_id is required" });
 		}
+		const contract = requirePaymentContractAcceptance(req);
 
 		const offer = await getPayableOffer(client, req.user.user_id, offerId);
+		const completedPayment = await getExistingCompletedPayment(
+			client,
+			"investment_request",
+			offer.investment_request_id,
+			req.user.user_id,
+		);
+		if (completedPayment) {
+			return res.status(409).json({
+				error: "This offer has already been paid",
+				payment: completedPayment,
+			});
+		}
 
 		const txRef = makeTxRef(req.user.user_id);
 		const amount = String(Math.round(Number(offer.requested_amount)));
@@ -267,9 +416,10 @@ exports.initializeChapaPayment = async (req, res) => {
 		const paymentRes = await client.query(
 			`INSERT INTO payments (
 				from_user_id, to_user_id, amount, platform_fee, net_amount, currency, payment_method, status,
-				reference_type, reference_id, tx_ref, checkout_url, updated_at
+				reference_type, reference_id, tx_ref, checkout_url, payment_contract_version,
+				payment_contract_accepted_at, payment_contract_snapshot, updated_at
 			 )
-			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa', 'pending', 'investment_request', $7, $8, $9, CURRENT_TIMESTAMP)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa', 'pending', 'investment_request', $7, $8, $9, $10, CURRENT_TIMESTAMP, $11::jsonb, CURRENT_TIMESTAMP)
 			 RETURNING *`,
 			[
 				req.user.user_id,
@@ -281,6 +431,8 @@ exports.initializeChapaPayment = async (req, res) => {
 				offer.investment_request_id,
 				txRef,
 				chapaData.data?.checkout_url,
+				contract.version,
+				JSON.stringify(contract.snapshot),
 			],
 		);
 		await client.query("COMMIT");
@@ -309,8 +461,22 @@ exports.createChapaHostedPayment = async (req, res) => {
 		if (!Number.isInteger(offerId)) {
 			return res.status(400).json({ error: "offer_id is required" });
 		}
+		const contract = requirePaymentContractAcceptance(req);
 
 		const offer = await getPayableOffer(client, req.user.user_id, offerId);
+		const completedPayment = await getExistingCompletedPayment(
+			client,
+			"investment_request",
+			offer.investment_request_id,
+			req.user.user_id,
+		);
+		if (completedPayment) {
+			return res.status(409).json({
+				error: "This offer has already been paid",
+				payment: completedPayment,
+			});
+		}
+
 		const txRef = makeTxRef(req.user.user_id);
 		const amount = String(Math.round(Number(offer.requested_amount)));
 		const currency = "ETB";
@@ -322,9 +488,10 @@ exports.createChapaHostedPayment = async (req, res) => {
 		const paymentRes = await client.query(
 			`INSERT INTO payments (
 				from_user_id, to_user_id, amount, platform_fee, net_amount, currency, payment_method, status,
-				reference_type, reference_id, tx_ref, checkout_url, updated_at
+				reference_type, reference_id, tx_ref, checkout_url, payment_contract_version,
+				payment_contract_accepted_at, payment_contract_snapshot, updated_at
 			 )
-			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa_hosted', 'pending', 'investment_request', $7, $8, $9, CURRENT_TIMESTAMP)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa_hosted', 'pending', 'investment_request', $7, $8, $9, $10, CURRENT_TIMESTAMP, $11::jsonb, CURRENT_TIMESTAMP)
 			 RETURNING *`,
 			[
 				req.user.user_id,
@@ -336,6 +503,8 @@ exports.createChapaHostedPayment = async (req, res) => {
 				offer.investment_request_id,
 				txRef,
 				`${CHAPA_BASE_URL}/hosted/pay`,
+				contract.version,
+				JSON.stringify(contract.snapshot),
 			],
 		);
 		await client.query("COMMIT");
@@ -385,11 +554,7 @@ async function verifyAndUpdatePayment(txRef) {
 		throw err;
 	}
 
-	const status = chapaData.status === "success" && chapaData.data?.status === "success"
-		? "completed"
-		: chapaData.data?.status === "failed"
-			? "failed"
-			: "pending";
+	const status = statusFromChapaVerification(chapaData);
 
 	const current = await pool.query("SELECT * FROM payments WHERE tx_ref = $1", [txRef]);
 	const existing = current.rows[0] || {};
@@ -404,10 +569,10 @@ async function verifyAndUpdatePayment(txRef) {
 
 	const updated = await pool.query(
 		`UPDATE payments
-		 SET status = $1,
+		 SET status = $1::VARCHAR,
 		     provider_reference = COALESCE($2, provider_reference),
 		     escrow_status = $4,
-		     escrow_authorized_at = CASE WHEN $1 = 'completed' THEN COALESCE(escrow_authorized_at, CURRENT_TIMESTAMP) ELSE escrow_authorized_at END,
+		     escrow_authorized_at = CASE WHEN $1::VARCHAR = 'completed' THEN COALESCE(escrow_authorized_at, CURRENT_TIMESTAMP) ELSE escrow_authorized_at END,
 		     fraud_flags = $5::jsonb,
 		     risk_score = $6,
 		     is_suspicious = CASE WHEN $6 >= 50 THEN true ELSE is_suspicious END,
@@ -425,6 +590,21 @@ exports.getMentorshipPaymentItems = async (req, res) => {
 		await ensurePaymentGatewayColumns();
 		const startup = await getStartupId(req.user.user_id);
 		if (!startup) return res.status(404).json({ message: "Startup profile not found" });
+
+		const pending = await pool.query(
+			`SELECT DISTINCT pay.tx_ref, pay.status
+			 FROM mentorship_requests mr
+			 JOIN payments pay
+			   ON pay.reference_type = 'mentorship_request'
+			  AND pay.reference_id = mr.mentorship_request_id
+			  AND pay.from_user_id = $2
+			 WHERE mr.startup_id = $1
+			   AND mr.status = 'accepted'
+			   AND pay.status IN ('pending', 'processing')
+			   AND pay.tx_ref IS NOT NULL`,
+			[startup.startup_id, req.user.user_id],
+		);
+		await refreshPendingChapaPayments(pending.rows);
 
 		const result = await pool.query(
 			`SELECT mr.mentorship_request_id,
@@ -455,7 +635,7 @@ exports.getMentorshipPaymentItems = async (req, res) => {
 				WHERE reference_type = 'mentorship_request'
 				  AND reference_id = mr.mentorship_request_id
 				  AND from_user_id = $2
-				ORDER BY created_at DESC
+				ORDER BY CASE WHEN status = 'completed' THEN 0 ELSE 1 END, created_at DESC
 				LIMIT 1
 			 ) pay ON true
 			 WHERE mr.startup_id = $1
@@ -492,8 +672,22 @@ exports.createStartupMentorshipChapaPayment = async (req, res) => {
 		if (!Number.isInteger(requestId)) {
 			return res.status(400).json({ error: "mentorship_request_id is required" });
 		}
+		const contract = requirePaymentContractAcceptance(req);
 
 		const offer = await getPayableMentorshipRequest(client, req.user.user_id, requestId);
+		const completedPayment = await getExistingCompletedPayment(
+			client,
+			"mentorship_request",
+			offer.mentorship_request_id,
+			req.user.user_id,
+		);
+		if (completedPayment) {
+			return res.status(409).json({
+				error: "This mentorship offer has already been paid",
+				payment: completedPayment,
+			});
+		}
+
 		const startupUser = await pool.query(
 			"SELECT first_name, last_name, email, phone_number FROM users WHERE user_id = $1",
 			[req.user.user_id],
@@ -511,9 +705,10 @@ exports.createStartupMentorshipChapaPayment = async (req, res) => {
 		const paymentRes = await client.query(
 			`INSERT INTO payments (
 				from_user_id, to_user_id, amount, platform_fee, net_amount, currency, payment_method, status,
-				reference_type, reference_id, tx_ref, checkout_url, updated_at
+				reference_type, reference_id, tx_ref, checkout_url, payment_contract_version,
+				payment_contract_accepted_at, payment_contract_snapshot, updated_at
 			 )
-			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa_hosted', 'pending', 'mentorship_request', $7, $8, $9, CURRENT_TIMESTAMP)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'chapa_hosted', 'pending', 'mentorship_request', $7, $8, $9, $10, CURRENT_TIMESTAMP, $11::jsonb, CURRENT_TIMESTAMP)
 			 RETURNING *`,
 			[
 				req.user.user_id,
@@ -525,6 +720,8 @@ exports.createStartupMentorshipChapaPayment = async (req, res) => {
 				offer.mentorship_request_id,
 				txRef,
 				`${CHAPA_BASE_URL}/hosted/pay`,
+				contract.version,
+				JSON.stringify(contract.snapshot),
 			],
 		);
 		await client.query("COMMIT");
@@ -582,7 +779,7 @@ exports.verifyChapaPayment = async (req, res) => {
 
 exports.handleChapaWebhook = async (req, res) => {
 	try {
-		const txRef = req.body?.tx_ref || req.body?.trx_ref || req.query?.tx_ref;
+		const txRef = extractChapaTxRef(req);
 		if (txRef) {
 			await verifyAndUpdatePayment(txRef);
 		}

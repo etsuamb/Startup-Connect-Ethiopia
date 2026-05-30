@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupTopBar from "@/components/startup/StartupTopBar";
 import {
   checkRatingEligibility,
   createOrUpdateRating,
@@ -80,23 +81,15 @@ function RatingContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ message: null, type: null });
+  const selectedCanRate = Boolean(selectedMentorId && canRate);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => setToast({ message: null, type: null }), 3500);
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedMentorId) {
-      setCanRate(false);
-      return;
-    }
-    checkEligibility(selectedMentorId);
-    const existing = recentRatings.find((r) => String(r.mentor_id) === String(selectedMentorId));
+  function applyExistingRating(mentorId, ratings = recentRatings) {
+    const existing = ratings.find((r) => String(r.mentor_id) === String(mentorId));
     if (existing) {
       setRating(existing.rating);
       setComment(existing.comment || "");
@@ -104,7 +97,18 @@ function RatingContent() {
       setRating(0);
       setComment("");
     }
-  }, [selectedMentorId, recentRatings]);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedMentorId) {
+      return;
+    }
+    checkEligibility(selectedMentorId);
+  }, [selectedMentorId]);
 
   async function loadData() {
     try {
@@ -130,12 +134,16 @@ function RatingContent() {
         unique.push(mentor);
       }
 
+      const reviews = ratingsRes.reviews || [];
+      const nextSelectedMentorId = selectedMentorId || (unique.length ? String(unique[0].mentor_id) : "");
+
       setMentors(unique);
-      setRecentRatings(ratingsRes.reviews || []);
+      setRecentRatings(reviews);
 
       if (!selectedMentorId && unique.length) {
-        setSelectedMentorId(String(unique[0].mentor_id));
+        setSelectedMentorId(nextSelectedMentorId);
       }
+      if (nextSelectedMentorId) applyExistingRating(nextSelectedMentorId, reviews);
     } catch (err) {
       showToast(err.message || "Failed to load rating data.", "error");
     } finally {
@@ -200,33 +208,7 @@ function RatingContent() {
       <Toast message={toast.message} type={toast.type} />
       
       <main className="flex-grow flex flex-col overflow-y-auto">
-        {/* Modern Header matching Settings/Dashboard */}
-        <header className="px-4 sm:px-8 py-5 bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm flex items-center justify-between">
-            <div className="relative w-full max-w-md hidden sm:block">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Search mentors..."
-                className="w-full rounded-full border border-gray-100 bg-[#f8fafc] px-4 py-2.5 pl-10 text-sm outline-none transition-colors focus:border-[#0f3d32] focus:bg-white focus:ring-2 focus:ring-[#0f3d32]/10"
-              />
-            </div>
-            
-            <div className="ml-auto">
-                <Link href="/startup/settings" className="flex items-center gap-3 hover:opacity-80 transition group">
-                  <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-sm font-bold text-gray-900 group-hover:text-[#0f3d32] transition-colors">My Startup</span>
-                    <span className="text-xs text-gray-500">Active Startup</span>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-[#0f3d32] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                    ST
-                  </div>
-                </Link>
-            </div>
-        </header>
+        <StartupTopBar searchPlaceholder="Search mentors..." />
 
         <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-8 py-8 pb-24">
           <div className="mb-8">
@@ -276,7 +258,11 @@ function RatingContent() {
                             name="mentor"
                             value={mentor.mentor_id}
                             checked={isSelected}
-                            onChange={(e) => setSelectedMentorId(e.target.value)}
+                            onChange={(e) => {
+                              setCanRate(false);
+                              applyExistingRating(e.target.value);
+                              setSelectedMentorId(e.target.value);
+                            }}
                             className="sr-only"
                           />
                           <div className="flex w-full items-center justify-between">
@@ -301,7 +287,7 @@ function RatingContent() {
                   </div>
                 )}
                 
-                {selectedMentorId && !canRate && mentors.length > 0 && (
+                {selectedMentorId && !selectedCanRate && mentors.length > 0 && (
                   <div className="mt-6 rounded-xl bg-amber-50 border border-amber-200 p-4 flex gap-3">
                     <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -314,7 +300,7 @@ function RatingContent() {
                 )}
               </SectionCard>
 
-              <SectionCard className={(!selectedMentorId || !canRate) ? "opacity-50 pointer-events-none" : ""}>
+              <SectionCard className={!selectedCanRate ? "opacity-50 pointer-events-none" : ""}>
                 <div className="mb-8 text-center">
                   <h2 className="text-xl font-bold text-gray-900 mb-2">How was your experience?</h2>
                   <p className="text-sm text-gray-500">Tap a star to rate {mentors.find(m => String(m.mentor_id) === selectedMentorId)?.name || "the mentor"}</p>
@@ -325,7 +311,7 @@ function RatingContent() {
                     <button
                       key={star}
                       type="button"
-                      disabled={!selectedMentorId || !canRate}
+                      disabled={!selectedCanRate}
                       onMouseEnter={() => setHoverRating(star)}
                       onMouseLeave={() => setHoverRating(0)}
                       onClick={() => setRating(star)}
@@ -347,7 +333,7 @@ function RatingContent() {
                     value={comment}
                     onChange={(e) => setComment(e.target.value.slice(0, 500))}
                     rows={4}
-                    disabled={!selectedMentorId || !canRate}
+                    disabled={!selectedCanRate}
                     placeholder="What went well? What could improve? (Optional)"
                     className={`${inputClass} resize-none disabled:bg-gray-50 disabled:text-gray-400`}
                   />
@@ -356,7 +342,7 @@ function RatingContent() {
                 <div className="mt-8 flex justify-end">
                   <button
                     type="submit"
-                    disabled={saving || !selectedMentorId || !canRate || rating === 0}
+                    disabled={saving || !selectedCanRate || rating === 0}
                     className="inline-flex items-center gap-2 rounded-xl bg-[#0f3d32] px-8 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0b2f26] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {saving ? (
@@ -425,7 +411,7 @@ function RatingContent() {
                         </div>
                         {item.comment && (
                           <p className="text-sm text-gray-600 leading-relaxed mt-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                            "{item.comment}"
+                            &quot;{item.comment}&quot;
                           </p>
                         )}
                       </div>

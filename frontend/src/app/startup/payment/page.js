@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupTopBar from "@/components/startup/StartupTopBar";
+import PaymentContractModal from "@/components/payments/PaymentContractModal";
 import { createMentorshipChapaPayment, getMentorshipPaymentItems } from "@/lib/startupApi";
 
 function formatCurrency(value, currency = "ETB") {
@@ -42,6 +44,8 @@ export default function StartupMentorshipPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [showContract, setShowContract] = useState(false);
+  const [contractAccepted, setContractAccepted] = useState(false);
   const currency = "ETB";
 
   useEffect(() => {
@@ -55,6 +59,8 @@ export default function StartupMentorshipPaymentsPage() {
         const items = Array.isArray(data.payments) ? data.payments : [];
         if (!ignore) {
           setPayments(items);
+          setContractAccepted(false);
+          setShowContract(false);
           setSelectedId(
             items.find((item) => item.payment_status !== "completed")?.mentorship_request_id ||
               items[0]?.mentorship_request_id ||
@@ -82,7 +88,7 @@ export default function StartupMentorshipPaymentsPage() {
   const platformFee = selected ? Number(selected.payable_amount || 0) * 0.02 : 0;
   const total = selected ? Number(selected.payable_amount || 0) + platformFee : 0;
 
-  async function handleStartCheckout() {
+  async function proceedToCheckout() {
     if (!selected) return;
 
     try {
@@ -90,6 +96,8 @@ export default function StartupMentorshipPaymentsPage() {
       setError("");
       const data = await createMentorshipChapaPayment({
         mentorship_request_id: selected.mentorship_request_id,
+        payment_contract_accepted: true,
+        payment_contract_version: "startupconnect-payment-v1",
       });
       if (!data.form_action || !data.form_fields) {
         throw new Error("Chapa hosted checkout details were not returned.");
@@ -117,6 +125,16 @@ export default function StartupMentorshipPaymentsPage() {
     }
   }
 
+  function handleStartCheckout() {
+    if (!selected) return;
+    setShowContract(true);
+  }
+
+  function handleContractConfirm() {
+    if (!contractAccepted) return;
+    proceedToCheckout();
+  }
+
   const completedPayments = payments.filter((p) => p.payment_status === "completed");
   const pendingPayments = payments.filter((p) => p.payment_status !== "completed");
 
@@ -124,33 +142,7 @@ export default function StartupMentorshipPaymentsPage() {
     <div className="min-h-screen bg-[#f6f8f9] font-sans text-gray-900 flex">
       <Sidebar />
       <main className="flex-grow flex flex-col overflow-y-auto">
-        {/* Modern Header matching Settings/Dashboard */}
-        <header className="px-4 sm:px-8 py-5 bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm flex items-center justify-between">
-            <div className="relative w-full max-w-md hidden sm:block">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Search payments..."
-                className="w-full rounded-full border border-gray-100 bg-[#f8fafc] px-4 py-2.5 pl-10 text-sm outline-none transition-colors focus:border-[#0f3d32] focus:bg-white focus:ring-2 focus:ring-[#0f3d32]/10"
-              />
-            </div>
-            
-            <div className="ml-auto">
-                <Link href="/startup/settings" className="flex items-center gap-3 hover:opacity-80 transition group">
-                  <div className="hidden sm:flex flex-col items-end">
-                    <span className="text-sm font-bold text-gray-900 group-hover:text-[#0f3d32] transition-colors">My Startup</span>
-                    <span className="text-xs text-gray-500">Active Startup</span>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-[#0f3d32] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                    ST
-                  </div>
-                </Link>
-            </div>
-        </header>
+        <StartupTopBar searchPlaceholder="Search payments..." />
 
         <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-8 py-8 pb-24">
           <div className="mb-8">
@@ -198,7 +190,7 @@ export default function StartupMentorshipPaymentsPage() {
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 mb-2">No pending payments</h3>
                       <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                        You don't have any pending mentorship payments. Accept a mentor proposal first to pay.
+                        You don&apos;t have any pending mentorship payments. Accept a mentor proposal first to pay.
                       </p>
                       <Link href="/startup/offers" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#0f3d32] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#0b2f26]">
                         View offers
@@ -215,7 +207,11 @@ export default function StartupMentorshipPaymentsPage() {
                           <button
                             key={item.mentorship_request_id}
                             type="button"
-                            onClick={() => setSelectedId(item.mentorship_request_id)}
+                            onClick={() => {
+                              setSelectedId(item.mentorship_request_id);
+                              setContractAccepted(false);
+                              setShowContract(false);
+                            }}
                             className={`w-full px-6 sm:px-8 py-5 text-left transition-colors relative group ${isSelected ? "bg-[#f8fafc]" : "hover:bg-gray-50"}`}
                           >
                             {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0f3d32] rounded-r-full" />}
@@ -353,6 +349,24 @@ export default function StartupMentorshipPaymentsPage() {
           </div>
         </div>
       </main>
+      <PaymentContractModal
+        open={showContract}
+        agreed={contractAccepted}
+        onAgreedChange={setContractAccepted}
+        onClose={() => setShowContract(false)}
+        onConfirm={handleContractConfirm}
+        starting={starting}
+        title="Mentorship Payment Agreement"
+        payerLabel="Startup"
+        payeeLabel="Mentor"
+        payer="My Startup"
+        payee={selected?.mentor_name || "Mentor"}
+        subject={selected?.subject || "Mentorship payment"}
+        amount={selected?.payable_amount || 0}
+        platformFee={platformFee}
+        total={total}
+        currency={currency}
+      />
     </div>
   );
 }

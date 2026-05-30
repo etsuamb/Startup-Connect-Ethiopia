@@ -45,7 +45,11 @@ exports.getDashboard = async (req, res) => {
             WHERE mr.mentor_id = $1
               AND ms.status = 'completed'
               AND rep.report_id IS NULL) AS reports_due,
-         (SELECT COALESCE(SUM(amount), 0)::float FROM payments WHERE to_user_id = $2 AND reference_type = 'MENTORSHIP_SESSION') AS total_earnings`,
+         (SELECT COALESCE(SUM(amount), 0)::float
+            FROM payments
+            WHERE to_user_id = $2
+              AND status = 'completed'
+              AND reference_type IN ('MENTORSHIP_SESSION', 'mentorship_request')) AS total_earnings`,
 			[mentorId, userId],
 		);
 

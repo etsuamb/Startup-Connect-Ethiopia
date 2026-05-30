@@ -17,6 +17,7 @@ router.post(
 	"/register",
 	upload.fields([
 		{ name: "founder_id", maxCount: 1 },
+		{ name: "startup_logo", maxCount: 1 },
 		{ name: "business_registration_proof", maxCount: 1 },
 		{ name: "support_affiliation_letter", maxCount: 1 },
 		{ name: "tin_certificate", maxCount: 1 },

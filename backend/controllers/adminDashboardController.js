@@ -1118,7 +1118,7 @@ exports.analyticsSystem = async (_req, res) => {
 				(SELECT COUNT(*)::int FROM mentorship_sessions) AS total_events,
 				(SELECT COUNT(*)::int FROM payments) AS total_payment_transactions,
 				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed') AS completed_payment_transactions,
-				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed' AND reference_type = 'MENTORSHIP_SESSION') AS total_mentorship_transactions,
+				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed' AND reference_type IN ('MENTORSHIP_SESSION', 'mentorship_request')) AS total_mentorship_transactions,
 				(SELECT COUNT(*)::int FROM payments WHERE status = 'completed' AND reference_type = 'investment_request') AS total_investment_transactions,
 				(SELECT COALESCE(SUM(platform_fee), 0)::numeric FROM payments WHERE status = 'completed') AS revenue_from_platform_fees,
 				(SELECT COUNT(*)::int FROM chat_conversations) +

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/investor/Sidebar";
+import PaymentContractModal from "@/components/payments/PaymentContractModal";
 import { createChapaHostedPayment, getInvestorPaymentItems } from "@/lib/investorApi";
 
 function formatCurrency(value, currency = "ETB") {
@@ -45,6 +46,8 @@ export default function InvestmentPayments() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+  const [showContract, setShowContract] = useState(false);
+  const [contractAccepted, setContractAccepted] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -57,6 +60,8 @@ export default function InvestmentPayments() {
         const items = Array.isArray(data.payments) ? data.payments : [];
         if (!ignore) {
           setPayments(items);
+          setContractAccepted(false);
+          setShowContract(false);
           setSelectedId(items.find((item) => item.payment_status !== "completed")?.investment_request_id || items[0]?.investment_request_id || null);
         }
       } catch (err) {
@@ -80,7 +85,7 @@ export default function InvestmentPayments() {
   const platformFee = selected ? Number(selected.requested_amount || 0) * 0.02 : 0;
   const total = selected ? Number(selected.requested_amount || 0) + platformFee : 0;
 
-  async function handleStartCheckout() {
+  async function proceedToCheckout() {
     if (!selected) return;
 
     try {
@@ -88,6 +93,8 @@ export default function InvestmentPayments() {
       setError("");
       const data = await createChapaHostedPayment({
         offer_id: selected.investment_request_id,
+        payment_contract_accepted: true,
+        payment_contract_version: "startupconnect-payment-v1",
       });
       if (!data.form_action || !data.form_fields) {
         throw new Error("Chapa hosted checkout details were not returned.");
@@ -113,6 +120,16 @@ export default function InvestmentPayments() {
       setError(err.message || "Unable to start Chapa checkout.");
       setStarting(false);
     }
+  }
+
+  function handleStartCheckout() {
+    if (!selected) return;
+    setShowContract(true);
+  }
+
+  function handleContractConfirm() {
+    if (!contractAccepted) return;
+    proceedToCheckout();
   }
 
   return (
@@ -164,7 +181,11 @@ export default function InvestmentPayments() {
                           return (
                             <tr
                               key={item.investment_request_id}
-                              onClick={() => setSelectedId(item.investment_request_id)}
+                              onClick={() => {
+                                setSelectedId(item.investment_request_id);
+                                setContractAccepted(false);
+                                setShowContract(false);
+                              }}
                               className={`hover:bg-gray-50 transition cursor-pointer ${isSelected ? "bg-green-50/40" : ""}`}
                             >
                               <td className="px-6 py-5">
@@ -280,6 +301,24 @@ export default function InvestmentPayments() {
           </button>
         </div>
       </div>
+      <PaymentContractModal
+        open={showContract}
+        agreed={contractAccepted}
+        onAgreedChange={setContractAccepted}
+        onClose={() => setShowContract(false)}
+        onConfirm={handleContractConfirm}
+        starting={starting}
+        title="Investment Payment Agreement"
+        payerLabel="Investor"
+        payeeLabel="Startup"
+        payer="Current investor account"
+        payee={selected?.startup_name || "Startup"}
+        subject={selected?.project_title || "Investment payment"}
+        amount={selected?.requested_amount || 0}
+        platformFee={platformFee}
+        total={total}
+        currency={currency}
+      />
     </div>
   );
 }

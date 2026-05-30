@@ -5,6 +5,34 @@ const CHAPA_PUBLIC_KEY = process.env.CHAPA_PUBLIC_KEY;
 const CHAPA_SECRET_KEY = process.env.CHAPA_SECRET_KEY;
 const CHAPA_CALLBACK_URL = process.env.CHAPA_CALLBACK_URL;
 
+function normalizeGatewayStatus(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function statusFromChapaVerification(data) {
+  const verification = data?.data || {};
+  const candidates = [
+    verification.status,
+    verification.payment_status,
+    verification.transaction_status,
+    verification.charge_status,
+    data?.payment_status,
+    data?.transaction_status,
+  ];
+  const normalized = candidates.map(normalizeGatewayStatus).filter(Boolean);
+
+  if (normalized.some((status) => ["success", "successful", "completed", "complete", "paid", "settled"].includes(status))) {
+    return "completed";
+  }
+  if (normalized.some((status) => ["failed", "failure", "declined", "rejected", "error"].includes(status))) {
+    return "failed";
+  }
+  if (normalized.some((status) => ["cancelled", "canceled", "cancel"].includes(status))) {
+    return "cancelled";
+  }
+  return "pending";
+}
+
 class PaymentGatewayService {
   constructor() {
     this.FEE_PERCENTAGE = 0.07; // 7%
@@ -123,8 +151,7 @@ class PaymentGatewayService {
       throw err;
     }
 
-    const isSuccess = data.status === "success" && data.data?.status === "success";
-    const status = isSuccess ? "completed" : data.data?.status === "failed" ? "failed" : "pending";
+    const status = statusFromChapaVerification(data);
     
     return {
       status,

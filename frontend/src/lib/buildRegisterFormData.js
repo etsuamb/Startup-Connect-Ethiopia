@@ -57,6 +57,7 @@ export function buildRegisterFormData(role, fields, files) {
 		fd.append("team_size", String(f.team_size));
 		fd.append("founder_role", f.founder_role);
 		if (f.website) fd.append("website", f.website);
+		if (fl.startup_logo) fd.append("startup_logo", fl.startup_logo);
 		if (fl.founder_id) fd.append("founder_id", fl.founder_id);
 		if (fl.business_registration_proof) {
 			fd.append("business_registration_proof", fl.business_registration_proof);

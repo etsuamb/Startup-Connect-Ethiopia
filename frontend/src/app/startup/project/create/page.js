@@ -7,6 +7,9 @@ import Sidebar from "@/components/startup/Sidebar";
 import { createProject, getProjectDetails, getStartupProfile, updateProject } from "@/lib/startupApi";
 import { PendingApprovalBlock } from "@/components/startup/PendingApprovalNotice";
 import { useStartupApproval } from "@/hooks/useStartupApproval";
+import { saveDraft, loadDraft, clearDraft, getDraftSavedAt, formatSavedTime } from "@/lib/formDraft";
+
+const DRAFT_KEY = "startup_project_create";
 
 export default function StartupProjectCreate() {
   const router = useRouter();
@@ -29,6 +32,8 @@ export default function StartupProjectCreate() {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [profile, setProfile] = useState(null);
+  const [showDraftNotice, setShowDraftNotice] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
   const { pending, loading: approvalLoading } = useStartupApproval();
 
   useEffect(() => {
@@ -45,8 +50,46 @@ export default function StartupProjectCreate() {
 
     if (editId) {
       setEditProjectId(editId);
+    } else {
+      // Load draft if not in edit mode
+      const savedDraft = loadDraft(DRAFT_KEY);
+      if (savedDraft) {
+        setProjectTitle(savedDraft.projectTitle || "");
+        setIndustry(savedDraft.industry || "");
+        setStage(savedDraft.stage || "");
+        setSummary(savedDraft.summary || "");
+        setProblem(savedDraft.problem || "");
+        setSolution(savedDraft.solution || "");
+        setFundingGoal(savedDraft.fundingGoal || "");
+        setExpectedImpact(savedDraft.expectedImpact || "");
+        setShowDraftNotice(true);
+        setTimeout(() => setShowDraftNotice(false), 4000);
+      }
     }
   }, []);
+
+  // Auto-save draft
+  useEffect(() => {
+    if (isEditMode) return;
+    const timer = setTimeout(() => {
+      const draftData = {
+        projectTitle,
+        industry,
+        stage,
+        summary,
+        problem,
+        solution,
+        fundingGoal,
+        expectedImpact,
+      };
+      if (Object.values(draftData).some(v => v && String(v).trim())) {
+        saveDraft(DRAFT_KEY, draftData);
+        const savedAt = getDraftSavedAt(DRAFT_KEY);
+        setDraftSavedAt(formatSavedTime(savedAt));
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [projectTitle, industry, stage, summary, problem, solution, fundingGoal, expectedImpact, isEditMode]);
 
   useEffect(() => {
     async function loadProjectData() {
@@ -106,6 +149,7 @@ export default function StartupProjectCreate() {
         setShowSuccessPopup(true);
       } else {
         const response = await createProject(formData);
+        clearDraft(DRAFT_KEY);
         const projectId = response.project_id || response.project?.project_id;
         setSuccess("Project created successfully. Redirecting to documents...");
         setTimeout(() => {
@@ -367,10 +411,31 @@ export default function StartupProjectCreate() {
                   <div className="flex flex-wrap items-center gap-4">
                     <button
                       type="button"
-                      className="px-6 py-3.5 bg-white border border-[#0f3d32] text-[#0f3d32] font-bold rounded-lg hover:bg-gray-50 transition text-xs shadow-sm"
+                      onClick={() => {
+                        const draftData = {
+                          projectTitle,
+                          industry,
+                          stage,
+                          summary,
+                          problem,
+                          solution,
+                          fundingGoal,
+                          expectedImpact,
+                        };
+                        saveDraft(DRAFT_KEY, draftData);
+                        setShowDraftNotice(true);
+                        const savedAt = getDraftSavedAt(DRAFT_KEY);
+                        setDraftSavedAt(formatSavedTime(savedAt));
+                        setTimeout(() => setShowDraftNotice(false), 2000);
+                      }}
+                      disabled={isEditMode}
+                      className="px-6 py-3.5 bg-white border border-[#0f3d32] text-[#0f3d32] font-bold rounded-lg hover:bg-gray-50 transition text-xs shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Save Draft
                     </button>
+                    {draftSavedAt && !isEditMode && (
+                      <span className="text-[10px] text-gray-500">Auto-saved {draftSavedAt}</span>
+                    )}
                     <button
                       type="submit"
                       disabled={loading}

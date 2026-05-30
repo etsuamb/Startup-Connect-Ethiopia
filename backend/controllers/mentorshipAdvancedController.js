@@ -627,7 +627,10 @@ exports.getMentorshipResources = async (req, res) => {
 			params,
 		);
 
-		return res.status(200).json({ requests: result.rows });
+		return res.status(200).json({
+			resources: result.rows,
+			requests: result.rows,
+		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -897,7 +900,7 @@ exports.getMentorshipPayments = async (req, res) => {
 			});
 		}
 
-		let condition = "p.reference_type = 'MENTORSHIP_SESSION'";
+		let condition = "p.reference_type IN ('MENTORSHIP_SESSION', 'mentorship_request')";
 		const params = [];
 
 		if (role === "Startup") {
@@ -937,7 +940,7 @@ exports.adminMentorshipOverview = async (_req, res) => {
          (SELECT COUNT(*)::int FROM mentorship_sessions) AS mentorship_sessions,
          (SELECT COUNT(*)::int FROM mentorship_reports) AS mentorship_reports,
          (SELECT COUNT(*)::int FROM mentorship_resources) AS mentorship_resources,
-         (SELECT COUNT(*)::int FROM payments WHERE reference_type = 'MENTORSHIP_SESSION') AS mentorship_payments`,
+         (SELECT COUNT(*)::int FROM payments WHERE reference_type IN ('MENTORSHIP_SESSION', 'mentorship_request')) AS mentorship_payments`,
 		);
 
 		const latestRequests = await pool.query(
@@ -981,7 +984,7 @@ exports.adminMentorshipOverview = async (_req, res) => {
        FROM payments p
        JOIN users sf ON sf.user_id = p.from_user_id
        JOIN users tf ON tf.user_id = p.to_user_id
-       WHERE p.reference_type = 'MENTORSHIP_SESSION'
+       WHERE p.reference_type IN ('MENTORSHIP_SESSION', 'mentorship_request')
        ORDER BY p.created_at DESC
        LIMIT 10`,
 		);
@@ -1073,7 +1076,7 @@ exports.adminListMentorshipPayments = async (_req, res) => {
        FROM payments p
        JOIN users sf ON sf.user_id = p.from_user_id
        JOIN users tf ON tf.user_id = p.to_user_id
-       WHERE p.reference_type = 'MENTORSHIP_SESSION'
+       WHERE p.reference_type IN ('MENTORSHIP_SESSION', 'mentorship_request')
        ORDER BY p.created_at DESC`,
 		);
 

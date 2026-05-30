@@ -1,10 +1,33 @@
 "use client";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import RegistrationStepForm from "@/components/register/RegistrationStepForm";
 import { loadRegistrationAccountInfo } from "@/lib/registerAccountStorage";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/formDraft";
+
+const DRAFT_KEY = "register_startup_step1";
 
 export default function StartupRegistrationStep1() {
   const accountInfo = loadRegistrationAccountInfo() || {};
+  const [showDraftNotice, setShowDraftNotice] = useState(false);
+
+  useEffect(() => {
+    const savedDraft = loadDraft(DRAFT_KEY);
+    if (savedDraft) {
+      setShowDraftNotice(true);
+      setTimeout(() => setShowDraftNotice(false), 4000);
+    }
+  }, []);
+
+  const handleSaveDraft = () => {
+    saveDraft(DRAFT_KEY, { accountInfo });
+    setShowDraftNotice(true);
+    setTimeout(() => setShowDraftNotice(false), 2000);
+  };
+
+  const handleContinue = () => {
+    clearDraft(DRAFT_KEY);
+  };
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 flex flex-col lg:flex-row">
@@ -84,12 +107,17 @@ export default function StartupRegistrationStep1() {
               <div className="flex items-center gap-4 mt-8">
                 <button
                   type="submit"
+                  onClick={handleContinue}
                   className="px-8 py-3.5 bg-[#0f5c4a] hover:bg-[#0c4a3b] text-white font-bold rounded shadow-md transition text-sm text-center inline-block"
                 >
                   Continue to Step 2
                 </button>
-                <button type="button" className="px-8 py-3.5 bg-white border border-gray-200 text-[#167b66] font-bold rounded hover:bg-gray-50 transition text-sm">
-                  Save as Draft
+                <button 
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="px-8 py-3.5 bg-white border border-gray-200 text-[#167b66] font-bold rounded hover:bg-gray-50 transition text-sm"
+                >
+                  {showDraftNotice ? "✓ Draft saved" : "Save as Draft"}
                 </button>
               </div>
             </RegistrationStepForm>

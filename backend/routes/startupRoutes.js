@@ -137,6 +137,7 @@ router.put(
     { name: "support_affiliation_letter", maxCount: 1 },
     { name: "tin_certificate", maxCount: 1 },
     { name: "logo", maxCount: 1 },
+    { name: "startup_logo", maxCount: 1 },
     { name: "proof_of_address", maxCount: 1 },
     { name: "pitch_deck", maxCount: 1 },
     { name: "business_plan", maxCount: 1 },
