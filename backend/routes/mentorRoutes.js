@@ -6,9 +6,11 @@ const {
 	requireApproval,
 } = require("../middleware/authMiddleware");
 const { attachVisibility } = require("../middleware/visibilityMiddleware");
+
 const mentorController = require("../controllers/mentorController");
 const mentorComplete = require("../controllers/mentorControllerComplete");
 const mentorDashboard = require("../controllers/mentorDashboardController");
+
 const { buildMentorChatRoutes } = require("./mentorChatRoutes");
 
 const multer = require("multer");
@@ -17,7 +19,11 @@ const upload = multer({ storage: multer.memoryStorage() });
 /** Mentor–startup chat + video. Base: /api/mentors/mentor-chat */
 router.use(
 	"/mentor-chat",
-	buildMentorChatRoutes([authenticate, authorizeRoles("Mentor"), requireApproval]),
+	buildMentorChatRoutes([
+		authenticate,
+		authorizeRoles("Mentor"),
+		requireApproval,
+	]),
 );
 
 // ——— Dashboard & profile (static paths before /:mentorId) ———
@@ -36,25 +42,27 @@ router.get(
 	mentorComplete.getMentorProfile,
 );
 
-router.get(
-	"/profile/documents/:documentId",
-	authenticate,
-	authorizeRoles("Mentor"),
-	mentorComplete.getMentorDocument,
-);
+// Temporarily commented out - function not implemented
+// router.get(
+// 	"/profile/documents/:documentId",
+// 	authenticate,
+// 	authorizeRoles("Mentor"),
+// 	mentorComplete.getMentorDocument,
+// );
 
-router.post(
-	"/profile",
-	authenticate,
-	authorizeRoles("Mentor"),
-	upload.fields([
-		{ name: "mentor_id", maxCount: 1 },
-		{ name: "cv", maxCount: 1 },
-		{ name: "certifications", maxCount: 10 },
-		{ name: "intro_video", maxCount: 1 },
-	]),
-	mentorController.createMentorProfile,
-);
+// Temporarily commented out - function not implemented in mentorControllerComplete
+// router.post(
+// 	"/profile",
+// 	authenticate,
+// 	authorizeRoles("Mentor"),
+// 	upload.fields([
+// 		{ name: "mentor_id", maxCount: 1 },
+// 		{ name: "cv", maxCount: 1 },
+// 		{ name: "certifications", maxCount: 10 },
+// 		{ name: "intro_video", maxCount: 1 },
+// 	]),
+// 	mentorComplete.createMentorProfile,
+// );
 
 router.put(
 	"/profile",
@@ -66,7 +74,7 @@ router.put(
 		{ name: "certifications", maxCount: 10 },
 		{ name: "intro_video", maxCount: 1 },
 	]),
-	mentorController.updateMentorProfile,
+	mentorComplete.updateMentorProfile,
 );
 
 // ——— Mentorship requests & proposals ———
@@ -116,12 +124,13 @@ router.get(
 	mentorDashboard.getMyStartups,
 );
 
-router.get(
-	"/startups/:startupId/documents/:documentId",
-	authenticate,
-	authorizeRoles("Mentor"),
-	mentorComplete.getStartupDocument,
-);
+// Temporarily commented out - function not implemented
+// router.get(
+// 	"/startups/:startupId/documents/:documentId",
+// 	authenticate,
+// 	authorizeRoles("Mentor"),
+// 	mentorComplete.getStartupDocument,
+// );
 
 router.get(
 	"/startups/:startupId",

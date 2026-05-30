@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: finalpro
+      POSTGRES_DB: connect_startup
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  api-gateway:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./microservices/api-gateway:/app
+    ports:
+      - "5000:5000" # Gateway is the new entry point
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - legacy-backend
+      - communication-service
+
+  communication-service:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./microservices/communication-service:/app
+    ports:
+      - "5002:5002"
+    environment:
+      - PORT=5002
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    env_file:
+      - ./backend/.env
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - db
+      - redis
+
+  legacy-backend:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    ports:
+      - "5001:5001" # Monolith shifted to 5001
+    environment:
+      - PORT=5001
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    env_file:
+      - ./backend/.env
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

@@ -3,13 +3,22 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+	fetchEngagementAnalytics,
+	fetchFundingAnalytics,
 	fetchMaintenanceStatus,
 	fetchPendingUsers,
+	fetchStartupAnalytics,
 	fetchSystemAnalytics,
 } from "@/lib/adminApi";
+import AdminTabs from "@/components/admin/AdminTabs";
+import AdminUcCoverage from "@/components/admin/AdminUcCoverage";
 
 export default function AdminDashboard() {
 	const [stats, setStats] = useState(null);
+	const [startupStats, setStartupStats] = useState(null);
+	const [fundingStats, setFundingStats] = useState(null);
+	const [engagement, setEngagement] = useState(null);
+	const [analyticsTab, setAnalyticsTab] = useState("system");
 	const [pendingCount, setPendingCount] = useState(0);
 	const [dbOk, setDbOk] = useState(true);
 	const [error, setError] = useState("");
@@ -19,13 +28,19 @@ export default function AdminDashboard() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const [analytics, pending, maintenance] = await Promise.all([
+				const [analytics, pending, maintenance, startups, funding, engage] = await Promise.all([
 					fetchSystemAnalytics(),
 					fetchPendingUsers(),
 					fetchMaintenanceStatus(),
+					fetchStartupAnalytics(),
+					fetchFundingAnalytics(),
+					fetchEngagementAnalytics(),
 				]);
 				if (cancelled) return;
 				setStats(analytics.system);
+				setStartupStats(startups);
+				setFundingStats(funding);
+				setEngagement(engage);
 				setPendingCount(pending.pending?.length ?? 0);
 				setDbOk(maintenance.database === "ok");
 			} catch (ex) {
@@ -82,6 +97,51 @@ export default function AdminDashboard() {
 				</div>
 			</section>
 
+			<AdminUcCoverage />
+
+			<div className="mb-6">
+				<AdminTabs
+					tabs={[
+						{ id: "system", label: "Statistics overview" },
+						{ id: "users", label: "User analytics" },
+						{ id: "startups", label: "Startup analytics" },
+						{ id: "investments", label: "Investment analytics" },
+						{ id: "engagement", label: "Engagement" },
+					]}
+					active={analyticsTab}
+					onChange={setAnalyticsTab}
+				/>
+				{analyticsTab === "startups" && startupStats?.by_status ? (
+					<div className="bg-white rounded-2xl border p-4 flex flex-wrap gap-4">
+						{startupStats.by_status.map((r) => (
+							<div key={r.status}>
+								<span className="text-xs text-slate-500">{r.status}</span>
+								<p className="font-bold">{r.count}</p>
+							</div>
+						))}
+					</div>
+				) : null}
+				{analyticsTab === "investments" && fundingStats ? (
+					<div className="bg-white rounded-2xl border p-4 text-sm text-slate-600">
+						<p>Total requests: {fundingStats.total_requests ?? fundingStats.total_funding_requests ?? "—"}</p>
+						<p>Approved: {fundingStats.approved ?? "—"} · Pending: {fundingStats.pending ?? "—"}</p>
+					</div>
+				) : null}
+				{analyticsTab === "engagement" && engagement ? (
+					<div className="bg-white rounded-2xl border p-4 text-sm">
+						<p>Active users (recent): {engagement.active_users ?? engagement.total_active ?? "—"}</p>
+					</div>
+				) : null}
+				{analyticsTab === "users" && stats ? (
+					<div className="bg-white rounded-2xl border p-4 text-sm grid sm:grid-cols-2 gap-2">
+						<p>Total users: {stats.total_users}</p>
+						<p>Verified: {stats.total_verified_users}</p>
+						<p>Pending approval: {stats.pending_users}</p>
+						<p>Active: {stats.active_users}</p>
+					</div>
+				) : null}
+			</div>
+
 			<div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 mb-8">
 				{[
 					{
@@ -121,6 +181,53 @@ export default function AdminDashboard() {
 						</div>
 						<div className="p-5 text-sm text-slate-600">
 							<p>Key platform metric for admin review.</p>
+						</div>
+					</div>
+				))}
+			</div>
+
+			<div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 mb-8">
+				{[
+					{
+						label: "Verified users",
+						value: s.total_verified_users,
+						icon: "✓",
+						color: "from-teal-500 to-cyan-500",
+					},
+					{
+						label: "Platform fee revenue",
+						value: loading
+							? "—"
+							: Number(s.revenue_from_platform_fees || 0).toLocaleString(undefined, {
+									style: "currency",
+									currency: "ETB",
+									maximumFractionDigits: 0,
+								}),
+						icon: "💰",
+						color: "from-lime-500 to-green-600",
+					},
+					{
+						label: "Mentorship payments",
+						value: s.total_mentorship_transactions,
+						icon: "🎓",
+						color: "from-pink-500 to-rose-500",
+					},
+					{
+						label: "Investment payments",
+						value: s.total_investment_transactions,
+						icon: "📈",
+						color: "from-indigo-500 to-blue-600",
+					},
+				].map((card) => (
+					<div key={card.label} className="rounded-[28px] overflow-hidden bg-white shadow-sm border border-slate-200">
+						<div className={`bg-gradient-to-r ${card.color} px-6 py-5 text-white`}>
+							<div className="flex items-center justify-between gap-4">
+								<div>
+									<p className="text-xs uppercase tracking-[0.28em] opacity-80">{card.label}</p>
+									<p className="mt-3 text-2xl font-semibold">{loading ? "—" : card.value ?? 0}</p>
+								</div>
+								<div className="text-3xl">{card.icon}</div>
+							</div>
 						</div>
 					</div>
 				))}
@@ -184,11 +291,53 @@ export default function AdminDashboard() {
 							<p className="text-sm text-slate-500 mt-1">Validate and moderate startup profiles before publication.</p>
 						</Link>
 						<Link
+							href="/admin/documents"
+							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
+						>
+							<p className="font-semibold text-slate-900">Document verification</p>
+							<p className="text-sm text-slate-500 mt-1">Verify KYC and uploaded files.</p>
+						</Link>
+						<Link
+							href="/admin/mentorship"
+							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
+						>
+							<p className="font-semibold text-slate-900">Mentorship oversight</p>
+							<p className="text-sm text-slate-500 mt-1">Sessions, reports, and mentorship payments.</p>
+						</Link>
+						<Link
 							href="/admin/reports"
 							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
 						>
 							<p className="font-semibold text-slate-900">Open platform reports</p>
-							<p className="text-sm text-slate-500 mt-1">View analytics, engagement trends and investment activity.</p>
+							<p className="text-sm text-slate-500 mt-1">KPI, financial, usage reports and CSV exports.</p>
+						</Link>
+						<Link
+							href="/admin/investments"
+							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
+						>
+							<p className="font-semibold text-slate-900">Oversee investments</p>
+							<p className="text-sm text-slate-500 mt-1">Approve or reject funding requests.</p>
+						</Link>
+						<Link
+							href="/admin/payments"
+							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
+						>
+							<p className="font-semibold text-slate-900">Review payments</p>
+							<p className="text-sm text-slate-500 mt-1">Monitor transactions and platform revenue.</p>
+						</Link>
+						<Link
+							href="/admin/moderation"
+							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
+						>
+							<p className="font-semibold text-slate-900">Chat moderation</p>
+							<p className="text-sm text-slate-500 mt-1">Review flagged messages and suspend offenders.</p>
+						</Link>
+						<Link
+							href="/admin/activity"
+							className="block rounded-3xl border border-slate-200 px-5 py-4 hover:border-slate-300 hover:bg-slate-50 transition"
+						>
+							<p className="font-semibold text-slate-900">System activity</p>
+							<p className="text-sm text-slate-500 mt-1">Audit logs, login attempts, and security events.</p>
 						</Link>
 						<Link
 							href="/admin/maintenance"

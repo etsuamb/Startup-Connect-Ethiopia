@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-fetchEngagementAnalytics,
-fetchFundingAnalytics,
-fetchReportsOverview,
-fetchStartupAnalytics,
-fetchSystemAnalytics,
+	downloadReportExport,
+	fetchEngagementAnalytics,
+	fetchFinancialReport,
+	fetchFundingAnalytics,
+	fetchKpiReport,
+	fetchReportsOverview,
+	fetchStartupAnalytics,
+	fetchSystemAnalytics,
+	fetchUsageReport,
 } from "@/lib/adminApi";
+import { formatMonthLabel, formatWeekLabel } from "@/lib/adminDisplay";
 import { Bar, Line, Pie } from "react-chartjs-2";
 import {
 Chart as ChartJS,
@@ -152,19 +157,38 @@ const [startupStats, setStartupStats] = useState(null);
 const [fundingStats, setFundingStats] = useState(null);
 const [engagement, setEngagement] = useState(null);
 const [overview, setOverview] = useState(null);
+const [financial, setFinancial] = useState(null);
+const [usage, setUsage] = useState(null);
+const [kpis, setKpis] = useState(null);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState("");
+const [exporting, setExporting] = useState("");
+
+async function handleServerExport(type) {
+	setExporting(type);
+	setError("");
+	try {
+		await downloadReportExport(type);
+	} catch (ex) {
+		setError(ex.message || "Export failed");
+	} finally {
+		setExporting("");
+	}
+}
 
 useEffect(() => {
 let cancelled = false;
 (async () => {
 try {
-const [sys, startups, funding, engage, ov] = await Promise.all([
+const [sys, startups, funding, engage, ov, fin, use, kpi] = await Promise.all([
 fetchSystemAnalytics(),
 fetchStartupAnalytics(),
 fetchFundingAnalytics(),
 fetchEngagementAnalytics(),
 fetchReportsOverview(),
+fetchFinancialReport(),
+fetchUsageReport(30),
+fetchKpiReport(),
 ]);
 if (cancelled) return;
 setSystem(sys.system);
@@ -172,6 +196,9 @@ setStartupStats(startups);
 setFundingStats(funding);
 setEngagement(engage);
 setOverview(ov.overview);
+setFinancial(fin);
+setUsage(use.usage);
+setKpis(kpi.kpis);
 } catch (ex) {
 if (!cancelled) setError(ex.message || "Failed to load reports");
 } finally {
@@ -186,11 +213,23 @@ cancelled = true;
 const startupsByStatusLabels = useMemo(() => (startupStats?.by_status || []).map((r) => r.status), [startupStats]);
 const startupsByStatusData = useMemo(() => (startupStats?.by_status || []).map((r) => r.count), [startupStats]);
 
-const fundingLabels = useMemo(() => (fundingStats?.by_month || []).map((r) => r.month), [fundingStats]);
-const fundingData = useMemo(() => (fundingStats?.by_month || []).map((r) => r.amount), [fundingStats]);
+const fundingLabels = useMemo(
+	() => (fundingStats?.by_month || fundingStats?.monthly_requests || []).map((r) => formatMonthLabel(r.month)),
+	[fundingStats],
+);
+const fundingData = useMemo(
+	() => (fundingStats?.by_month || fundingStats?.monthly_requests || []).map((r) => Number(r.amount || 0)),
+	[fundingStats],
+);
 
-const engagementLabels = useMemo(() => (engagement?.by_week || []).map((r) => r.week), [engagement]);
-const engagementData = useMemo(() => (engagement?.by_week || []).map((r) => r.active_users), [engagement]);
+const engagementLabels = useMemo(
+	() => (engagement?.by_week || []).map((r) => formatWeekLabel(r.week)),
+	[engagement],
+);
+const engagementData = useMemo(
+	() => (engagement?.by_week || []).map((r) => r.active_users),
+	[engagement],
+);
 
 function makeCSV(obj) {
 if (!obj) return "";
@@ -208,17 +247,53 @@ return Object.entries(obj)
 
 return (
 <div className="max-w-7xl mx-auto pb-12">
-<header className="flex items-start justify-between gap-4 mb-8">
+<header className="mb-8">
 <div>
-<h1 className="text-3xl font-bold text-slate-800">Platform Reports</h1>
-<p className="text-sm text-slate-500 mt-1">Analytics, trends and downloadable data for administrators.</p>
+<h1 className="text-3xl font-bold text-slate-800">Platform activity reports</h1>
+<p className="text-sm text-slate-500 mt-1 max-w-2xl">
+	Summary of users, funding, engagement, payments, and platform growth. Export data for offline analysis.
+</p>
 </div>
-<div className="flex items-center gap-3">
+<div className="flex flex-wrap items-center gap-3 mt-4">
 <DownloadButton filename="overview.csv" content={makeCSV(overview)} />
+{["users", "projects", "investments"].map((type) => (
+<button
+key={type}
+type="button"
+disabled={!!exporting}
+onClick={() => handleServerExport(type)}
+className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+>
+{exporting === type ? "Exporting…" : `Export ${type} (server)`}
+</button>
+))}
 </div>
 </header>
 
 {error ? <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div> : null}
+
+{!loading && (financial || usage || kpis) ? (
+<section className="grid md:grid-cols-3 gap-4 mb-8">
+<div className="bg-white rounded-2xl p-5 border">
+<h3 className="text-xs font-bold text-slate-400 uppercase mb-3">KPI reporting</h3>
+{kpis ? Object.entries(kpis).slice(0, 6).map(([k, v]) => (
+<p key={k} className="text-sm flex justify-between"><span className="text-slate-500">{k.replace(/_/g, " ")}</span><strong>{String(v)}</strong></p>
+)) : null}
+</div>
+<div className="bg-white rounded-2xl p-5 border">
+<h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Financial reporting</h3>
+{financial?.summary ? Object.entries(financial.summary).map(([k, v]) => (
+<p key={k} className="text-sm flex justify-between"><span className="text-slate-500">{k.replace(/_/g, " ")}</span><strong>{Number(v).toLocaleString()}</strong></p>
+)) : null}
+</div>
+<div className="bg-white rounded-2xl p-5 border">
+<h3 className="text-xs font-bold text-slate-400 uppercase mb-3">Usage (30 days)</h3>
+{usage ? Object.entries(usage).map(([k, v]) => (
+<p key={k} className="text-sm flex justify-between"><span className="text-slate-500">{k.replace(/_/g, " ")}</span><strong>{v}</strong></p>
+)) : null}
+</div>
+</section>
+) : null}
 
 {loading ? (
 <p className="text-slate-500 text-sm">Loading analytics.</p>
@@ -238,23 +313,35 @@ return (
 <Pie
 data={{
 labels: startupsByStatusLabels,
-datasets: [
-{
-data: startupsByStatusData,
-backgroundColor: ["#10B981", "#F97316", "#60A5FA", "#F43F5E"],
-},
-],
+datasets: [{ data: startupsByStatusData, backgroundColor: ["#10B981", "#F97316", "#60A5FA", "#F43F5E"] }],
 }}
 />
 ) : (
-<p className="text-sm text-slate-500">No data</p>
+<p className="text-sm text-slate-500">No startup status data yet.</p>
 )}
 </div>
+<div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-100">
+<h3 className="font-semibold text-slate-800 mb-4">Funding requests by status</h3>
+{(fundingStats?.requests_by_status || []).length ? (
+<ul className="space-y-2 text-sm">
+{fundingStats.requests_by_status.map((r) => (
+<li key={r.status} className="flex justify-between border-b border-slate-50 pb-2">
+<span className="capitalize">{r.status}</span>
+<span className="font-semibold">{r.count} · ETB {Number(r.total_requested || 0).toLocaleString()}</span>
+</li>
+))}
+</ul>
+) : (
+<p className="text-sm text-slate-500">No funding request breakdown available.</p>
+)}
+</div>
+</section>
 
-<div className="bg-white rounded-2xl p-6 border border-slate-100 lg:col-span-2">
+<section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div className="bg-white rounded-2xl p-6 border border-slate-100">
 <div className="flex items-center justify-between mb-4">
-<h3 className="font-semibold text-slate-800">Monthly funding</h3>
-<DownloadButton filename="funding_by_month.csv" content={makeCSV(fundingStats?.by_month)} />
+<h3 className="font-semibold text-slate-800">Monthly funding requests</h3>
+<DownloadButton filename="funding_by_month.csv" content={makeCSV(fundingStats?.by_month || fundingStats?.monthly_requests)} />
 </div>
 {fundingLabels.length ? (
 <Line
@@ -262,23 +349,23 @@ data={{
 labels: fundingLabels,
 datasets: [
 {
-label: "Amount",
+label: "Requested amount (ETB)",
 data: fundingData,
 borderColor: "#10B981",
 backgroundColor: "rgba(16,185,129,0.08)",
 },
 ],
 }}
+options={{ responsive: true, plugins: { legend: { display: true } } }}
 />
 ) : (
-<p className="text-sm text-slate-500">No funding data</p>
+<p className="text-sm text-slate-500">No funding requests recorded yet. Data appears when startups receive investment offers.</p>
 )}
 </div>
-</section>
 
-<section className="bg-white rounded-2xl p-6 border border-slate-100">
-<div className="flex items-center justify-between">
-<h3 className="font-semibold text-slate-800">Weekly engagement</h3>
+<div className="bg-white rounded-2xl p-6 border border-slate-100">
+<div className="flex items-center justify-between mb-4">
+<h3 className="font-semibold text-slate-800">Weekly admin activity</h3>
 <DownloadButton filename="engagement_by_week.csv" content={makeCSV(engagement?.by_week)} />
 </div>
 {engagementLabels.length ? (
@@ -287,17 +374,36 @@ data={{
 labels: engagementLabels,
 datasets: [
 {
-label: "Active users",
+label: "Active admin actions",
 data: engagementData,
 backgroundColor: "#60A5FA",
 },
 ],
 }}
+options={{ responsive: true }}
 />
 ) : (
-<p className="text-sm text-slate-500 mt-4">No engagement data</p>
+<p className="text-sm text-slate-500">Activity chart builds from audit log entries over the last 12 weeks.</p>
 )}
+</div>
 </section>
+
+{engagement?.mentorship || engagement?.chat ? (
+<section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+{engagement.mentorship ? Object.entries(engagement.mentorship).map(([k, v]) => (
+<div key={k} className="bg-white rounded-xl p-4 border">
+<p className="text-xs text-slate-500 uppercase">{k.replace(/_/g, " ")}</p>
+<p className="text-xl font-bold mt-1">{v}</p>
+</div>
+)) : null}
+{engagement.chat ? Object.entries(engagement.chat).slice(0, 2).map(([k, v]) => (
+<div key={k} className="bg-white rounded-xl p-4 border">
+<p className="text-xs text-slate-500 uppercase">{k.replace(/_/g, " ")}</p>
+<p className="text-xl font-bold mt-1">{v}</p>
+</div>
+)) : null}
+</section>
+) : null}
 
 {overview ? (
 <section className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">

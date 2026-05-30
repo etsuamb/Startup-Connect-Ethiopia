@@ -308,8 +308,13 @@ exports.listAuditLogs = async (req, res) => {
 	const { limit = 100, offset = 0 } = req.query;
 	try {
 		const r = await pool.query(
-			`SELECT audit_log_id, actor_user_id, action, entity_type, entity_id, details, metadata, created_at
-			 FROM audit_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+			`SELECT al.audit_log_id, al.actor_user_id, al.action, al.entity_type, al.entity_id,
+			        al.details, al.metadata, al.created_at,
+			        u.email AS actor_email,
+			        TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS actor_name
+			 FROM audit_logs al
+			 LEFT JOIN users u ON u.user_id = al.actor_user_id
+			 ORDER BY al.created_at DESC LIMIT $1 OFFSET $2`,
 			[limit, offset],
 		);
 		return res.json({ logs: r.rows });

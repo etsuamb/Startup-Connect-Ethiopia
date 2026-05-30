@@ -50,7 +50,7 @@ async function main() {
 		"002_chat_system.sql",
 		"003_admin_monitoring.sql",
 		"004_profile_privacy.sql",
-		"005_auth_security.sql",
+		"006_admin_uc.sql",
 	];
 	await ensureUploads();
 	for (const file of files) {

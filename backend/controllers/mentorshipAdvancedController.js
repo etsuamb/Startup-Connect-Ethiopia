@@ -541,7 +541,7 @@ exports.getMentorshipResources = async (req, res) => {
 			params,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ requests: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -697,7 +697,7 @@ exports.getMentorshipConversation = async (req, res) => {
 			[userId, otherUserId],
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ requests: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -837,7 +837,7 @@ exports.getMentorshipPayments = async (req, res) => {
 			params,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ payments: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -925,7 +925,7 @@ exports.adminListMentorshipRequests = async (_req, res) => {
        ORDER BY mr.created_at DESC`,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ requests: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -942,7 +942,7 @@ exports.adminListMentorshipSessions = async (_req, res) => {
        ORDER BY ms.created_at DESC`,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ sessions: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -958,7 +958,7 @@ exports.adminListMentorshipReports = async (_req, res) => {
        ORDER BY r.created_at DESC`,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ reports: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -974,7 +974,7 @@ exports.adminListMentorshipResources = async (_req, res) => {
        ORDER BY r.created_at DESC`,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ resources: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -991,7 +991,7 @@ exports.adminListMentorshipPayments = async (_req, res) => {
        ORDER BY p.created_at DESC`,
 		);
 
-		return res.status(200).json(result.rows);
+		return res.status(200).json({ payments: result.rows });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}

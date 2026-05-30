@@ -680,6 +680,10 @@ exports.listDocuments = async (req, res) => {
 		);
 
 		const merged = [...simple.rows, ...mentorDocs.rows]
+			.map((row) => ({
+				...row,
+				document_id: row.id,
+			}))
 			.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 			.slice(offset, offset + limit);
 
@@ -1129,6 +1133,11 @@ exports.analyticsFunding = async (_req, res) => {
 			requests_by_status: byStatus.rows,
 			investments: invested.rows[0],
 			monthly_requests: monthly.rows,
+			by_month: monthly.rows.map((row) => ({
+				month: row.month,
+				amount: row.amount,
+				request_count: row.request_count,
+			})),
 		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
@@ -1172,12 +1181,26 @@ exports.analyticsEngagement = async (_req, res) => {
 				(SELECT COUNT(*)::int FROM chat_conversations) AS investor_conversations,
 				(SELECT COUNT(*)::int FROM mentor_chat_conversations) AS mentor_conversations`,
 		);
+		const weekly = await pool.query(
+			`SELECT DATE_TRUNC('week', created_at) AS week,
+			        COUNT(DISTINCT actor_user_id)::int AS active_users
+			 FROM audit_logs
+			 WHERE created_at >= NOW() - INTERVAL '12 weeks'
+			   AND actor_user_id IS NOT NULL
+			 GROUP BY DATE_TRUNC('week', created_at)
+			 ORDER BY week ASC
+			 LIMIT 12`,
+		);
 		return res.json({
 			mentors: mentors.rows[0],
 			investors: investors.rows[0],
 			mentorship: mentorship.rows[0],
 			top_mentors_by_sessions: topMentors.rows,
 			chat: chatActivity.rows[0],
+			by_week: weekly.rows.map((row) => ({
+				week: row.week,
+				active_users: row.active_users,
+			})),
 		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });

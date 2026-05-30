@@ -5,7 +5,10 @@ import {
   changeAdminPassword,
   fetchActiveSessions,
   revokeActiveSession,
-  revokeAllOtherSessions
+  revokeAllOtherSessions,
+  fetchPlatformSettings,
+  updatePlatformSettings,
+  fetchAuditLogs,
 } from "@/lib/adminApi";
 import { getRefreshToken } from "@/lib/authStorage";
 
@@ -20,16 +23,11 @@ const colorClasses = {
   orange: { bg: "bg-orange-50 text-orange-600", border: "border-orange-100", text: "text-orange-700" },
 };
 
-const systemLogs = [
-  { time: "2026-05-21 02:40:12", type: "INFO", text: "Admin Abebe Bikila updated platform configurations." },
-  { time: "2026-05-21 02:35:55", type: "INFO", text: "Exported CSV overview data request received." },
-  { time: "2026-05-21 01:12:04", type: "WARN", text: "Database connection pool saturated (85% utilization)." },
-  { time: "2026-05-21 00:04:19", type: "INFO", text: "Daily platform backup job completed successfully." },
-  { time: "2026-05-20 22:50:31", type: "ERROR", text: "Failed user registration attempt: Email conflict on abebe@startup.et." }
-];
+const systemLogs = [];
 
 export default function AdminSettingsPage() {
   const [dbStatus, setDbStatus] = useState(null);
+  const [liveLogs, setLiveLogs] = useState([]);
 
   // Core configuration states
   const [toggles, setToggles] = useState({
@@ -91,7 +89,7 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // Load from localStorage on client-side mount
+  // Load from server + localStorage on client-side mount
   useEffect(() => {
     fetchMaintenanceStatus()
       .then((d) => setDbStatus(d))
@@ -99,11 +97,26 @@ export default function AdminSettingsPage() {
 
     loadSessions();
 
-    const savedToggles = localStorage.getItem("admin_settings_toggles");
-    if (savedToggles) {
-      try { setToggles(JSON.parse(savedToggles)); } catch(e) {}
-    }
-    
+    fetchPlatformSettings()
+      .then((data) => {
+        const cfg = data.settings?.platform_config;
+        if (cfg) {
+          setToggles({
+            userRegistration: cfg.userRegistration !== false,
+            strictVerification: cfg.strictVerification === true,
+            twoFactor: cfg.twoFactorRequired === true,
+            notifNewUsers: cfg.notifNewUsers !== false,
+            notifVerification: cfg.notifVerification !== false,
+            notifAlerts: cfg.notifAlerts === true,
+          });
+        }
+      })
+      .catch(() => {});
+
+    fetchAuditLogs({ limit: 20 })
+      .then((data) => setLiveLogs(data.logs || []))
+      .catch(() => setLiveLogs([]));
+
     const savedProf = localStorage.getItem("admin_settings_profile");
     if (savedProf) {
       try { setProfile(JSON.parse(savedProf)); } catch(e) {}
@@ -280,19 +293,43 @@ export default function AdminSettingsPage() {
   };
 
   // Save/Discard overall settings
-  const handleSaveAll = () => {
-    localStorage.setItem("admin_settings_toggles", JSON.stringify(toggles));
-    localStorage.setItem("admin_settings_profile", JSON.stringify(profile));
-    localStorage.setItem("admin_settings_password", savedPassword);
-    localStorage.setItem("admin_settings_lang", langPreference);
-    localStorage.setItem("admin_default_role", roleForm.defaultRole);
-    triggerToast("All settings saved and persisted to local storage successfully!", "success");
+  const handleSaveAll = async () => {
+    try {
+      await updatePlatformSettings({
+        userRegistration: toggles.userRegistration,
+        strictVerification: toggles.strictVerification,
+        twoFactorRequired: toggles.twoFactor,
+        notifNewUsers: toggles.notifNewUsers,
+        notifVerification: toggles.notifVerification,
+        notifAlerts: toggles.notifAlerts,
+        defaultSignupRole: roleForm.defaultRole,
+        language: langPreference,
+      });
+      localStorage.setItem("admin_settings_profile", JSON.stringify(profile));
+      localStorage.setItem("admin_settings_lang", langPreference);
+      localStorage.setItem("admin_default_role", roleForm.defaultRole);
+      triggerToast("Platform settings saved and applied on the server.", "success");
+    } catch (err) {
+      triggerToast(err.message || "Failed to save platform settings.", "error");
+    }
   };
 
-  const handleDiscardChanges = () => {
-    const savedToggles = localStorage.getItem("admin_settings_toggles");
-    if (savedToggles) {
-      try { setToggles(JSON.parse(savedToggles)); } catch(e) {}
+  const handleDiscardChanges = async () => {
+    try {
+      const data = await fetchPlatformSettings();
+      const cfg = data.settings?.platform_config;
+      if (cfg) {
+        setToggles({
+          userRegistration: cfg.userRegistration !== false,
+          strictVerification: cfg.strictVerification === true,
+          twoFactor: cfg.twoFactorRequired === true,
+          notifNewUsers: cfg.notifNewUsers !== false,
+          notifVerification: cfg.notifVerification !== false,
+          notifAlerts: cfg.notifAlerts === true,
+        });
+      }
+    } catch {
+      /* ignore */
     }
     const savedProf = localStorage.getItem("admin_settings_profile");
     if (savedProf) {
@@ -876,12 +913,19 @@ export default function AdminSettingsPage() {
               <div className="space-y-4">
                 <h3 className="text-xl font-bold text-slate-800">System Logs</h3>
                 <div className="bg-slate-900 rounded-2xl p-4 text-[11px] font-mono text-emerald-400 space-y-2.5 max-h-[300px] overflow-y-auto shadow-inner border border-slate-950">
-                  {systemLogs.map((log, i) => (
-                    <div key={i} className="flex flex-col border-b border-slate-800/80 pb-1.5 last:border-0 last:pb-0">
-                      <span className="text-slate-500 font-bold">{log.time} [{log.type}]</span>
-                      <span className="text-slate-200 mt-0.5">{log.text}</span>
+                  {(liveLogs.length ? liveLogs : systemLogs).map((log, i) => (
+                    <div key={log.audit_log_id || i} className="flex flex-col border-b border-slate-800/80 pb-1.5 last:border-0 last:pb-0">
+                      <span className="text-slate-500 font-bold">
+                        {log.created_at ? new Date(log.created_at).toLocaleString() : log.time} [{log.type || "AUDIT"}]
+                      </span>
+                      <span className="text-slate-200 mt-0.5">
+                        {log.text || `${log.action?.replace(/_/g, " ")} · ${log.entity_type || ""} ${log.entity_id ? `#${log.entity_id}` : ""} ${log.details || ""}`.trim()}
+                      </span>
                     </div>
                   ))}
+                  {!liveLogs.length ? (
+                    <p className="text-slate-500">No recent audit activity.</p>
+                  ) : null}
                 </div>
                 <div className="flex justify-end pt-2">
                   <button 

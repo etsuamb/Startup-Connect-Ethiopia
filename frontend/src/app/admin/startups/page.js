@@ -233,8 +233,11 @@ export default function AdminDirectoryPage() {
 				</div>
 			) : null}
 
-			<header className="mb-6">
-				<h1 className="text-2xl font-bold text-slate-900 tracking-tight">Directory</h1>
+			<header className="mb-6 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8">
+				<h1 className="text-2xl md:text-3xl font-bold tracking-tight">Public directory</h1>
+				<p className="text-slate-300 text-sm mt-2 max-w-3xl">
+					Manage which approved startups, mentors, and investors appear in Discover search. Listed profiles are visible to other users; hidden profiles remain in the system but are not shown publicly. Startups can also have an operational status (Pending, Active, Funded, Closed).
+				</p>
 			</header>
 
 			{error ? (

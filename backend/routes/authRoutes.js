@@ -4,8 +4,6 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 const router = express.Router();
 const authController = require("../controllers/authController");
-const authSecurityController = require("../controllers/authSecurityController");
-const { authRateLimit } = require("../middleware/authRateLimit");
 const {
 	authenticate,
 	authorizeRoles,
@@ -25,54 +23,11 @@ router.post(
 		{ name: "certifications", maxCount: 15 },
 		{ name: "intro_video", maxCount: 1 },
 	]),
-	authRateLimit({ scope: "register", max: 8 }),
 	authController.register,
 );
 
 // Login user
-router.post("/login", authRateLimit({ scope: "login", max: 20 }), authController.login);
-
-// Email validation (pre-check before register)
-router.post(
-	"/validate-email",
-	authRateLimit({ scope: "validate-email", max: 30 }),
-	authSecurityController.validateEmailInput,
-);
-
-// Email verification & password reset
-router.get("/verify-email", authSecurityController.verifyEmail);
-router.post("/verify-email", authSecurityController.verifyEmail);
-router.post(
-	"/resend-verification",
-	authRateLimit({ scope: "resend-verify", max: 5 }),
-	authSecurityController.resendVerification,
-);
-router.post(
-	"/forgot-password",
-	authRateLimit({ scope: "forgot-password", max: 5 }),
-	authSecurityController.forgotPassword,
-);
-router.post(
-	"/reset-password",
-	authRateLimit({ scope: "reset-password", max: 10 }),
-	authSecurityController.resetPassword,
-);
-
-// Google OAuth
-router.post("/google", authRateLimit({ scope: "google", max: 20 }), authSecurityController.googleAuth);
-router.post("/google/complete-role", authSecurityController.googleCompleteRole);
-
-// Two-factor authentication
-router.post(
-	"/login/verify-2fa",
-	authRateLimit({ scope: "verify-2fa", max: 15 }),
-	authSecurityController.verifyLogin2FA,
-);
-router.get("/2fa/status", authenticate, authSecurityController.get2FAStatus);
-router.get("/2fa/setup", authenticate, authSecurityController.setup2FA);
-router.post("/2fa/send-enable-otp", authenticate, authSecurityController.sendEnable2FAOtp);
-router.post("/2fa/enable", authenticate, authSecurityController.enable2FA);
-router.post("/2fa/disable", authenticate, authSecurityController.disable2FA);
+router.post("/login", authController.login);
 
 // Refresh access token
 router.post("/refresh", authController.refresh);

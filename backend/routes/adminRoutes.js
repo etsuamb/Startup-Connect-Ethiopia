@@ -9,6 +9,7 @@ const adminController = require("../controllers/adminController");
 const adminPaymentController = require("../controllers/adminPaymentController");
 const adminDashboardRoutes = require("./adminDashboardRoutes");
 const adminChatModerationController = require("../controllers/adminChatModerationController");
+const adminExtended = require("../controllers/adminExtendedController");
 
 router.use("/dashboard", adminDashboardRoutes);
 
@@ -365,5 +366,49 @@ router.post(
 	authorizeRoles("Admin"),
 	adminChatModerationController.warnUser,
 );
+
+// Platform configuration & categories
+router.get("/platform/settings", authenticate, authorizeRoles("Admin"), adminExtended.getPlatformSettings);
+router.put("/platform/settings", authenticate, authorizeRoles("Admin"), adminExtended.updatePlatformSettings);
+router.get("/platform/categories", authenticate, authorizeRoles("Admin"), adminExtended.listCategories);
+router.post("/platform/categories", authenticate, authorizeRoles("Admin"), adminExtended.createCategory);
+router.patch("/platform/categories/:id", authenticate, authorizeRoles("Admin"), adminExtended.updateCategory);
+router.delete("/platform/categories/:id", authenticate, authorizeRoles("Admin"), adminExtended.deleteCategory);
+
+// User verify / audit / restore
+router.get("/users/:userId/audit-logs", authenticate, authorizeRoles("Admin"), adminExtended.getUserAuditLogs);
+router.post("/users/:userId/verify-email", authenticate, authorizeRoles("Admin"), adminExtended.verifyUserEmail);
+router.post("/users/:userId/restore", authenticate, authorizeRoles("Admin"), adminExtended.restoreUser);
+
+// Investment disputes & legitimacy
+router.get("/investment-disputes", authenticate, authorizeRoles("Admin"), adminExtended.listInvestmentDisputes);
+router.post("/investment-disputes", authenticate, authorizeRoles("Admin"), adminExtended.createInvestmentDispute);
+router.patch("/investment-disputes/:id", authenticate, authorizeRoles("Admin"), adminExtended.resolveInvestmentDispute);
+router.post("/investments/:id/verify-legitimacy", authenticate, authorizeRoles("Admin"), adminExtended.verifyInvestmentLegitimacy);
+router.post("/investment-requests/:id/verify-legitimacy", authenticate, authorizeRoles("Admin"), adminExtended.verifyInvestmentLegitimacy);
+
+// Payment admin actions
+router.get("/payments/suspicious", authenticate, authorizeRoles("Admin"), adminExtended.listSuspiciousPayments);
+router.get("/payments/:paymentId", authenticate, authorizeRoles("Admin"), adminExtended.getPaymentById);
+router.post("/payments/:paymentId/refund", authenticate, authorizeRoles("Admin"), adminExtended.refundPayment);
+router.post("/payments/:paymentId/flag", authenticate, authorizeRoles("Admin"), adminExtended.flagPaymentSuspicious);
+router.post("/payments/:paymentId/chargeback", authenticate, authorizeRoles("Admin"), adminExtended.recordChargeback);
+
+// Content moderation flags
+router.get("/content/flags", authenticate, authorizeRoles("Admin"), adminExtended.listContentFlags);
+router.patch("/content/flags/:id", authenticate, authorizeRoles("Admin"), adminExtended.reviewContentFlag);
+router.post("/content/projects/:projectId/flag", authenticate, authorizeRoles("Admin"), adminExtended.flagProjectContent);
+
+// Extended reports
+router.get("/reports/financial", authenticate, authorizeRoles("Admin"), adminExtended.financialReport);
+router.get("/reports/usage", authenticate, authorizeRoles("Admin"), adminExtended.usageReport);
+router.get("/reports/kpi", authenticate, authorizeRoles("Admin"), adminExtended.kpiReport);
+
+// Maintenance: backup, errors, fraud
+router.get("/maintenance/backup", authenticate, authorizeRoles("Admin"), adminExtended.getBackupStatus);
+router.post("/maintenance/backup", authenticate, authorizeRoles("Admin"), adminExtended.triggerBackup);
+router.get("/maintenance/error-logs", authenticate, authorizeRoles("Admin"), adminExtended.listErrorLogs);
+router.post("/maintenance/error-logs", authenticate, authorizeRoles("Admin"), adminExtended.logSystemError);
+router.get("/monitoring/fraud-summary", authenticate, authorizeRoles("Admin"), adminExtended.getFraudSummary);
 
 module.exports = router;
