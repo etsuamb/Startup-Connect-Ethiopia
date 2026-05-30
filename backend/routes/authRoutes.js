@@ -7,6 +7,7 @@ const authController = require("../controllers/authController");
 const {
 	authenticate,
 	authorizeRoles,
+	requireApproval,
 } = require("../middleware/authMiddleware");
 
 // Register user
@@ -27,7 +28,51 @@ router.post(
 );
 
 // Login user
-router.post("/login", authController.login);
+router.post("/login", authRateLimit({ scope: "login", max: 20 }), authController.login);
+
+// Email validation (pre-check before register)
+router.post(
+	"/validate-email",
+	authRateLimit({ scope: "validate-email", max: 30 }),
+	authSecurityController.validateEmailInput,
+);
+
+// Email verification & password reset
+router.get("/verify-email", authSecurityController.verifyEmail);
+router.post("/verify-email", authSecurityController.verifyEmail);
+router.get("/me", authenticate, authSecurityController.getCurrentAccount);
+router.put("/me", authenticate, authSecurityController.updateCurrentAccount);
+router.post(
+	"/resend-verification",
+	authRateLimit({ scope: "resend-verify", max: 5 }),
+	authSecurityController.resendVerification,
+);
+router.post(
+	"/forgot-password",
+	authRateLimit({ scope: "forgot-password", max: 5 }),
+	authSecurityController.forgotPassword,
+);
+router.post(
+	"/reset-password",
+	authRateLimit({ scope: "reset-password", max: 10 }),
+	authSecurityController.resetPassword,
+);
+
+// Google OAuth
+router.post("/google", authRateLimit({ scope: "google", max: 20 }), authSecurityController.googleAuth);
+router.post("/google/complete-role", authSecurityController.googleCompleteRole);
+
+// Two-factor authentication
+router.post(
+	"/login/verify-2fa",
+	authRateLimit({ scope: "verify-2fa", max: 15 }),
+	authSecurityController.verifyLogin2FA,
+);
+router.get("/2fa/status", authenticate, requireApproval, authSecurityController.get2FAStatus);
+router.get("/2fa/setup", authenticate, requireApproval, authSecurityController.setup2FA);
+router.post("/2fa/send-enable-otp", authenticate, requireApproval, authSecurityController.sendEnable2FAOtp);
+router.post("/2fa/enable", authenticate, requireApproval, authSecurityController.enable2FA);
+router.post("/2fa/disable", authenticate, requireApproval, authSecurityController.disable2FA);
 
 // Refresh access token
 router.post("/refresh", authController.refresh);
@@ -47,12 +92,13 @@ router.put(
 router.put(
 	"/admin/change-password",
 	authenticate,
+	authorizeRoles("Admin"),
 	authController.changeAdminPassword,
 );
 
 // Active session tracking (Authenticated)
-router.get("/sessions", authenticate, authController.getActiveSessions);
-router.delete("/sessions/:token", authenticate, authController.revokeSession);
-router.delete("/sessions", authenticate, authController.revokeAllOtherSessions);
+router.get("/sessions", authenticate, requireApproval, authController.getActiveSessions);
+router.delete("/sessions/:token", authenticate, requireApproval, authController.revokeSession);
+router.delete("/sessions", authenticate, requireApproval, authController.revokeAllOtherSessions);
 
 module.exports = router;

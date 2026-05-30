@@ -2,6 +2,9 @@ const http = require("http");
 const express = require("express");
 const pool = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
+const {
+  requireVerifiedAndApprovedIfAuthenticated,
+} = require("./middleware/authMiddleware");
 
 const app = express();
 const server = http.createServer(app);
@@ -13,6 +16,7 @@ app.use("/uploads", express.static("uploads"));
 
 // ✅ Routes FIRST
 app.use("/api/auth", authRoutes);
+app.use("/api", requireVerifiedAndApprovedIfAuthenticated);
 
 // Test DB connection
 app.get("/", async (req, res) => {

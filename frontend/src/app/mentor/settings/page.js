@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { fetchMentorProfile, updateMentorProfile } from "@/lib/mentorApi";
+import { fetchMentorDocument, fetchMentorProfile, updateMentorProfile } from "@/lib/mentorApi";
+import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import { clearSession } from "@/lib/authStorage";
 import { useRouter } from "next/navigation";
 
@@ -297,6 +298,8 @@ export default function MentorSettingsPage() {
   const [firstName,         setFirstName]         = useState("");
   const [lastName,          setLastName]           = useState("");
   const [email,             setEmail]             = useState("");
+  const [originalEmail,     setOriginalEmail]     = useState("");
+  const [emailVerified,     setEmailVerified]     = useState(true);
   const [phone,             setPhone]             = useState("");
   const [headline,          setHeadline]          = useState("");
   const [bio,               setBio]               = useState("");
@@ -367,6 +370,8 @@ export default function MentorSettingsPage() {
         setFirstName(fieldValue(p.first_name));
         setLastName(fieldValue(p.last_name));
         setEmail(fieldValue(p.email));
+        setOriginalEmail(fieldValue(p.email));
+        setEmailVerified(p.email_verified !== false);
         setPhone(fieldValue(p.phone_number || p.phone));
         setHeadline(fieldValue(p.headline || p.professional_title));
         setBio(fieldValue(p.bio || p.description));
@@ -388,8 +393,26 @@ export default function MentorSettingsPage() {
         if (p.available_from)   setAvailableFrom(p.available_from);
         if (p.available_to)     setAvailableTo(p.available_to);
         if (typeof p.accepting_mentees === "boolean") setAcceptingMentees(p.accepting_mentees);
+        else if (typeof availability.accepting_mentees === "boolean") setAcceptingMentees(availability.accepting_mentees);
+        else if (p.availability_preference) setAcceptingMentees(!/not|unavailable|closed/i.test(p.availability_preference));
       })
-      .catch(() => {}) // silently use defaults if not available
+      .catch(async (err) => {
+        if (!alive || err.code !== "EMAIL_NOT_VERIFIED") return;
+        try {
+          const account = await getCurrentAccount();
+          if (!alive) return;
+          const user = account.user || {};
+          setFirstName(fieldValue(user.first_name));
+          setLastName(fieldValue(user.last_name));
+          setEmail(fieldValue(user.email));
+          setOriginalEmail(fieldValue(user.email));
+          setEmailVerified(user.email_verified !== false);
+          setPhone(fieldValue(user.phone_number));
+          showToast("Verify your email before using the rest of the platform. You can update it here if it is wrong.", "error");
+        } catch (accountErr) {
+          showToast(accountErr.message || "Unable to load account information.", "error");
+        }
+      })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, []);
@@ -400,11 +423,35 @@ export default function MentorSettingsPage() {
       showToast("First and last name are required.", "error");
       return;
     }
+    if (!email.trim()) {
+      showToast("Email is required.", "error");
+      return;
+    }
     setSaving(true);
     try {
-      await updateMentorProfile({
+      const emailChanged = email.trim().toLowerCase() !== originalEmail.trim().toLowerCase();
+      if (!emailVerified || emailChanged) {
+        const data = await updateCurrentAccount({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim(),
+          phone_number: phone.trim(),
+        });
+        const user = data.user || {};
+        setFirstName(fieldValue(user.first_name));
+        setLastName(fieldValue(user.last_name));
+        setEmail(fieldValue(user.email));
+        setOriginalEmail(fieldValue(user.email));
+        setEmailVerified(user.email_verified !== false);
+        setPhone(fieldValue(user.phone_number));
+        showToast(data.message || "Account information updated.");
+        return;
+      }
+      const payload = {
+        // user account fields
         first_name: firstName.trim(),
         last_name:  lastName.trim(),
+        email: email.trim(),
         phone_number: phone.trim(),
         headline:   headline.trim(),
         bio:        bio.trim(),
@@ -539,8 +586,20 @@ export default function MentorSettingsPage() {
               </FormField>
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
-              <FormField label="Email" hint="Email cannot be changed.">
-                <input value={email} readOnly className={`${inputClass} bg-gray-100 text-gray-400 cursor-not-allowed`} />
+              <FormField
+                label="Email"
+                hint={emailVerified ? "Changing this email requires verification again." : "Use a real email you can access, then verify it from your inbox."}
+              >
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} required />
+                {!emailVerified ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    This account cannot be approved until this email is verified.
+                  </p>
+                ) : email.trim().toLowerCase() !== originalEmail.trim().toLowerCase() ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    Saving will send a new verification link and mark the account unverified until confirmed.
+                  </p>
+                ) : null}
               </FormField>
               <FormField label="Phone number">
                 <input id="mentor-phone" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="+251 9XX XXX XXX" />

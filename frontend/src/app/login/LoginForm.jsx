@@ -25,12 +25,15 @@ export default function LoginForm() {
 				role: data.user?.role,
 				userName: `${data.user?.first_name || ""} ${data.user?.last_name || ""}`.trim(),
 			});
-			const r = data.user?.role;
-			if (r === "Startup") router.push("/startup/dashboard");
-			else if (r === "Investor") router.push("/investor/dashboard");
-			else if (r === "Mentor") router.push("/mentor/dashboard");
-			else if (r === "Admin") router.push("/admin/dashboard");
-			else router.push("/");
+			if (data.emailVerified === false) {
+				const r = data.user?.role;
+				if (r === "Startup") router.push("/startup/settings");
+				else if (r === "Investor") router.push("/investor/settings");
+				else if (r === "Mentor") router.push("/mentor/settings");
+				else routeAfterLogin(router, data.user);
+				return;
+			}
+			routeAfterLogin(router, data.user);
 		} catch (ex) {
 			setErr(ex.message || "Login failed");
 		} finally {

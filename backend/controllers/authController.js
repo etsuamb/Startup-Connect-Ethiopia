@@ -25,6 +25,29 @@ const hasStrongPassword = (password) => {
 	return typeof password === "string" && /(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password);
 };
 
+function normalizePhone(phone) {
+	const trimmed = String(phone || "").trim();
+	return trimmed || null;
+}
+
+function mapRegistrationDbError(err) {
+	if (err.code === "23505") {
+		const detail = String(err.detail || err.message || "").toLowerCase();
+		const constraint = String(err.constraint || "").toLowerCase();
+		if (constraint.includes("email") || detail.includes("email")) {
+			return { status: 409, message: "An account with this email already exists" };
+		}
+		if (constraint.includes("phone") || detail.includes("phone")) {
+			return { status: 409, message: "This phone number is already registered" };
+		}
+		return { status: 409, message: "Account already exists with these details" };
+	}
+	if (err.code === "23514") {
+		return { status: 400, message: "Invalid registration data" };
+	}
+	return null;
+}
+
 // ========================
 // REGISTER
 // ========================
@@ -92,6 +115,7 @@ exports.register = async (req, res) => {
 		mentoring_style,
 		notable_startups_mentored,
 		key_achievement,
+		google_profile_token,
 	} = req.body;
 
 	// Investor form may send camelCase or an array of industries; normalize for DB + validation.
@@ -113,26 +137,40 @@ exports.register = async (req, res) => {
 	let mentorResolved = null;
 
 	try {
+		const googleProfileUser = await resolveGoogleProfileUser(
+			google_profile_token || req.body.googleProfileToken,
+		);
+		const isGoogleProfileCompletion = Boolean(googleProfileUser);
+		const normalizedRole = String(role || googleProfileUser?.role || "").trim();
+		const effectiveFirstName = first_name || googleProfileUser?.first_name;
+		const effectiveLastName = last_name || googleProfileUser?.last_name;
+		const effectiveEmail = email || googleProfileUser?.email;
+
 		// Basic validation
-		if (!first_name || !last_name || !email || !password || !confirm_password || !role) {
+		if (
+			!effectiveFirstName ||
+			!effectiveLastName ||
+			!effectiveEmail ||
+			!role ||
+			(!isGoogleProfileCompletion && (!password || !confirm_password))
+		) {
 			return res.status(400).json({
 				message:
 					"first_name, last_name, email, password, confirm_password and role are required",
 			});
 		}
 
-		if (password !== confirm_password) {
+		if (!isGoogleProfileCompletion && password !== confirm_password) {
 			return res.status(400).json({ message: "Password and confirm password must match" });
 		}
 
-		if (!hasStrongPassword(password)) {
+		if (!isGoogleProfileCompletion && !hasStrongPassword(password)) {
 			return res.status(400).json({
 				message:
 					"Password must be at least 8 characters and include 1 capital letter, 1 special character, and 1 number",
 			});
 		}
 
-		const normalizedRole = String(role).trim();
 		if (normalizedRole === "Admin") {
 			return res.status(403).json({
 				message: "Admin accounts cannot be registered. Use admin login instead.",
@@ -144,19 +182,10 @@ exports.register = async (req, res) => {
 			});
 		}
 
-		const platformConfig = await getPlatformConfig();
-		if (platformConfig.userRegistration === false) {
-			return res.status(403).json({
-				message: "New user registration is currently disabled by the platform administrator.",
-			});
-		}
-
-		const autoApprove = platformConfig.strictVerification === false;
-
 		// Startup-specific validation
 		if (normalizedRole === "Startup") {
 			if (
-				!phone_number ||
+				(!isGoogleProfileCompletion && !phone_number) ||
 				!founder_full_name ||
 				!startup_name ||
 				!industry ||
@@ -196,7 +225,7 @@ exports.register = async (req, res) => {
 		if (normalizedRole === "Investor") {
 			const chosenInvestmentStage = investment_stage || startup_stage;
 			if (
-				!phone_number ||
+				(!isGoogleProfileCompletion && !phone_number) ||
 				!investor_type ||
 				!preferredIndustryResolved ||
 				!chosenInvestmentStage ||
@@ -283,7 +312,7 @@ exports.register = async (req, res) => {
 			const mentorKeyAch = str(key_achievement) || str(req.body.keyAchievement) || "";
 
 			if (
-				!phone_number ||
+				(!isGoogleProfileCompletion && !phone_number) ||
 				!mentorTitle ||
 				mentorYearsRaw === undefined ||
 				mentorYearsRaw === null ||
@@ -381,25 +410,84 @@ exports.register = async (req, res) => {
 			};
 		}
 
+		const normalizedEmail = String(email).trim().toLowerCase();
+		const phoneForDb = normalizePhone(phone_number);
+
+		let emailCheck;
+		try {
+			emailCheck = await authSecurity.validateEmailDeliverability(normalizedEmail);
+		} catch (validationErr) {
+			console.error("Email validation error:", validationErr.message);
+			return res.status(400).json({
+				message: authSecurity.emailRejectMessage("validation_error"),
+			});
+		}
+		if (!emailCheck.ok) {
+			return res.status(400).json({
+				message: authSecurity.emailRejectMessage(emailCheck.reason),
+				code: emailCheck.reason,
+			});
+		}
+
 		// Check if user already exists
 		const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
 
 		if (existingUser.rows.length > 0) {
-			return res.status(409).json({ message: "User already exists" });
+			return res.status(409).json({ message: "An account with this email already exists" });
+		}
+
+		if (phoneForDb) {
+			const existingPhone = await pool.query(
+				"SELECT user_id FROM users WHERE phone_number = $1",
+				[phoneForDb],
+			);
+			if (existingPhone.rows.length > 0) {
+				return res.status(409).json({ message: "This phone number is already registered" });
+			}
 		}
 
 		const client = await pool.connect();
 		try {
 			await client.query("BEGIN");
 
-			// Hash password
-			const hashedPassword = await bcrypt.hash(password, 10);
+			let user;
+			if (isGoogleProfileCompletion) {
+				const userUpdateResult = await client.query(
+					`UPDATE users
+					 SET first_name = $1,
+					     last_name = $2,
+					     phone_number = COALESCE($3, phone_number),
+					     role = $4,
+					     provider_type = 'google',
+					     email_verified = true,
+					     updated_at = CURRENT_TIMESTAMP
+					 WHERE user_id = $5
+					 RETURNING user_id, first_name, last_name, email, role, is_approved, email_verified`,
+					[
+						effectiveFirstName,
+						effectiveLastName,
+						phoneForDb,
+						normalizedRole,
+						googleProfileUser.user_id,
+					],
+				);
+				user = userUpdateResult.rows[0];
+			} else {
+				// Hash password
+				const hashedPassword = await bcrypt.hash(password, 10);
 
 			const userInsertResult = await client.query(
-				`INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number, is_approved, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-         RETURNING user_id, first_name, last_name, email, role, is_approved`,
-				[first_name, last_name, email, hashedPassword, normalizedRole, phone_number || null, autoApprove],
+				`INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number, provider_type, email_verified)
+         VALUES ($1, $2, $3, $4, $5, $6, 'local', false)
+         RETURNING user_id, first_name, last_name, email, role, is_approved, email_verified`,
+				[
+					first_name,
+					last_name,
+					normalizedEmail,
+					hashedPassword,
+					normalizedRole,
+					phoneForDb,
+				],
 			);
 
 			const user = userInsertResult.rows[0];
@@ -720,7 +808,7 @@ exports.register = async (req, res) => {
 					[
 						admin.user_id,
 						`New ${normalizedRole} Registered`,
-						`A new ${normalizedRole} account for ${first_name} ${last_name} (${email}) has registered and is pending approval.`,
+						`A new ${normalizedRole} account for ${first_name} ${last_name} (${normalizedEmail}) has registered and is pending approval.`,
 						user.user_id
 					]
 				);
@@ -731,14 +819,24 @@ exports.register = async (req, res) => {
 					 VALUES ($1, 'verification', $2, $3, 'user', $4)`,
 					[
 						admin.user_id,
-						`Verification Request: ${first_name} ${last_name}`,
-						`${first_name} ${last_name} (${normalizedRole}) has submitted documents for verification.`,
+						`Verification Request: ${effectiveFirstName} ${effectiveLastName}`,
+						`${effectiveFirstName} ${effectiveLastName} (${normalizedRole}) has submitted documents for verification.`,
 						user.user_id
 					]
 				);
 			}
 
 			await client.query("COMMIT");
+
+			try {
+				const fullUser = await pool.query(`SELECT * FROM users WHERE user_id = $1`, [user.user_id]);
+				if (fullUser.rowCount) {
+					await authSecurity.sendVerificationEmail(fullUser.rows[0]);
+				}
+			} catch (mailErr) {
+				console.error("Verification email failed:", mailErr.message);
+			}
+
 			const regMessage =
 				normalizedRole === "Investor"
 					? "Investor user registered successfully. Account pending admin approval."
@@ -748,6 +846,7 @@ exports.register = async (req, res) => {
 			return res.status(201).json({
 				message: regMessage,
 				user,
+				emailVerificationSent: true,
 				startup: startupProfile,
 				investor: investorProfile,
 				mentor: mentorProfile,
@@ -762,7 +861,12 @@ exports.register = async (req, res) => {
 			client.release();
 		}
 	} catch (err) {
-		return res.status(500).json({ error: err.message });
+		const mapped = mapRegistrationDbError(err);
+		if (mapped) {
+			return res.status(mapped.status).json({ message: mapped.message });
+		}
+		console.error("Register error:", err.message);
+		return res.status(500).json({ message: "Registration failed. Please try again." });
 	}
 };
 
