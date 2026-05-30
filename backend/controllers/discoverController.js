@@ -52,12 +52,11 @@ exports.searchMentors = async (req, res) => {
 		const industry = req.query.industry
 			? String(req.query.industry).trim()
 			: "";
-		const country = req.query.country
-			? String(req.query.country).trim()
-			: "";
-		const q = req.query.q || req.query.search
-			? String(req.query.q || req.query.search).trim()
-			: "";
+		const country = req.query.country ? String(req.query.country).trim() : "";
+		const q =
+			req.query.q || req.query.search
+				? String(req.query.q || req.query.search).trim()
+				: "";
 
 		const conds = [];
 		const params = [];
@@ -150,15 +149,17 @@ exports.searchInvestors = async (req, res) => {
 		const industry = req.query.industry
 			? String(req.query.industry).trim()
 			: "";
-		const country = req.query.country
-			? String(req.query.country).trim()
+		const country = req.query.country ? String(req.query.country).trim() : "";
+		const locationPreference = req.query.location
+			? String(req.query.location).trim()
 			: "";
 		const investorType = req.query.investor_type
 			? String(req.query.investor_type).trim()
 			: "";
-		const q = req.query.q || req.query.search
-			? String(req.query.q || req.query.search).trim()
-			: "";
+		const q =
+			req.query.q || req.query.search
+				? String(req.query.q || req.query.search).trim()
+				: "";
 
 		const conds = [];
 		const params = [];
@@ -171,7 +172,16 @@ exports.searchInvestors = async (req, res) => {
 		if (country) {
 			params.push(`%${country}%`);
 			const i = params.length;
-			conds.push(`i.country ILIKE $${i}`);
+			conds.push(
+				`(i.country ILIKE $${i} OR i.location_preference ILIKE $${i})`,
+			);
+		}
+		if (locationPreference) {
+			params.push(`%${locationPreference}%`);
+			const i = params.length;
+			conds.push(
+				`(i.country ILIKE $${i} OR i.location_preference ILIKE $${i})`,
+			);
 		}
 		if (investorType) {
 			params.push(`%${investorType}%`);
@@ -229,7 +239,9 @@ exports.searchInvestors = async (req, res) => {
 		const { rows } = await pool.query(listSql, params);
 
 		return res.json({
-			investors: rows.map((row) => profileSanitizer.sanitizeInvestorPublic(row)),
+			investors: rows.map((row) =>
+				profileSanitizer.sanitizeInvestorPublic(row),
+			),
 			pagination: { page, limit, total },
 		});
 	} catch (err) {
@@ -253,7 +265,8 @@ exports.getDiscoverInvestor = async (req, res) => {
        WHERE i.investor_id = $1 AND u.role = 'Investor' AND u.is_active = TRUE`,
 			[investorId],
 		);
-		if (!r.rowCount) return res.status(404).json({ error: "Investor not found" });
+		if (!r.rowCount)
+			return res.status(404).json({ error: "Investor not found" });
 
 		const row = r.rows[0];
 		const access = await profileAccessService.evaluateSensitiveAccess(
@@ -588,16 +601,18 @@ exports.applyToInvestor = async (req, res) => {
 			useOfFunds:
 				typeof useOfFunds === "string" && useOfFunds.trim()
 					? useOfFunds.trim()
-					: useOfFunds ?? "",
+					: (useOfFunds ?? ""),
 			expectedMilestones:
 				typeof expectedMilestones === "string" && expectedMilestones.trim()
 					? expectedMilestones.trim()
-					: expectedMilestones ?? "",
+					: (expectedMilestones ?? ""),
 			messageToInvestor: messageToInvestor.trim(),
 		};
 
 		const docsIn =
-			body.documents && typeof body.documents === "object" ? body.documents : {};
+			body.documents && typeof body.documents === "object"
+				? body.documents
+				: {};
 		const documents = {
 			pitchDeck: docsIn.pitchDeck ?? null,
 			businessPlan: docsIn.businessPlan ?? null,
@@ -607,9 +622,7 @@ exports.applyToInvestor = async (req, res) => {
 
 		const sumIn =
 			body.summary && typeof body.summary === "object" ? body.summary : {};
-		const statusLabel = normApplicationStatusLabel(
-			sumIn.status || body.status,
-		);
+		const statusLabel = normApplicationStatusLabel(sumIn.status || body.status);
 		const summary = {
 			startupName: sumIn.startupName || st.startup_name,
 			project: sumIn.project || application.startupProject,
@@ -732,21 +745,23 @@ exports.applyToMentor = async (req, res) => {
 			mentorshipFocus:
 				typeof mentorshipFocus === "string" && mentorshipFocus.trim()
 					? mentorshipFocus.trim()
-					: mentorshipFocus ?? "",
+					: (mentorshipFocus ?? ""),
 			preferredSessionFormat:
 				typeof preferredSessionFormat === "string" &&
 				preferredSessionFormat.trim()
 					? preferredSessionFormat.trim()
-					: preferredSessionFormat ?? "",
+					: (preferredSessionFormat ?? ""),
 			expectedOutcomes:
 				typeof expectedOutcomes === "string" && expectedOutcomes.trim()
 					? expectedOutcomes.trim()
-					: expectedOutcomes ?? "",
+					: (expectedOutcomes ?? ""),
 			messageToMentor: messageToMentor.trim(),
 		};
 
 		const docsIn =
-			body.documents && typeof body.documents === "object" ? body.documents : {};
+			body.documents && typeof body.documents === "object"
+				? body.documents
+				: {};
 		const documents = {
 			pitchDeck: docsIn.pitchDeck ?? null,
 			businessPlan: docsIn.businessPlan ?? null,
@@ -758,9 +773,7 @@ exports.applyToMentor = async (req, res) => {
 
 		const sumIn =
 			body.summary && typeof body.summary === "object" ? body.summary : {};
-		const statusLabel = normApplicationStatusLabel(
-			sumIn.status || body.status,
-		);
+		const statusLabel = normApplicationStatusLabel(sumIn.status || body.status);
 		const summary = {
 			startupName: sumIn.startupName || st.startup_name,
 			project: sumIn.project || application.startupProject,

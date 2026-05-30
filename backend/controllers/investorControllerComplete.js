@@ -5,7 +5,10 @@ const profileSanitizer = require("../services/profileSanitizer");
 const bcrypt = require("bcrypt");
 
 const hasStrongPassword = (password) => {
-	return typeof password === "string" && /(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password);
+	return (
+		typeof password === "string" &&
+		/(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password)
+	);
 };
 
 const cleanText = (value) => {
@@ -19,7 +22,11 @@ const optionalNumber = (value, fieldName, integer = false) => {
 	if (value === undefined) return { ok: true, value: undefined };
 	if (value === null || value === "") return { ok: true, value: null };
 	const parsed = Number(value);
-	if (Number.isNaN(parsed) || parsed < 0 || (integer && !Number.isInteger(parsed))) {
+	if (
+		Number.isNaN(parsed) ||
+		parsed < 0 ||
+		(integer && !Number.isInteger(parsed))
+	) {
 		return {
 			ok: false,
 			error: `${fieldName} must be a ${integer ? "non-negative integer" : "non-negative number"}`,
@@ -37,7 +44,9 @@ const optionalBoolean = (value, currentValue) => {
 };
 
 async function ensureInvestorSettingsSchema(client = pool) {
-	await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE");
+	await client.query(
+		"ALTER TABLE users ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+	);
 }
 
 /** Startups visible to investors in discover/list/search (registered profiles; verified listed first). */
@@ -66,10 +75,18 @@ const STARTUP_INVESTOR_ORDER = `
 `;
 
 async function ensureInvestmentRequestDirectionSchema(client = pool) {
-	await client.query("ALTER TABLE investment_requests ALTER COLUMN project_id DROP NOT NULL");
-	await client.query("ALTER TABLE investment_requests ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(20) NOT NULL DEFAULT 'startup'");
-	await client.query("ALTER TABLE investment_requests DROP CONSTRAINT IF EXISTS investment_requests_initiated_by_check");
-	await client.query("ALTER TABLE investment_requests ADD CONSTRAINT investment_requests_initiated_by_check CHECK (initiated_by IN ('startup', 'investor'))");
+	await client.query(
+		"ALTER TABLE investment_requests ALTER COLUMN project_id DROP NOT NULL",
+	);
+	await client.query(
+		"ALTER TABLE investment_requests ADD COLUMN IF NOT EXISTS initiated_by VARCHAR(20) NOT NULL DEFAULT 'startup'",
+	);
+	await client.query(
+		"ALTER TABLE investment_requests DROP CONSTRAINT IF EXISTS investment_requests_initiated_by_check",
+	);
+	await client.query(
+		"ALTER TABLE investment_requests ADD CONSTRAINT investment_requests_initiated_by_check CHECK (initiated_by IN ('startup', 'investor'))",
+	);
 }
 
 // UC_13b: Create/Update Investor Profile
@@ -89,7 +106,7 @@ exports.createInvestorProfile = async (req, res) => {
 		// Check if profile exists
 		const existing = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[userId]
+			[userId],
 		);
 
 		if (existing.rows.length > 0) {
@@ -107,7 +124,7 @@ exports.createInvestorProfile = async (req, res) => {
 					country,
 					portfolio_size,
 					userId,
-				]
+				],
 			);
 			return res.json(result.rows[0]);
 		}
@@ -126,7 +143,7 @@ exports.createInvestorProfile = async (req, res) => {
 				investment_stage,
 				country,
 				portfolio_size,
-			]
+			],
 		);
 
 		res.status(201).json(result.rows[0]);
@@ -144,7 +161,7 @@ exports.getMyInvestorProfile = async (req, res) => {
 			 FROM investors i
 			 JOIN users u ON u.user_id = i.user_id
 			 WHERE i.user_id = $1`,
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 
 		if (result.rows.length === 0) {
@@ -171,7 +188,7 @@ exports.getInvestorSettings = async (req, res) => {
 			 FROM investors i
 			 JOIN users u ON u.user_id = i.user_id
 			 WHERE i.user_id = $1`,
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 
 		if (result.rows.length === 0) {
@@ -190,18 +207,26 @@ exports.updateInvestorSettings = async (req, res) => {
 		await ensureInvestorSettingsSchema(client);
 		const userId = req.user.user_id;
 		const body = req.body || {};
-		const budget = optionalNumber(body.investment_budget ?? body.investment_range, "investment_budget");
-		const portfolioSize = optionalNumber(body.portfolio_size, "portfolio_size", true);
+		const budget = optionalNumber(
+			body.investment_budget ?? body.investment_range,
+			"investment_budget",
+		);
+		const portfolioSize = optionalNumber(
+			body.portfolio_size,
+			"portfolio_size",
+			true,
+		);
 
 		if (!budget.ok) return res.status(400).json({ error: budget.error });
-		if (!portfolioSize.ok) return res.status(400).json({ error: portfolioSize.error });
+		if (!portfolioSize.ok)
+			return res.status(400).json({ error: portfolioSize.error });
 
 		const existing = await client.query(
 			`SELECT i.*, u.first_name, u.last_name, u.phone_number, u.two_factor_enabled
 			 FROM investors i
 			 JOIN users u ON u.user_id = i.user_id
 			 WHERE i.user_id = $1`,
-			[userId]
+			[userId],
 		);
 		if (existing.rows.length === 0) {
 			return res.status(404).json({ message: "Investor profile not found" });
@@ -212,19 +237,29 @@ exports.updateInvestorSettings = async (req, res) => {
 		const lastName = cleanText(body.last_name);
 		const phoneNumber = cleanText(body.phone_number);
 
-		if (firstName === null) return res.status(400).json({ error: "first_name cannot be empty" });
-		if (lastName === null) return res.status(400).json({ error: "last_name cannot be empty" });
+		if (firstName === null)
+			return res.status(400).json({ error: "first_name cannot be empty" });
+		if (lastName === null)
+			return res.status(400).json({ error: "last_name cannot be empty" });
 
 		const investorType = cleanText(body.investor_type);
-		if (investorType === null) return res.status(400).json({ error: "investor_type cannot be empty" });
+		if (investorType === null)
+			return res.status(400).json({ error: "investor_type cannot be empty" });
 
 		let website = cleanText(body.linked_in_or_website ?? body.website);
-		if (website && !website.startsWith("http://") && !website.startsWith("https://")) {
+		if (
+			website &&
+			!website.startsWith("http://") &&
+			!website.startsWith("https://")
+		) {
 			website = `https://${website}`;
 		}
 
 		const twoFactorRaw = body.two_factor_enabled ?? body.twoFactorAuth;
-		const twoFactorEnabled = optionalBoolean(twoFactorRaw, current.two_factor_enabled);
+		const twoFactorEnabled = optionalBoolean(
+			twoFactorRaw,
+			current.two_factor_enabled,
+		);
 
 		await client.query("BEGIN");
 
@@ -242,7 +277,7 @@ exports.updateInvestorSettings = async (req, res) => {
 				phoneNumber !== undefined ? phoneNumber : current.phone_number,
 				twoFactorEnabled,
 				userId,
-			]
+			],
 		);
 
 		await client.query(
@@ -260,21 +295,30 @@ exports.updateInvestorSettings = async (req, res) => {
 			 WHERE user_id = $11`,
 			[
 				investorType !== undefined ? investorType : current.investor_type,
-				cleanText(body.organization_name) !== undefined ? cleanText(body.organization_name) : current.organization_name,
+				cleanText(body.organization_name) !== undefined
+					? cleanText(body.organization_name)
+					: current.organization_name,
 				budget.value !== undefined ? budget.value : current.investment_budget,
-				cleanText(body.preferred_industry) !== undefined ? cleanText(body.preferred_industry) : current.preferred_industry,
+				cleanText(body.preferred_industry) !== undefined
+					? cleanText(body.preferred_industry)
+					: current.preferred_industry,
 				cleanText(body.investment_stage ?? body.startup_stage) !== undefined
 					? cleanText(body.investment_stage ?? body.startup_stage)
 					: current.investment_stage,
-				cleanText(body.location_preference ?? body.preferred_location) !== undefined
+				cleanText(body.location_preference ?? body.preferred_location) !==
+				undefined
 					? cleanText(body.location_preference ?? body.preferred_location)
 					: current.location_preference,
 				website !== undefined ? website : current.linked_in_or_website,
 				cleanText(body.bio) !== undefined ? cleanText(body.bio) : current.bio,
-				cleanText(body.country) !== undefined ? cleanText(body.country) : current.country,
-				portfolioSize.value !== undefined ? portfolioSize.value : current.portfolio_size,
+				cleanText(body.country) !== undefined
+					? cleanText(body.country)
+					: current.country,
+				portfolioSize.value !== undefined
+					? portfolioSize.value
+					: current.portfolio_size,
 				userId,
-			]
+			],
 		);
 
 		const result = await client.query(
@@ -283,7 +327,7 @@ exports.updateInvestorSettings = async (req, res) => {
 			 FROM investors i
 			 JOIN users u ON u.user_id = i.user_id
 			 WHERE i.user_id = $1`,
-			[userId]
+			[userId],
 		);
 
 		await client.query("COMMIT");
@@ -302,12 +346,15 @@ exports.updateInvestorSettings = async (req, res) => {
 
 exports.changeInvestorPassword = async (req, res) => {
 	try {
-		const { current_password, currentPassword, new_password, newPassword } = req.body || {};
+		const { current_password, currentPassword, new_password, newPassword } =
+			req.body || {};
 		const current = current_password || currentPassword;
 		const next = new_password || newPassword;
 
 		if (!current || !next) {
-			return res.status(400).json({ message: "Current and new password are required" });
+			return res
+				.status(400)
+				.json({ message: "Current and new password are required" });
 		}
 
 		if (!hasStrongPassword(next)) {
@@ -319,7 +366,7 @@ exports.changeInvestorPassword = async (req, res) => {
 
 		const user = await pool.query(
 			"SELECT user_id, password_hash FROM users WHERE user_id = $1 AND role = 'Investor'",
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 		if (user.rows.length === 0) {
 			return res.status(404).json({ message: "Investor account not found" });
@@ -333,7 +380,7 @@ exports.changeInvestorPassword = async (req, res) => {
 		const hashedPassword = await bcrypt.hash(next, 10);
 		await pool.query(
 			"UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2",
-			[hashedPassword, req.user.user_id]
+			[hashedPassword, req.user.user_id],
 		);
 
 		return res.json({ message: "Password changed successfully" });
@@ -365,11 +412,13 @@ exports.listStartups = async (req, res) => {
 			 ${STARTUP_INVESTOR_WHERE}
 			 ${STARTUP_INVESTOR_ORDER}
 			 LIMIT $1 OFFSET $2`,
-			[limitNum, offset]
+			[limitNum, offset],
 		);
 
 		res.json({
-			startups: result.rows.map((row) => profileSanitizer.sanitizeStartupPublic(row)),
+			startups: result.rows.map((row) =>
+				profileSanitizer.sanitizeStartupPublic(row),
+			),
 			total,
 			page: pageNum,
 			limit: limitNum,
@@ -412,7 +461,7 @@ exports.searchStartups = async (req, res) => {
 
 		if (location) {
 			params.push(`%${location}%`);
-			query += ` AND s.location ILIKE $${params.length}`;
+			query += ` AND (COALESCE(s.location, '') ILIKE $${params.length} OR COALESCE(s.city, '') ILIKE $${params.length} OR COALESCE(s.region, '') ILIKE $${params.length})`;
 		}
 
 		if (funding_min) {
@@ -430,7 +479,10 @@ exports.searchStartups = async (req, res) => {
 			query += ` AND (s.startup_name ILIKE $${params.length} OR s.description ILIKE $${params.length})`;
 		}
 
-		const countQuery = query.replace(/SELECT[\s\S]+?FROM/i, "SELECT COUNT(*)::int AS total FROM");
+		const countQuery = query.replace(
+			/SELECT[\s\S]+?FROM/i,
+			"SELECT COUNT(*)::int AS total FROM",
+		);
 		const countResult = await pool.query(countQuery, params);
 		const total = parseInt(countResult.rows[0].total, 10);
 
@@ -440,7 +492,9 @@ exports.searchStartups = async (req, res) => {
 		const result = await pool.query(query, params);
 
 		res.json({
-			startups: result.rows.map((row) => profileSanitizer.sanitizeStartupPublic(row)),
+			startups: result.rows.map((row) =>
+				profileSanitizer.sanitizeStartupPublic(row),
+			),
 			total,
 			page: pageNum,
 			limit: limitNum,
@@ -483,7 +537,9 @@ function buildInvestorRecommendationText(investor) {
 		investor.bio,
 		investor.investment_budget ? `budget ${investor.investment_budget}` : "",
 		investor.portfolio_size ? `portfolio ${investor.portfolio_size}` : "",
-	].filter(Boolean).join(" ");
+	]
+		.filter(Boolean)
+		.join(" ");
 }
 
 function buildStartupRecommendationText(startup) {
@@ -504,18 +560,24 @@ function buildStartupRecommendationText(startup) {
 		startup.problem_statement,
 		startup.solution_statement,
 		startup.expected_impact,
-	].filter(Boolean).join(" ");
+	]
+		.filter(Boolean)
+		.join(" ");
 }
 
 function sameValue(left, right) {
-	return Boolean(left && right && String(left).trim().toLowerCase() === String(right).trim().toLowerCase());
+	return Boolean(
+		left &&
+		right &&
+		String(left).trim().toLowerCase() === String(right).trim().toLowerCase(),
+	);
 }
 
 function containsValue(left, right) {
 	return Boolean(
 		left &&
 		right &&
-		String(left).toLowerCase().includes(String(right).toLowerCase())
+		String(left).toLowerCase().includes(String(right).toLowerCase()),
 	);
 }
 
@@ -523,11 +585,14 @@ function containsValue(left, right) {
 exports.getStartupRecommendations = async (req, res) => {
 	try {
 		const investorId = req.params.investorId || req.user.user_id;
-		const limitNum = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
+		const limitNum = Math.min(
+			20,
+			Math.max(1, parseInt(req.query.limit, 10) || 10),
+		);
 
 		const investorRes = await pool.query(
 			"SELECT * FROM investors WHERE user_id = $1",
-			[investorId]
+			[investorId],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -565,7 +630,7 @@ exports.getStartupRecommendations = async (req, res) => {
 			 ) p ON true
 			 ${STARTUP_INVESTOR_WHERE}
 			 ${STARTUP_INVESTOR_ORDER}
-			 LIMIT 100`
+			 LIMIT 100`,
 		);
 
 		const recommendations = result.rows
@@ -574,7 +639,9 @@ exports.getStartupRecommendations = async (req, res) => {
 				let ruleScore = 0;
 				const startupIndustry = startup.project_industry || startup.industry;
 				const startupStage = startup.lifecycle_stage || startup.business_stage;
-				const fundingNeed = Number(startup.funding_goal || startup.funding_needed || 0);
+				const fundingNeed = Number(
+					startup.funding_goal || startup.funding_needed || 0,
+				);
 				const investmentBudget = Number(investor.investment_budget || 0);
 
 				if (
@@ -608,14 +675,23 @@ exports.getStartupRecommendations = async (req, res) => {
 
 				if (
 					investor.location_preference &&
-					containsValue(`${startup.location || ""} ${startup.region || ""} ${startup.city || ""}`, investor.location_preference)
+					containsValue(
+						`${startup.location || ""} ${startup.region || ""} ${startup.city || ""}`,
+						investor.location_preference,
+					)
 				) {
 					ruleScore += 0.08;
 					reasons.push("Location aligns with your preference");
 				}
 
-				const similarityScore = tokenSimilarity(investorText, buildStartupRecommendationText(startup));
-				const finalScore = Math.min(0.99, Math.max(0.35, similarityScore * 0.35 + ruleScore + 0.2));
+				const similarityScore = tokenSimilarity(
+					investorText,
+					buildStartupRecommendationText(startup),
+				);
+				const finalScore = Math.min(
+					0.99,
+					Math.max(0.35, similarityScore * 0.35 + ruleScore + 0.2),
+				);
 				const score = Number(finalScore.toFixed(2));
 
 				return {
@@ -630,23 +706,27 @@ exports.getStartupRecommendations = async (req, res) => {
 						website: startup.website,
 						funding_needed: startup.funding_needed,
 					},
-					project: startup.project_id ? {
-						project_id: startup.project_id,
-						project_title: startup.project_title,
-						description: startup.project_description,
-						funding_goal: startup.funding_goal,
-						amount_raised: startup.amount_raised,
-						status: startup.project_status,
-						industry: startup.project_industry,
-						lifecycle_stage: startup.lifecycle_stage,
-					} : null,
+					project: startup.project_id
+						? {
+								project_id: startup.project_id,
+								project_title: startup.project_title,
+								description: startup.project_description,
+								funding_goal: startup.funding_goal,
+								amount_raised: startup.amount_raised,
+								status: startup.project_status,
+								industry: startup.project_industry,
+								lifecycle_stage: startup.lifecycle_stage,
+							}
+						: null,
 					score,
 					match_percent: Math.round(score * 100),
 					similarityScore: Number(similarityScore.toFixed(3)),
 					ruleScore: Number(ruleScore.toFixed(3)),
 					finalScore: score,
 					reasons,
-					reason: reasons.join(", ") || "Profile details are related to your investor preferences",
+					reason:
+						reasons.join(", ") ||
+						"Profile details are related to your investor preferences",
 				};
 			})
 			.sort((a, b) => b.finalScore - a.finalScore)
@@ -674,7 +754,7 @@ exports.getStartupDetails = async (req, res) => {
 
 		const startupRes = await pool.query(
 			"SELECT * FROM startups WHERE startup_id = $1",
-			[startupId]
+			[startupId],
 		);
 
 		if (startupRes.rows.length === 0) {
@@ -691,13 +771,13 @@ exports.getStartupDetails = async (req, res) => {
 		// Get documents
 		const documentsRes = await pool.query(
 			"SELECT * FROM documents WHERE startup_id = $1",
-			[startupId]
+			[startupId],
 		);
 
 		// Get projects
 		const projectsRes = await pool.query(
 			"SELECT * FROM projects WHERE startup_id = $1",
-			[startupId]
+			[startupId],
 		);
 
 		res.json({
@@ -715,8 +795,14 @@ exports.getStartupDetails = async (req, res) => {
 exports.sendFundingOffer = async (req, res) => {
 	try {
 		const investorId = req.user.user_id;
-		const { startup_id, project_id, amount, requested_amount, proposal_message, message } =
-			req.body;
+		const {
+			startup_id,
+			project_id,
+			amount,
+			requested_amount,
+			proposal_message,
+			message,
+		} = req.body;
 		const requestedAmount = Number(requested_amount ?? amount);
 
 		if (!startup_id || !requestedAmount) {
@@ -725,13 +811,15 @@ exports.sendFundingOffer = async (req, res) => {
 			});
 		}
 		if (Number.isNaN(requestedAmount) || requestedAmount <= 0) {
-			return res.status(400).json({ error: "requested_amount must be a positive number" });
+			return res
+				.status(400)
+				.json({ error: "requested_amount must be a positive number" });
 		}
 
 		// Get investor details
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[investorId]
+			[investorId],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -742,7 +830,9 @@ exports.sendFundingOffer = async (req, res) => {
 		let projectId = project_id ? Number(project_id) : null;
 
 		if (projectId && (!Number.isInteger(projectId) || projectId <= 0)) {
-			return res.status(400).json({ error: "project_id must be a valid integer" });
+			return res
+				.status(400)
+				.json({ error: "project_id must be a valid integer" });
 		}
 
 		if (!projectId) {
@@ -752,12 +842,13 @@ exports.sendFundingOffer = async (req, res) => {
 				 WHERE startup_id = $1 AND status IN ('active', 'draft')
 				 ORDER BY status = 'active' DESC, created_at DESC
 				 LIMIT 1`,
-				[startup_id]
+				[startup_id],
 			);
 
 			if (projectRes.rows.length === 0) {
 				return res.status(404).json({
-					message: "No project found for this startup. Select a startup project before sending an offer.",
+					message:
+						"No project found for this startup. Select a startup project before sending an offer.",
 				});
 			}
 			projectId = projectRes.rows[0].project_id;
@@ -774,12 +865,15 @@ exports.sendFundingOffer = async (req, res) => {
 			   AND status IN ('pending', 'approved', 'accepted')
 			 ORDER BY created_at DESC
 			 LIMIT 1`,
-			[startup_id, investor_id_pk, projectId]
+			[startup_id, investor_id_pk, projectId],
 		);
 
 		if (existingOpenOffer.rowCount > 0) {
 			const existing = existingOpenOffer.rows[0];
-			const direction = existing.initiated_by === "investor" ? "your existing offer" : "the startup's existing request";
+			const direction =
+				existing.initiated_by === "investor"
+					? "your existing offer"
+					: "the startup's existing request";
 			return res.status(409).json({
 				error: `There is already an open investment record for this startup/project. Respond to ${direction} instead of creating a second offer.`,
 				offer: existing,
@@ -790,7 +884,13 @@ exports.sendFundingOffer = async (req, res) => {
 		const result = await pool.query(
 			`INSERT INTO investment_requests (startup_id, investor_id, project_id, requested_amount, proposal_message, status, initiated_by)
 			 VALUES ($1, $2, $3, $4, $5, 'pending', 'investor') RETURNING *`,
-			[startup_id, investor_id_pk, projectId, requestedAmount, proposal_message || message || null]
+			[
+				startup_id,
+				investor_id_pk,
+				projectId,
+				requestedAmount,
+				proposal_message || message || null,
+			],
 		);
 
 		// Notify startup
@@ -803,7 +903,7 @@ exports.sendFundingOffer = async (req, res) => {
 				"investment_requests",
 				result.rows[0].investment_request_id,
 				startup_id,
-			]
+			],
 		);
 
 		res.status(201).json({
@@ -821,7 +921,7 @@ exports.getFundingOffers = async (req, res) => {
 
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -840,7 +940,7 @@ exports.getFundingOffers = async (req, res) => {
 			 LEFT JOIN projects p ON p.project_id = ir.project_id
 			 WHERE ir.investor_id = $1
 			 ORDER BY ir.created_at DESC`,
-			[investorRes.rows[0].investor_id]
+			[investorRes.rows[0].investor_id],
 		);
 
 		res.json({
@@ -867,7 +967,7 @@ exports.acceptFundingOffer = async (req, res) => {
 
 		const investorRes = await client.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -881,7 +981,7 @@ exports.acceptFundingOffer = async (req, res) => {
 			 FROM investment_requests
 			 WHERE investment_request_id = $1 AND investor_id = $2
 			 FOR UPDATE`,
-			[parsedOfferId, investorRes.rows[0].investor_id]
+			[parsedOfferId, investorRes.rows[0].investor_id],
 		);
 
 		if (requestRes.rows.length === 0) {
@@ -892,12 +992,18 @@ exports.acceptFundingOffer = async (req, res) => {
 		const request = requestRes.rows[0];
 		if (request.initiated_by !== "startup") {
 			await client.query("ROLLBACK");
-			return res.status(403).json({ error: "Investor-created offers must be answered by the startup" });
+			return res
+				.status(403)
+				.json({
+					error: "Investor-created offers must be answered by the startup",
+				});
 		}
 
 		if (request.status !== "pending") {
 			await client.query("ROLLBACK");
-			return res.status(409).json({ error: "Only pending funding offers can be accepted" });
+			return res
+				.status(409)
+				.json({ error: "Only pending funding offers can be accepted" });
 		}
 
 		const updatedRes = await client.query(
@@ -905,7 +1011,7 @@ exports.acceptFundingOffer = async (req, res) => {
 			 SET status = 'approved'
 			 WHERE investment_request_id = $1
 			 RETURNING *`,
-			[parsedOfferId]
+			[parsedOfferId],
 		);
 
 		const investmentRes = await client.query(
@@ -913,7 +1019,7 @@ exports.acceptFundingOffer = async (req, res) => {
 			 VALUES ($1, $2, 'completed', CURRENT_TIMESTAMP)
 			 ON CONFLICT (investment_request_id) DO NOTHING
 			 RETURNING investment_id`,
-			[parsedOfferId, request.requested_amount]
+			[parsedOfferId, request.requested_amount],
 		);
 
 		if (investmentRes.rows.length > 0) {
@@ -921,7 +1027,7 @@ exports.acceptFundingOffer = async (req, res) => {
 				`UPDATE projects
 				 SET amount_raised = COALESCE(amount_raised, 0) + $1
 				 WHERE project_id = $2`,
-				[request.requested_amount, request.project_id]
+				[request.requested_amount, request.project_id],
 			);
 		}
 
@@ -929,7 +1035,7 @@ exports.acceptFundingOffer = async (req, res) => {
 			`INSERT INTO notifications (user_id, notification_type, title, message, reference_type, reference_id)
 			 SELECT s.user_id, 'investment', 'Investment request accepted', 'An investor accepted your investment request.', 'investment_requests', $1
 			 FROM startups s WHERE s.startup_id = $2`,
-			[parsedOfferId, request.startup_id]
+			[parsedOfferId, request.startup_id],
 		);
 
 		await client.query("COMMIT");
@@ -958,7 +1064,7 @@ exports.withdrawFundingOffer = async (req, res) => {
 
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -969,7 +1075,7 @@ exports.withdrawFundingOffer = async (req, res) => {
 			`SELECT investment_request_id, status, COALESCE(initiated_by, 'startup') AS initiated_by
 			 FROM investment_requests
 			 WHERE investment_request_id = $1 AND investor_id = $2`,
-			[parsedOfferId, investorRes.rows[0].investor_id]
+			[parsedOfferId, investorRes.rows[0].investor_id],
 		);
 
 		if (requestRes.rows.length === 0) {
@@ -977,11 +1083,17 @@ exports.withdrawFundingOffer = async (req, res) => {
 		}
 
 		if (requestRes.rows[0].initiated_by !== "investor") {
-			return res.status(403).json({ error: "Startup-created requests cannot be withdrawn by the investor" });
+			return res
+				.status(403)
+				.json({
+					error: "Startup-created requests cannot be withdrawn by the investor",
+				});
 		}
 
 		if (requestRes.rows[0].status !== "pending") {
-			return res.status(409).json({ error: "Only pending funding offers can be withdrawn" });
+			return res
+				.status(409)
+				.json({ error: "Only pending funding offers can be withdrawn" });
 		}
 
 		const updatedRes = await pool.query(
@@ -989,7 +1101,7 @@ exports.withdrawFundingOffer = async (req, res) => {
 			 SET status = 'withdrawn'
 			 WHERE investment_request_id = $1
 			 RETURNING *`,
-			[parsedOfferId]
+			[parsedOfferId],
 		);
 
 		return res.json({
@@ -1008,7 +1120,7 @@ exports.getPortfolio = async (req, res) => {
 
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[investorId]
+			[investorId],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -1025,12 +1137,12 @@ exports.getPortfolio = async (req, res) => {
 			 JOIN startups s ON ir.startup_id = s.startup_id
 			 LEFT JOIN projects p ON ir.project_id = p.project_id
 			 WHERE ir.investor_id = $1`,
-			[investor_id_pk]
+			[investor_id_pk],
 		);
 
 		const totalInvested = investmentsRes.rows.reduce(
 			(sum, inv) => sum + (parseFloat(inv.amount) || 0),
-			0
+			0,
 		);
 
 		res.json({
@@ -1046,7 +1158,7 @@ exports.getPortfolio = async (req, res) => {
 async function getInvestorIdForUser(userId) {
 	const investorRes = await pool.query(
 		"SELECT investor_id FROM investors WHERE user_id = $1",
-		[userId]
+		[userId],
 	);
 	return investorRes.rows[0]?.investor_id || null;
 }
@@ -1060,7 +1172,7 @@ async function getAcceptedInvestmentRequest(startupId, investorId) {
 		   AND status IN ('approved', 'accepted')
 		 ORDER BY created_at DESC
 		 LIMIT 1`,
-		[startupId, investorId]
+		[startupId, investorId],
 	);
 	return result.rows[0] || null;
 }
@@ -1081,8 +1193,12 @@ async function ensureInvestorMeetingsSchema() {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)
 	`);
-	await pool.query("CREATE INDEX IF NOT EXISTS idx_investor_meetings_startup ON investor_meetings (startup_id, scheduled_at DESC)");
-	await pool.query("CREATE INDEX IF NOT EXISTS idx_investor_meetings_investor ON investor_meetings (investor_id, scheduled_at DESC)");
+	await pool.query(
+		"CREATE INDEX IF NOT EXISTS idx_investor_meetings_startup ON investor_meetings (startup_id, scheduled_at DESC)",
+	);
+	await pool.query(
+		"CREATE INDEX IF NOT EXISTS idx_investor_meetings_investor ON investor_meetings (investor_id, scheduled_at DESC)",
+	);
 }
 
 exports.getMeetings = async (req, res) => {
@@ -1101,7 +1217,7 @@ exports.getMeetings = async (req, res) => {
 			 LEFT JOIN investment_requests ir ON ir.investment_request_id = im.investment_request_id
 			 WHERE im.investor_id = $1
 			 ORDER BY im.scheduled_at ASC`,
-			[investorId]
+			[investorId],
 		);
 
 		return res.json({ meetings: result.rows });
@@ -1118,7 +1234,8 @@ exports.createMeeting = async (req, res) => {
 			return res.status(404).json({ message: "Investor profile not found" });
 		}
 
-		const { startup_id, scheduled_at, topic, meeting_link, duration_minutes } = req.body || {};
+		const { startup_id, scheduled_at, topic, meeting_link, duration_minutes } =
+			req.body || {};
 		const startupId = Number(startup_id);
 		const duration = Number(duration_minutes || 30);
 		const scheduledAt = new Date(scheduled_at);
@@ -1127,23 +1244,35 @@ exports.createMeeting = async (req, res) => {
 			return res.status(400).json({ error: "startup_id is required" });
 		}
 		if (Number.isNaN(scheduledAt.getTime())) {
-			return res.status(400).json({ error: "scheduled_at must be a valid date/time" });
+			return res
+				.status(400)
+				.json({ error: "scheduled_at must be a valid date/time" });
 		}
 		if (!Number.isInteger(duration) || duration <= 0) {
-			return res.status(400).json({ error: "duration_minutes must be a positive integer" });
+			return res
+				.status(400)
+				.json({ error: "duration_minutes must be a positive integer" });
 		}
 
 		const startupRes = await pool.query(
 			"SELECT startup_id, user_id, startup_name FROM startups WHERE startup_id = $1",
-			[startupId]
+			[startupId],
 		);
 		if (startupRes.rows.length === 0) {
 			return res.status(404).json({ message: "Startup not found" });
 		}
 
-		const acceptedOffer = await getAcceptedInvestmentRequest(startupId, investorId);
+		const acceptedOffer = await getAcceptedInvestmentRequest(
+			startupId,
+			investorId,
+		);
 		if (!acceptedOffer) {
-			return res.status(403).json({ error: "Meetings can be scheduled only after an investment offer is accepted." });
+			return res
+				.status(403)
+				.json({
+					error:
+						"Meetings can be scheduled only after an investment offer is accepted.",
+				});
 		}
 
 		const result = await pool.query(
@@ -1155,11 +1284,12 @@ exports.createMeeting = async (req, res) => {
 				startupId,
 				investorId,
 				acceptedOffer.investment_request_id,
-				String(topic || "Investment follow-up").trim() || "Investment follow-up",
+				String(topic || "Investment follow-up").trim() ||
+					"Investment follow-up",
 				scheduledAt,
 				duration,
 				meeting_link || null,
-			]
+			],
 		);
 
 		await pool.query(
@@ -1169,7 +1299,7 @@ exports.createMeeting = async (req, res) => {
 				startupRes.rows[0].user_id,
 				`A meeting was scheduled for ${startupRes.rows[0].startup_name}.`,
 				result.rows[0].investor_meeting_id,
-			]
+			],
 		);
 
 		return res.status(201).json({ meeting: result.rows[0] });
@@ -1204,7 +1334,7 @@ exports.updateMeeting = async (req, res) => {
 			     updated_at = CURRENT_TIMESTAMP
 			 WHERE investor_meeting_id = $3 AND investor_id = $4
 			 RETURNING *`,
-			[status || null, meeting_link || null, meetingId, investorId]
+			[status || null, meeting_link || null, meetingId, investorId],
 		);
 
 		if (result.rows.length === 0) {
@@ -1286,7 +1416,7 @@ exports.getMessageThreads = async (req, res) => {
 			 WHERE m.sender_user_id = $1 OR m.receiver_user_id = $1
 			 GROUP BY s.startup_id, s.startup_name, s.industry, s.business_stage
 			 ORDER BY last_message_at DESC`,
-			[investorUserId]
+			[investorUserId],
 		);
 
 		res.json({ conversations: result.rows });
@@ -1309,7 +1439,7 @@ exports.sendMessage = async (req, res) => {
 		// Get startup user_id
 		const startupRes = await pool.query(
 			"SELECT user_id FROM startups WHERE startup_id = $1",
-			[startupId]
+			[startupId],
 		);
 
 		if (startupRes.rows.length === 0) {
@@ -1319,7 +1449,7 @@ exports.sendMessage = async (req, res) => {
 		const startupUserId = startupRes.rows[0].user_id;
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[investorUserId]
+			[investorUserId],
 		);
 		if (investorRes.rows.length === 0) {
 			return res.status(404).json({ message: "Investor profile not found" });
@@ -1328,17 +1458,22 @@ exports.sendMessage = async (req, res) => {
 			`SELECT 1 FROM investment_requests
 			 WHERE startup_id = $1 AND investor_id = $2 AND status IN ('approved', 'accepted')
 			 LIMIT 1`,
-			[startupId, investorRes.rows[0].investor_id]
+			[startupId, investorRes.rows[0].investor_id],
 		);
 		if (acceptedRes.rowCount === 0) {
-			return res.status(403).json({ error: "Chat is available only after an investment offer is accepted." });
+			return res
+				.status(403)
+				.json({
+					error:
+						"Chat is available only after an investment offer is accepted.",
+				});
 		}
 
 		// Save message
 		const result = await pool.query(
 			`INSERT INTO messages (sender_user_id, receiver_user_id, body, subject)
 			 VALUES ($1, $2, $3, 'Investment Discussion') RETURNING *`,
-			[investorUserId, startupUserId, text]
+			[investorUserId, startupUserId, text],
 		);
 
 		res.status(201).json({ message: result.rows[0] });
@@ -1360,7 +1495,7 @@ exports.getMessages = async (req, res) => {
 
 		const startupRes = await pool.query(
 			"SELECT startup_id, startup_name, user_id FROM startups WHERE startup_id = $1",
-			[startupId]
+			[startupId],
 		);
 
 		if (startupRes.rows.length === 0) {
@@ -1370,7 +1505,7 @@ exports.getMessages = async (req, res) => {
 		const startupUserId = startupRes.rows[0].user_id;
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[investorUserId]
+			[investorUserId],
 		);
 		if (investorRes.rows.length === 0) {
 			return res.status(404).json({ message: "Investor profile not found" });
@@ -1379,23 +1514,28 @@ exports.getMessages = async (req, res) => {
 			`SELECT 1 FROM investment_requests
 			 WHERE startup_id = $1 AND investor_id = $2 AND status IN ('approved', 'accepted')
 			 LIMIT 1`,
-			[startupId, investorRes.rows[0].investor_id]
+			[startupId, investorRes.rows[0].investor_id],
 		);
 		if (acceptedRes.rowCount === 0) {
-			return res.status(403).json({ error: "Chat is available only after an investment offer is accepted." });
+			return res
+				.status(403)
+				.json({
+					error:
+						"Chat is available only after an investment offer is accepted.",
+				});
 		}
 
 		const result = await pool.query(
 			`SELECT * FROM messages 
 			 WHERE (sender_user_id = $1 AND receiver_user_id = $2) OR (sender_user_id = $2 AND receiver_user_id = $1)
 			 ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
-			[investorUserId, startupUserId, limitNum, offset]
+			[investorUserId, startupUserId, limitNum, offset],
 		);
 
 		// Mark as read
 		await pool.query(
 			"UPDATE messages SET is_read = true WHERE receiver_user_id = $1 AND sender_user_id = $2",
-			[investorUserId, startupUserId]
+			[investorUserId, startupUserId],
 		);
 
 		res.json({
@@ -1415,7 +1555,7 @@ exports.getRatings = async (req, res) => {
 	try {
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[req.user.user_id]
+			[req.user.user_id],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -1431,7 +1571,7 @@ exports.getRatings = async (req, res) => {
 			 WHERE f.investor_id = $1
 			 ORDER BY f.created_at DESC
 			 LIMIT $2`,
-			[investorRes.rows[0].investor_id, limit]
+			[investorRes.rows[0].investor_id, limit],
 		);
 
 		return res.json({ ratings: result.rows });
@@ -1485,19 +1625,32 @@ exports.sendFeedback = async (req, res) => {
 			return res.status(400).json({ error: "Invalid startup id" });
 		}
 
-		const scores = ratings && typeof ratings === "object"
-			? Object.values(ratings).map((value) => Number(value)).filter((value) => Number.isFinite(value))
-			: [Number(rating)];
-		const finalRating = Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+		const scores =
+			ratings && typeof ratings === "object"
+				? Object.values(ratings)
+						.map((value) => Number(value))
+						.filter((value) => Number.isFinite(value))
+				: [Number(rating)];
+		const finalRating = Math.round(
+			scores.reduce((sum, value) => sum + value, 0) / scores.length,
+		);
 
-		const hasInvalidScore = scores.some((value) => !Number.isInteger(value) || value < 1 || value > 5);
-		if (!scores.length || hasInvalidScore || !Number.isInteger(finalRating) || finalRating < 1 || finalRating > 5) {
+		const hasInvalidScore = scores.some(
+			(value) => !Number.isInteger(value) || value < 1 || value > 5,
+		);
+		if (
+			!scores.length ||
+			hasInvalidScore ||
+			!Number.isInteger(finalRating) ||
+			finalRating < 1 ||
+			finalRating > 5
+		) {
 			return res.status(400).json({ error: "rating must be between 1 and 5" });
 		}
 
 		const startupRes = await pool.query(
 			"SELECT startup_id, user_id, startup_name FROM startups WHERE startup_id = $1",
-			[startupIdNumber]
+			[startupIdNumber],
 		);
 
 		if (startupRes.rows.length === 0) {
@@ -1507,7 +1660,7 @@ exports.sendFeedback = async (req, res) => {
 		// Get investor_id
 		const investorRes = await pool.query(
 			"SELECT investor_id FROM investors WHERE user_id = $1",
-			[investorUserId]
+			[investorUserId],
 		);
 
 		if (investorRes.rows.length === 0) {
@@ -1523,7 +1676,12 @@ exports.sendFeedback = async (req, res) => {
 			               comment = EXCLUDED.comment,
 			               created_at = CURRENT_TIMESTAMP
 			 RETURNING *`,
-			[startupIdNumber, investorRes.rows[0].investor_id, finalRating, comment || null]
+			[
+				startupIdNumber,
+				investorRes.rows[0].investor_id,
+				finalRating,
+				comment || null,
+			],
 		);
 
 		await pool.query(
@@ -1536,7 +1694,7 @@ exports.sendFeedback = async (req, res) => {
 				`An investor rated ${startupRes.rows[0].startup_name} ${finalRating}/5.`,
 				"investor_feedback",
 				result.rows[0].investor_feedback_id,
-			]
+			],
 		);
 
 		res.status(201).json({
