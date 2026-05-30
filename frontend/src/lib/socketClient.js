@@ -12,7 +12,7 @@ export function getSocketUrl() {
 	if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_URL) {
 		return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, "");
 	}
-	return process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+	return process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5050";
 }
 
 export function getChatSocket() {
