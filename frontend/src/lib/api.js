@@ -16,8 +16,11 @@ function friendlyApiMessage(data, status, fallback) {
 		return "Messaging unlocks after both sides are connected by an accepted offer or request. Send an offer first, or accept the incoming offer/request, then come back to messages.";
 	}
 
-	const raw = data && (data.message || data.error);
+	const raw = data && (data.message || data.error || data.raw);
 	if (typeof raw === "string") {
+		if (/^access denied$/i.test(raw.trim())) {
+			return "Access denied. Sign in with an administrator account to use the admin dashboard.";
+		}
 		if (/chat is available only after|video calls require an accepted|accepted investment relationship|accepted mentorship/i.test(raw)) {
 			return /mentor|mentorship/i.test(raw)
 				? "Messaging unlocks after the mentorship request is accepted. Send or accept the mentorship request first, then you can chat."
@@ -33,6 +36,9 @@ function friendlyApiMessage(data, status, fallback) {
 	}
 
 	if (status === 403) {
+		if (typeof window !== "undefined" && window.location?.pathname?.startsWith("/admin")) {
+			return "Access denied. Sign in with an administrator account to use the admin dashboard.";
+		}
 		return "You cannot use this feature yet. Your email must be verified and your account must be approved by an administrator.";
 	}
 

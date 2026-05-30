@@ -647,6 +647,11 @@ exports.register = async (req, res) => {
 				startupProfile.is_listed = true;
 				startupProfile.admin_status = "Active";
 
+				if (req.files.startup_logo && req.files.startup_logo.length) {
+					uploadedDocs.push(
+						await saveDoc("startup", startupProfile.startup_id, req.files.startup_logo[0], "Company logo"),
+					);
+				}
 				uploadedDocs.push(
 					await saveDoc("startup", startupProfile.startup_id, req.files.founder_id[0], "Founder or representative ID"),
 				);

@@ -447,7 +447,7 @@ export default function MentorReportsPage() {
 
       const loadedReports = Array.isArray(reportsRes) ? reportsRes : reportsRes.reports || [];
       const loadedSessions = Array.isArray(sessionsRes) ? sessionsRes : sessionsRes.sessions || [];
-      const loadedResources = Array.isArray(resourcesRes) ? resourcesRes : resourcesRes.resources || [];
+      const loadedResources = Array.isArray(resourcesRes) ? resourcesRes : resourcesRes.resources || resourcesRes.requests || [];
       const loadedRequests = Array.isArray(requestsRes) ? requestsRes : requestsRes.requests || [];
       const loadedStartups = Array.isArray(startupsRes?.startups) ? startupsRes.startups : [];
 

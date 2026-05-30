@@ -22,6 +22,7 @@ export default function RegisterAccountInfo() {
     confirmPassword: false,
   });
   const [accountDraftReady, setAccountDraftReady] = useState(false);
+  const [showDraftNotice, setShowDraftNotice] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -139,9 +140,28 @@ export default function RegisterAccountInfo() {
           </div>
         </Link>
         <div className="flex items-center gap-4">
-          <button className="text-[12px] font-bold text-gray-500 hover:text-gray-800 transition hidden sm:block">
+          <button
+            type="button"
+            onClick={() => {
+              saveRegistrationAccountInfo({
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                full_name: `${formData.firstName} ${formData.lastName}`.trim(),
+                email: formData.email,
+                password: formData.password,
+                confirm_password: formData.confirmPassword,
+                phone_number: formData.phoneTail ? `+251${String(formData.phoneTail).replace(/\D/g, "")}` : "",
+              });
+              setShowDraftNotice(true);
+              setTimeout(() => setShowDraftNotice(false), 2000);
+            }}
+            className="text-[12px] font-bold text-gray-500 hover:text-gray-800 transition hidden sm:block"
+          >
             Save as Draft
           </button>
+          {showDraftNotice && (
+            <span className="text-[11px] font-bold text-[#0a4d3c]">✓ Draft saved</span>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#e8fbf0] text-[#0a4d3c] rounded-md border border-[#c2eadd]">
             <svg
               className="w-3.5 h-3.5"

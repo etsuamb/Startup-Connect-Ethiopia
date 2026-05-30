@@ -1,14 +1,72 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/investor/Sidebar";
+import { clearDraft, formatSavedTime, getDraftSavedAt, loadDraft, saveDraft } from "@/lib/formDraft";
+
+const DRAFT_KEY = "investor_gebeya_offer";
 
 export default function SendFundingOffer() {
   const [offerAmount, setOfferAmount] = useState("");
   const [equity, setEquity] = useState("");
   const [investmentType, setInvestmentType] = useState("Equity Investment");
+  const [conditions, setConditions] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [notes, setNotes] = useState("");
+  const [showDraftNotice, setShowDraftNotice] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
 
   const impliedValuation = offerAmount && equity ? (parseFloat(offerAmount) / (parseFloat(equity) / 100)).toLocaleString() : "—";
+
+  const draftData = useMemo(() => ({
+    offerAmount,
+    equity,
+    investmentType,
+    conditions,
+    deadline,
+    notes,
+  }), [conditions, deadline, equity, investmentType, notes, offerAmount]);
+
+  useEffect(() => {
+    const savedDraft = loadDraft(DRAFT_KEY);
+    if (!savedDraft) return;
+    // Restoring local offer fields is the purpose of this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOfferAmount(savedDraft.offerAmount || "");
+    setEquity(savedDraft.equity || "");
+    setInvestmentType(savedDraft.investmentType || "Equity Investment");
+    setConditions(savedDraft.conditions || "");
+    setDeadline(savedDraft.deadline || "");
+    setNotes(savedDraft.notes || "");
+    const savedAt = getDraftSavedAt(DRAFT_KEY);
+    setDraftSavedAt(formatSavedTime(savedAt));
+    setShowDraftNotice(true);
+    const timer = setTimeout(() => setShowDraftNotice(false), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const hasDraftContent = useCallback((data = draftData) => {
+    return Object.entries(data).some(([key, value]) => {
+      if (key === "investmentType") return false;
+      return String(value || "").trim();
+    });
+  }, [draftData]);
+
+  const handleSaveDraft = useCallback((showNotice = true) => {
+    saveDraft(DRAFT_KEY, draftData);
+    const savedAt = getDraftSavedAt(DRAFT_KEY);
+    setDraftSavedAt(formatSavedTime(savedAt));
+    if (showNotice) {
+      setShowDraftNotice(true);
+      setTimeout(() => setShowDraftNotice(false), 2000);
+    }
+  }, [draftData]);
+
+  useEffect(() => {
+    if (!hasDraftContent()) return;
+    const timer = setTimeout(() => handleSaveDraft(false), 900);
+    return () => clearTimeout(timer);
+  }, [handleSaveDraft, hasDraftContent]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-gray-900 flex h-screen overflow-hidden">
@@ -134,6 +192,8 @@ export default function SendFundingOffer() {
                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Milestone-based Conditions</label>
                        <textarea 
                          rows="4" 
+                         value={conditions}
+                         onChange={(e) => setConditions(e.target.value)}
                          placeholder="Outline specific growth or product milestones required for tranches..." 
                          className="w-full px-6 py-5 bg-[#f8fafc] border border-gray-100 rounded-[28px] text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-[#0f3d32]/10 transition resize-none leading-relaxed"
                        ></textarea>
@@ -143,6 +203,8 @@ export default function SendFundingOffer() {
                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Expected Response Deadline</label>
                        <input 
                          type="date" 
+                         value={deadline}
+                         onChange={(e) => setDeadline(e.target.value)}
                          className="w-full px-6 py-4 bg-[#f8fafc] border border-gray-100 rounded-2xl text-sm font-bold text-gray-700 outline-none focus:ring-2 focus:ring-[#0f3d32]/10 transition" 
                        />
                     </div>
@@ -151,6 +213,8 @@ export default function SendFundingOffer() {
                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Notes to Founder</label>
                        <textarea 
                          rows="4" 
+                         value={notes}
+                         onChange={(e) => setNotes(e.target.value)}
                          placeholder="Personal message to the executive team regarding your interest and vision..." 
                          className="w-full px-6 py-5 bg-[#f8fafc] border border-gray-100 rounded-[28px] text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-[#0f3d32]/10 transition resize-none leading-relaxed"
                        ></textarea>
@@ -160,9 +224,12 @@ export default function SendFundingOffer() {
                  <div className="flex flex-col md:flex-row justify-between items-center gap-6 pt-10 border-t border-gray-50">
                     <Link href="/investor/discover/gebeya" className="text-xs font-black text-gray-400 uppercase tracking-widest hover:text-gray-900 transition">Cancel</Link>
                     <div className="flex gap-4 w-full md:w-auto">
-                       <button className="flex-grow md:px-10 py-4 bg-gray-50 text-gray-600 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-gray-100 transition">Save as Draft</button>
+                       <button type="button" onClick={() => handleSaveDraft(true)} className="flex-grow md:px-10 py-4 bg-gray-50 text-gray-600 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-gray-100 transition">
+                         {showDraftNotice ? "Draft Saved" : draftSavedAt ? `Saved ${draftSavedAt}` : "Save as Draft"}
+                       </button>
                         <Link 
                           href="/investor/payments/checkout" 
+                          onClick={() => clearDraft(DRAFT_KEY)}
                           className="flex-grow md:px-12 py-4 bg-[#0f3d32] text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-[#0a2921] transition shadow-xl shadow-[#0f3d32]/20 border border-[#0f3d32] text-center"
                         >
                           Send Offer

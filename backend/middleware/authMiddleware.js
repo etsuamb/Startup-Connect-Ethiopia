@@ -37,7 +37,12 @@ exports.authenticate = (req, res, next) => {
 exports.authorizeRoles = (...roles) => {
 	return (req, res, next) => {
 		if (!roles.includes(req.user.role)) {
-			return res.status(403).send("Access denied");
+			return res.status(403).json({
+				message: "Access denied",
+				code: "ROLE_FORBIDDEN",
+				requiredRoles: roles,
+				currentRole: req.user.role,
+			});
 		}
 		next();
 	};

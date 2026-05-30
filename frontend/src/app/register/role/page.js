@@ -1,11 +1,37 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/formDraft";
+
+const DRAFT_KEY = "register_role";
 
 export default function ChooseRole() {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState(null);
+  const [showDraftNotice, setShowDraftNotice] = useState(false);
+
+  useEffect(() => {
+    const savedDraft = loadDraft(DRAFT_KEY);
+    if (savedDraft && savedDraft.selectedRole) {
+      setSelectedRole(savedDraft.selectedRole);
+      setShowDraftNotice(true);
+      setTimeout(() => setShowDraftNotice(false), 4000);
+    }
+  }, []);
+
+  const handleSaveDraft = () => {
+    if (selectedRole) {
+      saveDraft(DRAFT_KEY, { selectedRole });
+      setShowDraftNotice(true);
+      setTimeout(() => setShowDraftNotice(false), 2000);
+    }
+  };
+
+  const handleRoleSelect = (roleId) => {
+    setSelectedRole(roleId);
+    saveDraft(DRAFT_KEY, { selectedRole: roleId });
+  };
 
   const roles = [
     {
@@ -45,6 +71,7 @@ export default function ChooseRole() {
 
   const handleContinue = () => {
     if (selectedRole) {
+      clearDraft(DRAFT_KEY);
       router.push(`/register/${selectedRole}`);
     }
   };
@@ -61,9 +88,16 @@ export default function ChooseRole() {
           </div>
         </Link>
         <div className="flex items-center gap-4">
-          <button className="text-[12px] font-bold text-gray-500 hover:text-gray-800 transition hidden sm:block">
+          <button 
+            onClick={handleSaveDraft}
+            disabled={!selectedRole}
+            className="text-[12px] font-bold text-gray-500 hover:text-gray-800 transition hidden sm:block disabled:opacity-50"
+          >
             Save as Draft
           </button>
+          {showDraftNotice && (
+            <span className="text-[11px] font-bold text-[#0a4d3c]">✓ Draft saved</span>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#e8fbf0] text-[#0a4d3c] rounded-md border border-[#c2eadd]">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
             <span className="text-[10px] font-bold uppercase tracking-widest">SECURE ENCRYPTION</span>
@@ -84,7 +118,7 @@ export default function ChooseRole() {
             {roles.map((role) => (
               <div 
                 key={role.id}
-                onClick={() => setSelectedRole(role.id)}
+                onClick={() => handleRoleSelect(role.id)}
                 className={`flex items-center p-6 rounded-xl border-2 cursor-pointer transition ${
                   selectedRole === role.id 
                   ? 'border-[#0a4d3c] bg-white shadow-sm' 

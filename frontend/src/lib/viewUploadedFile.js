@@ -4,6 +4,7 @@ import { getToken } from "./authStorage";
 /** Resolve a stored upload path to a browser URL (via Next /uploads rewrite). */
 export function resolveUploadedFileUrl(filePath) {
   if (!filePath || String(filePath).startsWith("db://")) return null;
+  if (/^https?:\/\//i.test(String(filePath))) return String(filePath);
   const normalized = String(filePath).replace(/\\/g, "/").replace(/^\/+/, "");
   return `/${normalized}`;
 }

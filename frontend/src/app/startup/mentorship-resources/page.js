@@ -163,7 +163,7 @@ export default function StartupMentorshipResourcesPage() {
     setError("");
     try {
       const data = await getMentorshipResources();
-      const list = Array.isArray(data) ? data : data.resources || [];
+      const list = Array.isArray(data) ? data : data.resources || data.requests || [];
       setResources(list);
       if (list.length) setSelectedId(list[0].resource_id);
     } catch (e) {

@@ -405,6 +405,7 @@ exports.updateStartupProfile = async (req, res) => {
       support_affiliation_letter: "Support or affiliation letter",
       tin_certificate: "TIN certificate",
       logo: "Company logo",
+      startup_logo: "Company logo",
       proof_of_address: "Proof of address",
       pitch_deck: "Pitch deck",
       business_plan: "Business plan",

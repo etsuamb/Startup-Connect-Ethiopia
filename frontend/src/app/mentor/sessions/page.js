@@ -12,8 +12,10 @@ import {
 	scheduleSession,
 	updateSession,
 } from "@/lib/mentorApi";
+import { clearDraft, formatSavedTime, getDraftSavedAt, loadDraft, saveDraft } from "@/lib/formDraft";
 
 const TODAY_INPUT = new Date().toISOString().slice(0, 10);
+const DRAFT_KEY = "mentor_sessions_schedule";
 
 function Icon({ path, className = "h-4 w-4" }) {
 	return (
@@ -89,6 +91,7 @@ function MentorSessionsContent() {
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState("");
 	const [success, setSuccess] = useState("");
+	const [draftSavedAt, setDraftSavedAt] = useState(null);
 	const [form, setForm] = useState({
 		mentorship_request_id: "",
 		title: "",
@@ -126,6 +129,16 @@ function MentorSessionsContent() {
 		// eslint-disable-next-line react-hooks/set-state-in-effect
 		load();
 	}, [load]);
+
+	useEffect(() => {
+		const savedDraft = loadDraft(DRAFT_KEY);
+		if (!savedDraft) return;
+		// eslint-disable-next-line react-hooks/set-state-in-effect
+		setForm((current) => ({ ...current, ...savedDraft }));
+		const savedAt = getDraftSavedAt(DRAFT_KEY);
+		setDraftSavedAt(formatSavedTime(savedAt));
+		setSuccess(`Draft restored${formatSavedTime(savedAt) ? ` from ${formatSavedTime(savedAt)}` : ""}.`);
+	}, []);
 
 	const acceptedRequests = useMemo(() => {
 		return requests.filter((request) => String(request.status || "").toLowerCase() === "accepted");
@@ -174,6 +187,23 @@ function MentorSessionsContent() {
 		setForm((current) => ({ ...current, [key]: value }));
 	}
 
+	const saveSessionDraft = useCallback((showNotice = true) => {
+		saveDraft(DRAFT_KEY, form);
+		const savedAt = getDraftSavedAt(DRAFT_KEY);
+		setDraftSavedAt(formatSavedTime(savedAt));
+		if (showNotice) setSuccess("Draft saved locally for this session.");
+	}, [form]);
+
+	useEffect(() => {
+		const hasContent = Object.entries(form).some(([key, value]) => {
+			if (key === "session_type") return false;
+			return String(value || "").trim();
+		});
+		if (!hasContent) return;
+		const timer = setTimeout(() => saveSessionDraft(false), 900);
+		return () => clearTimeout(timer);
+	}, [form, saveSessionDraft]);
+
 	function durationMinutes() {
 		if (!form.start_time || !form.end_time) return 60;
 		const [startHour, startMinute] = form.start_time.split(":").map(Number);
@@ -212,6 +242,8 @@ function MentorSessionsContent() {
 				].filter(Boolean).join("\n"),
 			});
 			setSuccess("Mentorship session scheduled successfully.");
+			clearDraft(DRAFT_KEY);
+			setDraftSavedAt(null);
 			setForm((current) => ({
 				...current,
 				title: "",
@@ -469,10 +501,14 @@ function MentorSessionsContent() {
 							<button type="submit" disabled={submitting || acceptedRequests.length === 0} className="h-11 rounded-xl bg-[#0b4a3c] px-6 text-sm font-black text-white transition hover:bg-[#07382d] disabled:cursor-not-allowed disabled:bg-gray-300">
 								{submitting ? "Scheduling..." : "Schedule Session"}
 							</button>
-							<button type="button" onClick={() => setSuccess("Draft saved locally for this session.")} className="h-11 rounded-xl border border-gray-200 bg-white px-6 text-sm font-black text-gray-700 transition hover:bg-gray-50">
-								Save as Draft
+							<button type="button" onClick={() => saveSessionDraft(true)} className="h-11 rounded-xl border border-gray-200 bg-white px-6 text-sm font-black text-gray-700 transition hover:bg-gray-50">
+								{draftSavedAt ? `Saved ${draftSavedAt}` : "Save as Draft"}
 							</button>
-							<button type="button" onClick={() => setForm((current) => ({ ...current, title: "", date: "", start_time: "", end_time: "", meeting_link: "", agenda: "" }))} className="h-11 px-4 text-sm font-black text-gray-500 transition hover:text-gray-900">
+							<button type="button" onClick={() => {
+								clearDraft(DRAFT_KEY);
+								setDraftSavedAt(null);
+								setForm((current) => ({ ...current, title: "", date: "", start_time: "", end_time: "", meeting_link: "", agenda: "" }));
+							}} className="h-11 px-4 text-sm font-black text-gray-500 transition hover:text-gray-900">
 								Cancel
 							</button>
 						</div>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupTopBar from "@/components/startup/StartupTopBar";
 import {
   createStartupSession,
   downloadStartupSessionCalendar,
@@ -160,32 +161,7 @@ function MeetingsContent() {
       <Sidebar />
 
       <div className="flex-grow flex flex-col overflow-y-auto">
-         {/* Modern Header */}
-        <header className="px-4 sm:px-8 py-5 bg-white border-b border-gray-100 sticky top-0 z-10 flex justify-between items-center shadow-sm">
-          <div className="relative w-full max-w-md hidden sm:block">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full rounded-full border border-gray-100 bg-[#f8fafc] px-4 py-2.5 pl-10 text-sm outline-none transition-colors focus:border-[#0f3d32] focus:bg-white focus:ring-2 focus:ring-[#0f3d32]/10"
-            />
-          </div>
-          <div className="flex items-center gap-5 ml-auto">
-            <Link href="/startup/settings" className="flex items-center gap-3 hover:opacity-80 transition group">
-              <div className="hidden sm:flex flex-col items-end">
-                <span className="text-sm font-bold text-gray-900 group-hover:text-[#0f3d32] transition-colors">My Startup</span>
-                <span className="text-xs text-gray-500">Active Startup</span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-[#0f3d32] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                ST
-              </div>
-            </Link>
-          </div>
-        </header>
+        <StartupTopBar searchPlaceholder="Search meetings..." />
 
         <main className="w-full max-w-[1200px] mx-auto px-4 sm:px-8 py-8 pb-24">
           <div className="mb-8 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">

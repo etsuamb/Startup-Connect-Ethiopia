@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import { fetchIncomingRequests, fetchStartupDetails, sendProposal } from "@/lib/mentorApi";
+import { saveDraft, loadDraft, clearDraft, getDraftSavedAt, formatSavedTime } from "@/lib/formDraft";
+
+const DRAFT_KEY_PREFIX = "mentor_proposal_";
 
 const focusAreas = [
 	"Market Entry Strategy",
@@ -80,6 +83,7 @@ function ProposalForm() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const startupId = searchParams.get("startupId");
+	const DRAFT_KEY = startupId ? `${DRAFT_KEY_PREFIX}${startupId}` : DRAFT_KEY_PREFIX;
 
 	const [startup, setStartup] = useState(null);
 	const [error, setError] = useState("");
@@ -88,6 +92,8 @@ function ProposalForm() {
 	const [previewOpen, setPreviewOpen] = useState(false);
 	const [savedAt, setSavedAt] = useState("");
 	const [existingProposal, setExistingProposal] = useState(null);
+	const [showDraftNotice, setShowDraftNotice] = useState(false);
+	const [draftSavedAt, setDraftSavedAt] = useState(null);
 	const [form, setForm] = useState({
 		subject: "",
 		focusArea: "Market Entry Strategy",
@@ -137,10 +143,19 @@ function ProposalForm() {
 				});
 				setStartup(loadedStartup);
 				setExistingProposal(existing || null);
-				setForm((current) => ({
-					...current,
-					subject: current.subject || "",
-				}));
+				
+				// Load draft if exists
+				const savedDraft = loadDraft(DRAFT_KEY);
+				if (savedDraft && !existing) {
+					setForm((current) => ({ ...current, ...savedDraft }));
+					setShowDraftNotice(true);
+					setTimeout(() => setShowDraftNotice(false), 4000);
+				} else {
+					setForm((current) => ({
+						...current,
+						subject: current.subject || "",
+					}));
+				}
 			})
 			.catch((ex) => {
 				if (alive) setError(ex.message || "Failed to load startup.");
@@ -272,6 +287,7 @@ function ProposalForm() {
 				duration_weeks: Math.max(1, (Number.parseInt(form.duration, 10) || 1) * 4),
 				hourly_rate: Number(form.monthlyFee || 0),
 			});
+			clearDraft(DRAFT_KEY);
 			router.push(
 				`/mentor/requests/proposal/success?startupId=${startupId}&subject=${encodeURIComponent(form.subject)}`,
 			);
@@ -281,6 +297,23 @@ function ProposalForm() {
 			setLoading(false);
 		}
 	}
+
+	// Auto-save draft
+	useEffect(() => {
+		if (existingProposal || !startupId) return;
+		const timer = setTimeout(() => {
+			if (Object.values(form).some(v => {
+				if (Array.isArray(v)) return v.some(item => Object.values(item).some(val => String(val || "").trim()));
+				return String(v || "").trim();
+			})) {
+				saveDraft(DRAFT_KEY, form);
+				const savedAt = getDraftSavedAt(DRAFT_KEY);
+				setDraftSavedAt(formatSavedTime(savedAt));
+				setSavedAt(formatSavedTime(savedAt) || "--:--");
+			}
+		}, 2000);
+		return () => clearTimeout(timer);
+	}, [form, startupId, existingProposal]);
 
 	return (
 		<form onSubmit={onSubmit} className="min-h-full bg-[#fbfcfc] pb-24 text-[#061f1a]">
@@ -578,8 +611,19 @@ function ProposalForm() {
 							: `Missing: ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? "..." : ""}`}
 					</p>
 					<div className="ml-auto flex items-center gap-3">
-						<button type="button" className="hidden px-4 py-3 text-xs font-black text-gray-800 sm:inline-flex">
-							Save Draft
+						<button 
+							type="button"
+							onClick={() => {
+								saveDraft(DRAFT_KEY, form);
+								setShowDraftNotice(true);
+								const savedAt = getDraftSavedAt(DRAFT_KEY);
+								setDraftSavedAt(formatSavedTime(savedAt));
+								setTimeout(() => setShowDraftNotice(false), 2000);
+							}}
+							disabled={existingProposal || !startupId}
+							className="hidden px-4 py-3 text-xs font-black text-gray-800 sm:inline-flex disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{showDraftNotice ? "✓ Draft saved" : "Save Draft"}
 						</button>
 						<button
 							type="button"

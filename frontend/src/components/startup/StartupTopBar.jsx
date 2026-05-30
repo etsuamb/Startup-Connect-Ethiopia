@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NotificationBell from "@/components/NotificationBell";
 import { clearSession } from "@/lib/authStorage";
+import { getStartupProfile } from "@/lib/startupApi";
+import { fetchDocumentBlob, resolveUploadedFileUrl } from "@/lib/viewUploadedFile";
 
 function initials(value) {
 	const text = String(value || "Startup").trim();
@@ -17,6 +19,30 @@ function initials(value) {
 		.toUpperCase();
 }
 
+function normalizeText(value) {
+	return String(value || "")
+		.toLowerCase()
+		.replace(/[_-]/g, " ")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+function isLogoDocument(doc) {
+	const description = normalizeText(doc?.description || doc?.document_type);
+	const fileName = normalizeText(doc?.file_name);
+	const fileType = normalizeText(doc?.file_type);
+	const isLogo =
+		description.includes("logo") ||
+		description.includes("profile photo") ||
+		description.includes("profile picture") ||
+		description.includes("profile image") ||
+		description.includes("avatar") ||
+		fileName.includes("logo") ||
+		fileName.includes("profile");
+	const isImage = fileType.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/.test(fileName);
+	return isLogo && isImage;
+}
+
 export default function StartupTopBar({
 	searchValue = "",
 	onSearchChange,
@@ -24,12 +50,99 @@ export default function StartupTopBar({
 	searchPlaceholder = "Search startup workspace...",
 	profileName = "My Startup",
 	profileSubtitle = "Startup account",
+	profileDocuments,
 	refreshing = false,
 	onRefresh,
 }) {
 	const router = useRouter();
 	const [menuOpen, setMenuOpen] = useState(false);
-	const avatar = useMemo(() => initials(profileName), [profileName]);
+	const [loadedProfile, setLoadedProfile] = useState(null);
+	const [profileImageSrc, setProfileImageSrc] = useState(null);
+	const effectiveProfile = loadedProfile?.startup || null;
+	const directProfileImage =
+		effectiveProfile?.profile_image_url ||
+		effectiveProfile?.profile_picture_url ||
+		effectiveProfile?.logo_url ||
+		effectiveProfile?.logo_path ||
+		effectiveProfile?.avatar_url ||
+		null;
+	const effectiveName =
+		profileName !== "My Startup"
+			? profileName
+			: effectiveProfile?.startup_name || profileName;
+	const effectiveSubtitle =
+		profileSubtitle !== "Startup account"
+			? profileSubtitle
+			: effectiveProfile?.admin_status || effectiveProfile?.status_label || profileSubtitle;
+	const effectiveDocuments = useMemo(
+		() => profileDocuments ?? loadedProfile?.documents ?? [],
+		[loadedProfile?.documents, profileDocuments],
+	);
+	const avatar = useMemo(() => initials(effectiveName), [effectiveName]);
+	const logoDocument = useMemo(() => {
+		const docs = Array.isArray(effectiveDocuments) ? effectiveDocuments : [];
+		return docs.find(isLogoDocument) || null;
+	}, [effectiveDocuments]);
+
+	useEffect(() => {
+		let ignore = false;
+
+		async function loadProfile() {
+			if (profileDocuments !== undefined) return;
+			try {
+				const data = await getStartupProfile();
+				if (!ignore) setLoadedProfile(data || null);
+			} catch {
+				if (!ignore) setLoadedProfile(null);
+			}
+		}
+
+		loadProfile();
+
+		return () => {
+			ignore = true;
+		};
+	}, [profileDocuments]);
+
+	useEffect(() => {
+		let objectUrl = null;
+		let cancelled = false;
+
+		async function loadProfileImage() {
+			setProfileImageSrc(null);
+			const directProfileImageUrl = resolveUploadedFileUrl(directProfileImage) || directProfileImage;
+			if (directProfileImageUrl) {
+				setProfileImageSrc(directProfileImageUrl);
+				return;
+			}
+			if (!logoDocument) return;
+
+			const directUrl = resolveUploadedFileUrl(logoDocument.file_path);
+			if (directUrl) {
+				setProfileImageSrc(directUrl);
+				return;
+			}
+
+			const documentId = logoDocument.document_id || logoDocument.id;
+			if (!documentId) return;
+
+			try {
+				const { blob } = await fetchDocumentBlob(documentId);
+				if (cancelled) return;
+				objectUrl = URL.createObjectURL(blob);
+				setProfileImageSrc(objectUrl);
+			} catch {
+				if (!cancelled) setProfileImageSrc(null);
+			}
+		}
+
+		loadProfileImage();
+
+		return () => {
+			cancelled = true;
+			if (objectUrl) URL.revokeObjectURL(objectUrl);
+		};
+	}, [directProfileImage, logoDocument]);
 
 	function handleSearchSubmit(event) {
 		event.preventDefault();
@@ -86,12 +199,20 @@ export default function StartupTopBar({
 							aria-expanded={menuOpen}
 						>
 							<div className="hidden text-right sm:block">
-								<p className="max-w-40 truncate text-sm font-bold text-gray-900">{profileName}</p>
-								<p className="max-w-40 truncate text-xs text-gray-500">{profileSubtitle}</p>
+								<p className="max-w-40 truncate text-sm font-bold text-gray-900">{effectiveName}</p>
+								<p className="max-w-40 truncate text-xs text-gray-500">{effectiveSubtitle}</p>
 							</div>
-							<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0f3d32] text-sm font-bold text-white">
-								{avatar}
-							</div>
+							{profileImageSrc ? (
+								<img
+									src={profileImageSrc}
+									alt={`${effectiveName} logo`}
+									className="h-10 w-10 shrink-0 rounded-full border border-gray-100 object-cover"
+								/>
+							) : (
+								<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0f3d32] text-sm font-bold text-white">
+									{avatar}
+								</div>
+							)}
 						</button>
 
 						{menuOpen && (
