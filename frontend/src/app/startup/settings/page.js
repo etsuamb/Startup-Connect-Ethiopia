@@ -5,6 +5,7 @@ import { getStartupProfile, updateStartupProfile, getNotificationSettings, updat
 import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import { canPreviewDocument, openUploadedFileForView } from "@/lib/viewUploadedFile";
 import ViewableFileTrigger from "@/components/startup/ViewableFileTrigger";
+import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fieldValue(value) {
@@ -460,7 +461,7 @@ export default function StartupSettingsPage() {
       setShowDocInputs({});
       setDocFiles({});
     } catch (err) {
-      if (err.code === "EMAIL_NOT_VERIFIED") {
+      if (err.code === "EMAIL_NOT_VERIFIED" || err.code === "ACCOUNT_PENDING_APPROVAL") {
         try {
           const account = await getCurrentAccount();
           const user = account.user || {};
@@ -1349,6 +1350,8 @@ export default function StartupSettingsPage() {
             <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-900">Settings</h1>
             <p className="mt-1.5 text-sm text-gray-500">Manage your account, startup profile, security, and notification preferences.</p>
           </div>
+
+          <AccountAccessBanner />
 
           {loading ? (
             <SectionCard>

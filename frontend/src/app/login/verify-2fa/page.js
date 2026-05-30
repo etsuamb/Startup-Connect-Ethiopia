@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { verifyLogin2FA } from "@/lib/authApi";
 import { setSession } from "@/lib/authStorage";
+import { routeAfterLogin } from "@/lib/accountGate";
 
 export default function Verify2FAPage() {
 	const router = useRouter();
@@ -48,12 +49,15 @@ export default function Verify2FAPage() {
 				role: data.user?.role,
 				userName: `${data.user?.first_name || ""} ${data.user?.last_name || ""}`.trim(),
 			});
-			const r = data.user?.role;
-			if (r === "Startup") router.push("/startup/dashboard");
-			else if (r === "Investor") router.push("/investor/dashboard");
-			else if (r === "Mentor") router.push("/mentor/dashboard");
-			else if (r === "Admin") router.push("/admin/dashboard");
-			else router.push("/");
+			routeAfterLogin(router, {
+				...data.user,
+				email_verified:
+					data.emailVerified !== undefined
+						? data.emailVerified
+						: data.user?.email_verified,
+				is_approved:
+					data.isApproved !== undefined ? data.isApproved : data.user?.is_approved,
+			});
 		} catch (ex) {
 			setErr(ex.message || "Verification failed");
 		} finally {

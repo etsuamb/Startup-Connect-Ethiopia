@@ -163,8 +163,8 @@ exports.getInvestorSettings = async (req, res) => {
 			        i.linked_in_or_website, i.bio, i.country, i.portfolio_size,
 			        i.is_approved AS investor_is_approved, i.created_at,
 			        u.user_id, u.first_name, u.last_name, u.email, u.phone_number,
-			        u.is_approved AS user_is_approved, u.is_active, u.two_factor_enabled,
-			        u.updated_at
+			        u.is_approved AS user_is_approved, u.is_active, u.email_verified,
+			        u.two_factor_enabled, u.updated_at
 			 FROM investors i
 			 JOIN users u ON u.user_id = i.user_id
 			 WHERE i.user_id = $1`,

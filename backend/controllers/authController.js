@@ -1029,6 +1029,7 @@ exports.login = async (req, res) => {
 			...tokens,
 			user: authSecurityController.publicUser(user),
 			emailVerified: !!user.email_verified,
+			isApproved: !!user.is_approved,
 		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });

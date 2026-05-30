@@ -62,6 +62,7 @@ export async function apiFetch(path, options = {}) {
 		);
 		err.status = res.status;
 		err.data = data;
+		err.code = data?.code;
 		throw err;
 	}
 	return data;

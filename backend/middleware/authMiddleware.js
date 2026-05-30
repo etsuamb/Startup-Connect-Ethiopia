@@ -43,12 +43,12 @@ exports.authorizeRoles = (...roles) => {
 	};
 };
 
-// Ensure the user has been approved by admin
+// Verified email + admin approval required for platform features (Admin exempt).
 exports.requireApproval = async (req, res, next) => {
 	try {
 		const userId = req.user.user_id;
 		const r = await pool.query(
-			"SELECT is_approved, is_active FROM users WHERE user_id = $1",
+			"SELECT is_approved, is_active, email_verified, role FROM users WHERE user_id = $1",
 			[userId],
 		);
 		if (r.rows.length === 0)
@@ -56,10 +56,19 @@ exports.requireApproval = async (req, res, next) => {
 		const u = r.rows[0];
 		if (!u.is_active)
 			return res.status(403).json({ message: "Account disabled" });
-		if (!u.is_approved)
-			return res
-				.status(403)
-				.json({ message: "Account pending admin approval" });
+		if (u.role === "Admin") return next();
+		if (u.email_verified === false) {
+			return res.status(403).json({
+				message: "Please verify your email address before using this feature.",
+				code: "EMAIL_NOT_VERIFIED",
+			});
+		}
+		if (!u.is_approved) {
+			return res.status(403).json({
+				message: "Account pending admin approval",
+				code: "ACCOUNT_PENDING_APPROVAL",
+			});
+		}
 		next();
 	} catch (err) {
 		return res.status(500).json({ error: err.message });

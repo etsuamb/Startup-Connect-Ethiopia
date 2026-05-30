@@ -35,13 +35,29 @@ export default function RegisterAccountInfo() {
     setShowPassword((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const handleSubmit = (e) => {
+  const [validatingEmail, setValidatingEmail] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords must match.");
       return;
+    }
+
+    setValidatingEmail(true);
+    try {
+      const check = await validateRegistrationEmail(formData.email);
+      if (!check?.valid) {
+        setError(check?.message || "Enter a real email address you can access.");
+        return;
+      }
+    } catch (ex) {
+      setError(ex.message || "Could not validate email. Try again.");
+      return;
+    } finally {
+      setValidatingEmail(false);
     }
 
     const rawPhone = String(formData.phoneTail || "").replace(/\D/g, "");
@@ -341,9 +357,10 @@ export default function RegisterAccountInfo() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 bg-[#0a4d3c] hover:bg-[#083b2e] text-white font-bold rounded-xl shadow-sm shadow-[#0a4d3c]/20 transition text-[14px] mt-2"
+                disabled={validatingEmail}
+                className="w-full py-3.5 bg-[#0a4d3c] hover:bg-[#083b2e] disabled:opacity-60 text-white font-bold rounded-xl shadow-sm shadow-[#0a4d3c]/20 transition text-[14px] mt-2"
               >
-                Continue
+                {validatingEmail ? "Checking email…" : "Continue"}
               </button>
             </form>
           </div>

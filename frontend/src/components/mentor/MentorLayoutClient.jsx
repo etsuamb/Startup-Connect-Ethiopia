@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import Sidebar from "@/components/mentor/Sidebar";
-import MentorAuthGuard from "@/components/mentor/MentorAuthGuard";
+import AccountAccessGuard from "@/components/auth/AccountAccessGuard";
 import { clearSession } from "@/lib/authStorage";
 import { fetchMentorDashboard } from "@/lib/mentorApi";
 
@@ -139,7 +139,7 @@ function MentorTopbar() {
 
 export default function MentorLayoutClient({ children }) {
 	return (
-		<MentorAuthGuard>
+		<AccountAccessGuard requiredRole="Mentor">
 			<div className="flex h-screen bg-[#f8f9fa] font-sans text-gray-900 overflow-hidden">
 				<Sidebar />
 				<div className="flex-grow flex flex-col overflow-hidden bg-[#fbfcfc]">
@@ -154,6 +154,6 @@ export default function MentorLayoutClient({ children }) {
 					display: none;
 				}
 			`}</style>
-		</MentorAuthGuard>
+		</AccountAccessGuard>
 	);
 }

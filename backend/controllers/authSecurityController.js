@@ -63,10 +63,44 @@ function googleProfileToken(userId) {
 	return jwt.sign({ userId, purpose: "google_profile" }, JWT_SECRET, { expiresIn: "7d" });
 }
 
-async function verifyGoogleCredential(credential) {
-	if (!GOOGLE_CLIENT_ID) {
-		throw new Error("GOOGLE_CLIENT_ID is not configured");
+function normalizeGoogleTokenPayload(raw) {
+	if (!raw || raw.error) {
+		throw new Error(raw?.error_description || raw?.error || "Invalid Google token");
 	}
+	const aud = raw.aud;
+	const allowed = Array.isArray(aud) ? aud : [aud];
+	if (!allowed.includes(GOOGLE_CLIENT_ID)) {
+		throw new Error("Invalid Google token audience");
+	}
+	const emailVerified = raw.email_verified;
+	return {
+		iss: raw.iss,
+		azp: raw.azp,
+		aud: raw.aud,
+		sub: raw.sub,
+		email: raw.email,
+		email_verified:
+			emailVerified === true || emailVerified === "true" || emailVerified === 1,
+		name: raw.name,
+		picture: raw.picture,
+		given_name: raw.given_name,
+		family_name: raw.family_name,
+		locale: raw.locale,
+	};
+}
+
+/** Validates ID token on Google's servers (not affected by local PC clock skew). */
+async function verifyGoogleCredentialViaTokenInfo(credential) {
+	const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`;
+	const res = await fetch(url);
+	const data = await res.json().catch(() => ({}));
+	if (!res.ok) {
+		throw new Error(data.error_description || data.error || "Google token validation failed");
+	}
+	return normalizeGoogleTokenPayload(data);
+}
+
+async function verifyGoogleCredentialLocal(credential) {
 	const { OAuth2Client } = require("google-auth-library");
 	const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 	const ticket = await client.verifyIdToken({
@@ -74,6 +108,30 @@ async function verifyGoogleCredential(credential) {
 		audience: GOOGLE_CLIENT_ID,
 	});
 	return ticket.getPayload();
+}
+
+async function verifyGoogleCredential(credential) {
+	if (!GOOGLE_CLIENT_ID) {
+		throw new Error("GOOGLE_CLIENT_ID is not configured");
+	}
+
+	// Validate on Google's servers first — not affected by local PC clock being behind/ahead.
+	try {
+		return await verifyGoogleCredentialViaTokenInfo(credential);
+	} catch (tokenInfoErr) {
+		try {
+			return await verifyGoogleCredentialLocal(credential);
+		} catch (localErr) {
+			const localMsg = localErr?.message || "";
+			if (/Token used too (early|late)/i.test(localMsg)) {
+				throw new Error(
+					"Google sign-in failed because this computer's clock is out of sync. " +
+						"Open Windows Settings → Time & language → Date & time → Sync now, then try again.",
+				);
+			}
+			throw new Error(tokenInfoErr.message || localMsg);
+		}
+	}
 }
 
 // POST /auth/validate-email { email }
@@ -365,6 +423,8 @@ exports.verifyLogin2FA = async (req, res) => {
 			message: "Login successful",
 			...tokens,
 			user: publicUser(user),
+			emailVerified: !!user.email_verified,
+			isApproved: !!user.is_approved,
 		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
@@ -736,6 +796,8 @@ async function finishLoginOr2FA(req, res, user, email, ip, userAgent) {
 		message: "Login successful",
 		...tokens,
 		user: publicUser(user),
+		emailVerified: !!user.email_verified,
+		isApproved: !!user.is_approved,
 	});
 }
 

@@ -4,6 +4,7 @@ import { fetchMentorDocument, fetchMentorProfile, updateMentorProfile } from "@/
 import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import { clearSession } from "@/lib/authStorage";
 import { useRouter } from "next/navigation";
+import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fieldValue(value) {
@@ -1392,6 +1393,7 @@ export default function MentorSettingsPage() {
       </header>
 
       <main className="mx-auto w-full max-w-[1120px] px-5 py-8 lg:px-8">
+        <AccountAccessBanner />
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
 
           {/* Sidebar Nav */}

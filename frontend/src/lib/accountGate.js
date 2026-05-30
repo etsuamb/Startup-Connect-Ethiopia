@@ -24,5 +24,45 @@ export function accountGateMessage(error) {
 	if (code === "EMAIL_NOT_VERIFIED" || /verify your email|email must be verified/i.test(message)) {
 		return "Your email address must be verified before you can use this feature. Check your inbox for the verification link, then sign in again.";
 	}
-	return "Your startup account is registered, but this action is locked until an administrator approves your account.";
+	return "Your account is registered, but the platform stays read-only until an administrator approves it. You can review account details in Settings.";
+}
+
+export function settingsPathForRole(role) {
+	if (role === "Startup") return "/startup/settings";
+	if (role === "Investor") return "/investor/settings";
+	if (role === "Mentor") return "/mentor/settings";
+	if (role === "Admin") return "/admin/settings";
+	return "/login";
+}
+
+export function hasFullPlatformAccess(user) {
+	if (!user) return false;
+	if (user.role === "Admin") return true;
+	return Boolean(user.email_verified) && Boolean(user.is_approved);
+}
+
+export function isRestrictedAccount(user) {
+	return Boolean(user && user.role !== "Admin" && !hasFullPlatformAccess(user));
+}
+
+export function isSettingsPath(pathname, role) {
+	const base = settingsPathForRole(role);
+	if (!base || base === "/login") return false;
+	return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+export function routeAfterLogin(router, user) {
+	const role = user?.role;
+	if (role === "Admin") {
+		router.push("/admin/dashboard");
+		return;
+	}
+	if (!hasFullPlatformAccess(user)) {
+		router.push(settingsPathForRole(role));
+		return;
+	}
+	if (role === "Startup") router.push("/startup/dashboard");
+	else if (role === "Investor") router.push("/investor/dashboard");
+	else if (role === "Mentor") router.push("/mentor/dashboard");
+	else router.push("/");
 }

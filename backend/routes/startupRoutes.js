@@ -21,6 +21,7 @@ router.get(
   "/dashboard/info",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getStartupInfo,
 );
 
@@ -28,6 +29,7 @@ router.get(
   "/dashboard/mentor-updates",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getMentorUpdates,
 );
 
@@ -35,6 +37,7 @@ router.get(
   "/dashboard/status",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getStartupStatus,
 );
 
@@ -42,6 +45,7 @@ router.get(
   "/dashboard/project-progress",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getProjectProgress,
 );
 
@@ -49,6 +53,7 @@ router.get(
   "/dashboard/funding-summary",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getFundingSummary,
 );
 
@@ -56,6 +61,7 @@ router.get(
   "/dashboard/documents-status",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getDocumentsStatus,
 );
 
@@ -63,6 +69,7 @@ router.get(
   "/dashboard/feedback",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getLatestFeedback,
 );
 
@@ -70,6 +77,7 @@ router.get(
   "/dashboard/events",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getUpcomingEvents,
 );
 
@@ -77,6 +85,7 @@ router.get(
   "/dashboard/activity",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.getRecentActivity,
 );
 
@@ -84,6 +93,7 @@ router.post(
   "/dashboard/quick-actions",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupDashboardController.postQuickActions,
 );
 
@@ -139,6 +149,7 @@ router.get(
   "/documents",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupController.getStartupDocuments,
 );
 
@@ -150,6 +161,7 @@ router.get(
   "/offers",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   attachVisibility,
   startupController.getStartupOffers,
 );
@@ -159,6 +171,7 @@ router.get(
   "/offers/:offerType/:offerId",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   attachVisibility,
   startupController.getOfferDetails,
 );
@@ -177,6 +190,7 @@ router.get(
   "/sessions",
   authenticate,
   authorizeRoles("Startup"),
+  requireApproval,
   startupController.getStartupSessions,
 );
 

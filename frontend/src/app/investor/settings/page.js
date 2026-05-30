@@ -5,6 +5,7 @@ import Sidebar from "@/components/investor/Sidebar";
 import { getInvestorSettings, updateInvestorSettings } from "@/lib/investorApi";
 import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import AccountSecurityPanel from "@/components/auth/AccountSecurityPanel";
+import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
 
 const inputClass =
   "w-full bg-white border border-gray-200 text-gray-800 py-3.5 px-4 rounded-xl outline-none focus:border-[#0a4d3c]/50 focus:ring-4 focus:ring-[#0a4d3c]/10 transition text-[14px]";
@@ -33,6 +34,7 @@ export default function SettingsPage() {
   const [email, setEmail] = useState("");
   const [originalEmail, setOriginalEmail] = useState("");
   const [emailVerified, setEmailVerified] = useState(true);
+  const [isApproved, setIsApproved] = useState(true);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [investorType, setInvestorType] = useState("");
   const [organizationName, setOrganizationName] = useState("");
@@ -50,6 +52,7 @@ export default function SettingsPage() {
     setEmail(valueOf(settings?.email));
     setOriginalEmail(valueOf(settings?.email));
     setEmailVerified(settings?.email_verified !== false);
+    setIsApproved(settings?.user_is_approved !== false && settings?.is_approved !== false);
     setPhoneNumber(valueOf(settings?.phone_number));
     setInvestorType(valueOf(settings?.investor_type));
     setOrganizationName(valueOf(settings?.organization_name));
@@ -69,7 +72,7 @@ export default function SettingsPage() {
       const data = await getInvestorSettings();
       applySettings(data.settings || data.investor);
     } catch (err) {
-      if (err.code === "EMAIL_NOT_VERIFIED") {
+      if (err.code === "EMAIL_NOT_VERIFIED" || err.code === "ACCOUNT_PENDING_APPROVAL") {
         try {
           const account = await getCurrentAccount();
           const user = account.user || {};
@@ -77,8 +80,13 @@ export default function SettingsPage() {
           setEmail(valueOf(user.email));
           setOriginalEmail(valueOf(user.email));
           setEmailVerified(user.email_verified !== false);
+          setIsApproved(user.is_approved !== false);
           setPhoneNumber(valueOf(user.phone_number));
-          setError("Verify your email before using the rest of the platform. You can update it here if it is wrong.");
+          setError(
+            user.email_verified === false
+              ? "Verify your email before using the rest of the platform. You can update it here if it is wrong."
+              : "Your account is waiting for admin approval. You can review account details here until you are approved.",
+          );
         } catch (accountErr) {
           setError(accountErr.message || "Unable to load account information.");
         }
@@ -109,7 +117,7 @@ export default function SettingsPage() {
       return;
     }
     const emailChanged = email.trim().toLowerCase() !== originalEmail.trim().toLowerCase();
-    if (!emailVerified || emailChanged) {
+    if (!emailVerified || !isApproved || emailChanged) {
       setSaving(true);
       try {
         const data = await updateCurrentAccount({
@@ -175,6 +183,7 @@ export default function SettingsPage() {
 
         <main className="flex-grow flex flex-col overflow-y-auto bg-[#f8f9fa] relative">
           <div className="p-10 max-w-[900px] w-full mx-auto flex flex-col pb-32 z-10 relative">
+            <AccountAccessBanner />
             <div className="mb-8">
               <h1 className="text-[32px] font-bold text-[#091a15] tracking-tight mb-2">Settings</h1>
               <p className="text-gray-500 text-[14px]">Manage your account details, investment preferences, and security settings.</p>

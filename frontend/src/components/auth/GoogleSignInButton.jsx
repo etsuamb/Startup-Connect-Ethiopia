@@ -10,15 +10,7 @@ import {
 } from "@/lib/registerAccountStorage";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-
-function routeAfterLogin(router, user) {
-	const r = user?.role;
-	if (r === "Startup") router.push("/startup/dashboard");
-	else if (r === "Investor") router.push("/investor/dashboard");
-	else if (r === "Mentor") router.push("/mentor/dashboard");
-	else if (r === "Admin") router.push("/admin/dashboard");
-	else router.push("/");
-}
+import { routeAfterLogin } from "@/lib/accountGate";
 
 export default function GoogleSignInButton({ onError, role }) {
 	const router = useRouter();
@@ -112,7 +104,15 @@ export default function GoogleSignInButton({ onError, role }) {
 					role: data.user?.role,
 					userName: `${data.user?.first_name || ""} ${data.user?.last_name || ""}`.trim(),
 				});
-				routeAfterLogin(router, data.user);
+				routeAfterLogin(router, {
+					...data.user,
+					email_verified:
+						data.emailVerified !== undefined
+							? data.emailVerified
+							: data.user?.email_verified,
+					is_approved:
+						data.isApproved !== undefined ? data.isApproved : data.user?.is_approved,
+				});
 			}
 		} catch (ex) {
 			onError?.(ex.message || "Google sign-in failed");

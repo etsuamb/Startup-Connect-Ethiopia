@@ -32,6 +32,7 @@ router.get(
 	"/dashboard",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorDashboard.getDashboard,
 );
 
@@ -39,6 +40,7 @@ router.get(
 	"/profile",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.getMentorProfile,
 );
 
@@ -68,6 +70,7 @@ router.put(
 	"/profile",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	upload.fields([
 		{ name: "mentor_id", maxCount: 1 },
 		{ name: "cv", maxCount: 1 },
@@ -83,6 +86,7 @@ router.get(
 	"/mentorship-requests",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.getMentorshipRequests,
 );
 
@@ -90,6 +94,7 @@ router.put(
 	"/mentorship-requests/:requestId/accept",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.acceptMentorshipRequest,
 );
 
@@ -97,6 +102,7 @@ router.put(
 	"/mentorship-requests/:requestId/reject",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.rejectMentorshipRequest,
 );
 
@@ -104,6 +110,7 @@ router.post(
 	"/proposals",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.sendMentorshipProposal,
 );
 
@@ -121,6 +128,7 @@ router.get(
 	"/my-startups",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorDashboard.getMyStartups,
 );
 
@@ -144,6 +152,7 @@ router.get(
 	"/mentorships",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.getMentorshipHistory,
 );
 
@@ -153,6 +162,7 @@ router.post(
 	"/chat/startups/:startupId/send",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.sendMessage,
 );
 
@@ -160,6 +170,7 @@ router.get(
 	"/chat/startups/:startupId/messages",
 	authenticate,
 	authorizeRoles("Mentor"),
+	requireApproval,
 	mentorComplete.getMessages,
 );
 
