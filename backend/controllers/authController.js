@@ -1,5 +1,4 @@
 const pool = require("../config/db");
-const { getPlatformConfig } = require("../services/platformSettingsService");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -10,6 +9,8 @@ const REFRESH_TOKEN_EXP_DAYS = parseInt(
 );
 const crypto = require("crypto");
 const securityMonitoringService = require("../services/securityMonitoringService");
+const authSecurity = require("../services/authSecurityService");
+const authSecurityController = require("./authSecurityController");
 
 const isValidUrl = (value) => {
 	if (!value) return false;
@@ -46,6 +47,33 @@ function mapRegistrationDbError(err) {
 		return { status: 400, message: "Invalid registration data" };
 	}
 	return null;
+}
+
+async function resolveGoogleProfileUser(token) {
+	if (!token) return null;
+	let decoded;
+	try {
+		decoded = jwt.verify(token, JWT_SECRET);
+	} catch {
+		const err = new Error("Invalid or expired Google profile session");
+		err.status = 400;
+		throw err;
+	}
+	if (decoded.purpose !== "google_profile" || !decoded.userId) {
+		const err = new Error("Invalid Google profile session");
+		err.status = 400;
+		throw err;
+	}
+	const result = await pool.query("SELECT * FROM users WHERE user_id = $1", [
+		decoded.userId,
+	]);
+	const user = result.rows[0];
+	if (!user || user.provider_type !== "google") {
+		const err = new Error("Google account not found");
+		err.status = 404;
+		throw err;
+	}
+	return user;
 }
 
 // ========================
@@ -179,6 +207,11 @@ exports.register = async (req, res) => {
 		if (!allowedRoles.includes(normalizedRole)) {
 			return res.status(400).json({
 				message: "Role must be one of Startup, Investor, or Mentor",
+			});
+		}
+		if (isGoogleProfileCompletion && googleProfileUser.role !== normalizedRole) {
+			return res.status(400).json({
+				message: "Selected role does not match this Google signup session",
 			});
 		}
 
@@ -410,29 +443,37 @@ exports.register = async (req, res) => {
 			};
 		}
 
-		const normalizedEmail = String(email).trim().toLowerCase();
+		const normalizedEmail = String(effectiveEmail).trim().toLowerCase();
 		const phoneForDb = normalizePhone(phone_number);
 
-		let emailCheck;
-		try {
-			emailCheck = await authSecurity.validateEmailDeliverability(normalizedEmail);
-		} catch (validationErr) {
-			console.error("Email validation error:", validationErr.message);
-			return res.status(400).json({
-				message: authSecurity.emailRejectMessage("validation_error"),
-			});
-		}
-		if (!emailCheck.ok) {
-			return res.status(400).json({
-				message: authSecurity.emailRejectMessage(emailCheck.reason),
-				code: emailCheck.reason,
-			});
+		if (!isGoogleProfileCompletion) {
+			let emailCheck;
+			try {
+				emailCheck = await authSecurity.validateEmailDeliverability(normalizedEmail);
+			} catch (validationErr) {
+				console.error("Email validation error:", validationErr.message);
+				return res.status(400).json({
+					message: authSecurity.emailRejectMessage("validation_error"),
+				});
+			}
+			if (!emailCheck.ok) {
+				return res.status(400).json({
+					message: authSecurity.emailRejectMessage(emailCheck.reason),
+					code: emailCheck.reason,
+				});
+			}
 		}
 
 		// Check if user already exists
-		const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+		const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [
+			normalizedEmail,
+		]);
 
-		if (existingUser.rows.length > 0) {
+		if (
+			existingUser.rows.length > 0 &&
+			(!isGoogleProfileCompletion ||
+				Number(existingUser.rows[0].user_id) !== Number(googleProfileUser.user_id))
+		) {
 			return res.status(409).json({ message: "An account with this email already exists" });
 		}
 
@@ -441,7 +482,11 @@ exports.register = async (req, res) => {
 				"SELECT user_id FROM users WHERE phone_number = $1",
 				[phoneForDb],
 			);
-			if (existingPhone.rows.length > 0) {
+			if (
+				existingPhone.rows.length > 0 &&
+				(!isGoogleProfileCompletion ||
+					Number(existingPhone.rows[0].user_id) !== Number(googleProfileUser.user_id))
+			) {
 				return res.status(409).json({ message: "This phone number is already registered" });
 			}
 		}
@@ -476,21 +521,21 @@ exports.register = async (req, res) => {
 				// Hash password
 				const hashedPassword = await bcrypt.hash(password, 10);
 
-			const userInsertResult = await client.query(
-				`INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number, provider_type, email_verified)
+				const userInsertResult = await client.query(
+					`INSERT INTO users (first_name, last_name, email, password_hash, role, phone_number, provider_type, email_verified)
          VALUES ($1, $2, $3, $4, $5, $6, 'local', false)
          RETURNING user_id, first_name, last_name, email, role, is_approved, email_verified`,
-				[
-					first_name,
-					last_name,
-					normalizedEmail,
-					hashedPassword,
-					normalizedRole,
-					phoneForDb,
-				],
-			);
-
-			const user = userInsertResult.rows[0];
+					[
+						effectiveFirstName,
+						effectiveLastName,
+						normalizedEmail,
+						hashedPassword,
+						normalizedRole,
+						phoneForDb,
+					],
+				);
+				user = userInsertResult.rows[0];
+			}
 
 			let startupProfile = null;
 			let investorProfile = null;
@@ -808,7 +853,7 @@ exports.register = async (req, res) => {
 					[
 						admin.user_id,
 						`New ${normalizedRole} Registered`,
-						`A new ${normalizedRole} account for ${first_name} ${last_name} (${normalizedEmail}) has registered and is pending approval.`,
+						`A new ${normalizedRole} account for ${effectiveFirstName} ${effectiveLastName} (${normalizedEmail}) has registered and is pending approval.`,
 						user.user_id
 					]
 				);
@@ -829,9 +874,11 @@ exports.register = async (req, res) => {
 			await client.query("COMMIT");
 
 			try {
-				const fullUser = await pool.query(`SELECT * FROM users WHERE user_id = $1`, [user.user_id]);
-				if (fullUser.rowCount) {
-					await authSecurity.sendVerificationEmail(fullUser.rows[0]);
+				if (!isGoogleProfileCompletion) {
+					const fullUser = await pool.query(`SELECT * FROM users WHERE user_id = $1`, [user.user_id]);
+					if (fullUser.rowCount) {
+						await authSecurity.sendVerificationEmail(fullUser.rows[0]);
+					}
 				}
 			} catch (mailErr) {
 				console.error("Verification email failed:", mailErr.message);
@@ -839,14 +886,14 @@ exports.register = async (req, res) => {
 
 			const regMessage =
 				normalizedRole === "Investor"
-					? "Investor user registered successfully. Account pending admin approval."
+					? "Investor user registered successfully. Check your email to verify your address. Account pending admin approval."
 					: normalizedRole === "Mentor"
-						? "Mentor user registered successfully. Account pending admin approval."
-						: "Startup user registered successfully. Account pending admin approval.";
+						? "Mentor user registered successfully. Check your email to verify your address. Account pending admin approval."
+						: "Startup user registered successfully. Check your email to verify your address. Account pending admin approval.";
 			return res.status(201).json({
 				message: regMessage,
 				user,
-				emailVerificationSent: true,
+				emailVerificationSent: !isGoogleProfileCompletion,
 				startup: startupProfile,
 				investor: investorProfile,
 				mentor: mentorProfile,
@@ -856,11 +903,19 @@ exports.register = async (req, res) => {
 			if (err.message.includes("founded_year")) {
 				return res.status(400).json({ message: err.message });
 			}
-			return res.status(500).json({ error: err.message });
+			const mapped = mapRegistrationDbError(err);
+			if (mapped) {
+				return res.status(mapped.status).json({ message: mapped.message });
+			}
+			console.error("Register transaction error:", err.message);
+			return res.status(500).json({ message: "Registration failed. Please try again." });
 		} finally {
 			client.release();
 		}
 	} catch (err) {
+		if (err.status) {
+			return res.status(err.status).json({ message: err.message });
+		}
 		const mapped = mapRegistrationDbError(err);
 		if (mapped) {
 			return res.status(mapped.status).json({ message: mapped.message });
@@ -879,10 +934,13 @@ exports.login = async (req, res) => {
 	try {
 		const ip_address = securityMonitoringService.readIpAddress(req);
 		const user_agent = req.headers["user-agent"] || "";
+		const normalizedEmail = String(email || "")
+			.trim()
+			.toLowerCase();
 
 		// Find user
 		const result = await pool.query("SELECT * FROM users WHERE email = $1", [
-			email,
+			normalizedEmail,
 		]);
 
 		if (result.rows.length === 0) {
@@ -902,6 +960,13 @@ exports.login = async (req, res) => {
 		}
 
 		const user = result.rows[0];
+
+		if (!user.password_hash) {
+			return res.status(400).json({
+				message: "This account uses Google Sign-In. Continue with Google instead.",
+				code: "USE_GOOGLE_LOGIN",
+			});
+		}
 
 		// Check password
 		const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -937,52 +1002,21 @@ exports.login = async (req, res) => {
 		// NOTE: allow login even if not yet admin-approved so user can continue profile creation
 		// Approval gating is enforced by `requireApproval` middleware on protected routes.
 
-		// Generate access token
-		const token = jwt.sign(
-			{ user_id: user.user_id, role: user.role },
-			JWT_SECRET,
-			{ expiresIn: "1d" },
-		);
-
-		// Create refresh token and persist
-		const refreshToken = crypto.randomBytes(48).toString("hex");
-		const expiresAt = new Date(
-			Date.now() + REFRESH_TOKEN_EXP_DAYS * 24 * 60 * 60 * 1000,
-		);
-
-		const userAgent = req.headers["user-agent"] || "";
-		let device = "Unknown Device";
-		if (/windows/i.test(userAgent)) device = "Windows PC";
-		else if (/macintosh|mac os x/i.test(userAgent)) device = "Mac PC";
-		else if (/iphone|ipad|ipod/i.test(userAgent)) device = "iOS Device";
-		else if (/android/i.test(userAgent)) device = "Android Device";
-		else if (/linux/i.test(userAgent)) device = "Linux PC";
-
-		let browser = "";
-		if (/chrome|crios/i.test(userAgent)) browser = "Chrome";
-		else if (/firefox|fxios/i.test(userAgent)) browser = "Firefox";
-		else if (/safari/i.test(userAgent) && !/chrome|crios/i.test(userAgent)) browser = "Safari";
-		else if (/edge|edg/i.test(userAgent)) browser = "Edge";
-
-		if (browser) {
-			device = `${device} (${browser})`;
+		if (user.two_factor_enabled) {
+			return authSecurityController.finishLoginOr2FA(
+				req,
+				res,
+				user,
+				normalizedEmail,
+				ip_address,
+				user_agent,
+			);
 		}
 
-		const rawIp = ip_address || "127.0.0.1";
-
-		let location = "Addis Ababa, Ethiopia";
-		if (ip_address === "127.0.0.1" || ip_address === "::1" || ip_address.startsWith("192.168.") || ip_address.startsWith("10.")) {
-			location = "Local Network";
-		}
-
-		await pool.query(
-			`INSERT INTO refresh_tokens (token, user_id, expires_at, revoked, device, ip_address, location)
-			 VALUES ($1, $2, $3, false, $4, $5, $6)`,
-			[refreshToken, user.user_id, expiresAt, device, ip_address, location],
-		);
+		const tokens = await authSecurity.issueAuthTokens(user, req);
 
 		await securityMonitoringService.logLoginAttempt({
-			email,
+			email: normalizedEmail,
 			userId: user.user_id,
 			success: true,
 			failureReason: null,
@@ -991,16 +1025,10 @@ exports.login = async (req, res) => {
 		});
 
 		return res.json({
-			message: "Login successful 🔐",
-			token,
-			refreshToken,
-			user: {
-				user_id: user.user_id,
-				email: user.email,
-				role: user.role,
-				first_name: user.first_name,
-				last_name: user.last_name,
-			},
+			message: "Login successful",
+			...tokens,
+			user: authSecurityController.publicUser(user),
+			emailVerified: !!user.email_verified,
 		});
 	} catch (err) {
 		return res.status(500).json({ error: err.message });

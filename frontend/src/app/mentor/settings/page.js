@@ -475,7 +475,7 @@ export default function MentorSettingsPage() {
         available_from:    availableFrom,
         available_to:      availableTo,
         accepting_mentees: acceptingMentees,
-      });
+      }
       showToast("Settings saved successfully.");
     } catch (err) {
       showToast(err.message || "Unable to save settings.", "error");

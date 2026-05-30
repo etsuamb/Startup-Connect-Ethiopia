@@ -4,6 +4,8 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 const router = express.Router();
 const authController = require("../controllers/authController");
+const { authRateLimit } = require("../middleware/authRateLimit");
+const authSecurityController = require("../controllers/authSecurityController");
 const {
 	authenticate,
 	authorizeRoles,
