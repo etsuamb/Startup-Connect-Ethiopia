@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { addMinutes, buildIcsEvent, sendIcs } = require("../utils/calendarIcs");
 const profileAccessService = require("../services/profileAccessService");
 const profileSanitizer = require("../services/profileSanitizer");
 const bcrypt = require("bcrypt");
@@ -57,6 +58,8 @@ const STARTUP_INVESTOR_JOIN = `
 const STARTUP_INVESTOR_WHERE = `
   WHERE u.role = 'Startup'
     AND COALESCE(u.is_active, true) = true
+    AND u.is_approved = true
+    AND COALESCE(s.is_listed, false) = true
 `;
 
 const STARTUP_INVESTOR_ORDER = `
@@ -1350,6 +1353,57 @@ exports.updateMeeting = async (req, res) => {
 		}
 
 		return res.json({ meeting: result.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+exports.downloadMeetingCalendar = async (req, res) => {
+	try {
+		await ensureInvestorMeetingsSchema();
+		const investorId = await getInvestorIdForUser(req.user.user_id);
+		if (!investorId) {
+			return res.status(404).json({ message: "Investor profile not found" });
+		}
+
+		const meetingId = Number(req.params.meetingId);
+		if (!Number.isInteger(meetingId) || meetingId <= 0) {
+			return res.status(400).json({ error: "Invalid meeting id" });
+		}
+
+		const result = await pool.query(
+			`SELECT im.*, s.startup_name, s.industry, i.organization_name
+			 FROM investor_meetings im
+			 JOIN startups s ON s.startup_id = im.startup_id
+			 JOIN investors i ON i.investor_id = im.investor_id
+			 WHERE im.investor_meeting_id = $1 AND im.investor_id = $2`,
+			[meetingId, investorId],
+		);
+
+		if (!result.rowCount) {
+			return res.status(404).json({ error: "Meeting not found" });
+		}
+
+		const meeting = result.rows[0];
+		const title = meeting.topic || `Investor meeting with ${meeting.startup_name}`;
+		const description = [
+			`Startup: ${meeting.startup_name}`,
+			meeting.industry ? `Industry: ${meeting.industry}` : null,
+			`Status: ${meeting.status}`,
+		].filter(Boolean).join("\n");
+		const ics = buildIcsEvent({
+			uid: `investor-meeting-${meeting.investor_meeting_id}@startupconnect.local`,
+			title,
+			description,
+			location: meeting.meeting_link || "Online meeting",
+			url: meeting.meeting_link,
+			start: meeting.scheduled_at,
+			end: addMinutes(meeting.scheduled_at, meeting.duration_minutes || 30),
+			created: meeting.created_at,
+			updated: meeting.updated_at,
+		});
+
+		return sendIcs(res, `startupconnect-investor-meeting-${meeting.investor_meeting_id}.ics`, ics);
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}

@@ -83,6 +83,18 @@ export function updateSession(sessionId, body) {
 	return apiPutJson(`/mentorship/sessions/${sessionId}`, body);
 }
 
+export async function downloadMentorshipSessionCalendar(sessionId) {
+	const { blob, filename } = await apiFetchBlob(`/mentorship/sessions/${sessionId}/calendar.ics`);
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename || `mentorship-session-${sessionId}.ics`;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 /** Reports */
 export function fetchMentorReports() {
 	return apiFetch("/mentorship/reports");

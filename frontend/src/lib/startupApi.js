@@ -1,4 +1,4 @@
-import { apiFetch, apiPatchJson, apiPostJson, apiPutJson, apiPostForm, apiPutForm } from "./api";
+import { apiFetch, apiFetchBlob, apiPatchJson, apiPostJson, apiPutJson, apiPostForm, apiPutForm } from "./api";
 export {
   getNotifications,
   getUnreadNotificationCount,
@@ -320,6 +320,18 @@ export async function createStartupSession(payload) {
 
 export async function updateStartupSession(sessionId, payload) {
   return apiPatchJson(`/startups/sessions/${sessionId}`, payload);
+}
+
+export async function downloadStartupSessionCalendar(sessionId) {
+  const { blob, filename } = await apiFetchBlob(`/startups/sessions/${sessionId}/calendar.ics`);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || `startup-session-${sessionId}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // Rating functions

@@ -31,6 +31,7 @@ export default function ChatCallPanel({
     Number(callState.video_call?.started_by_user_id) !== Number(currentUserId);
   const screenShareUserId = callState.video_call?.screen_share_user_id;
   const isScreenSharing = Number(screenShareUserId) === Number(currentUserId);
+  const joinUrl = callState.video_call?.join_url;
 
   const reportError = useCallback(
     (message) => {
@@ -77,6 +78,7 @@ export default function ChatCallPanel({
 
   useEffect(() => {
     if (!conversationId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCallState({ status: "none", video_call: null, session_participants: [] });
       stopAllMedia();
       autoStartedRef.current = false;
@@ -378,8 +380,13 @@ export default function ChatCallPanel({
 
       <div className="border-t border-[#0f3d32]/10 bg-white/60 px-4 py-3 text-xs text-gray-500">
         {callState.video_call?.room_id ? (
-          <span>
-            Session room: <span className="font-mono font-semibold text-gray-700">{callState.video_call.room_id}</span>
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span>Session room: <span className="font-mono font-semibold text-gray-700">{callState.video_call.room_id}</span></span>
+            {joinUrl ? (
+              <a href={joinUrl} target="_blank" rel="noreferrer" className="font-bold text-[#0f3d32] hover:underline">
+                Open room
+              </a>
+            ) : null}
           </span>
         ) : (
           <span>Start a voice or video call to open a live session with your mentor.</span>

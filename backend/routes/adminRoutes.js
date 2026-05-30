@@ -64,10 +64,24 @@ router.get(
 );
 
 router.get(
+	"/projects/:projectId",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminController.getProject,
+);
+
+router.get(
 	"/investment-requests",
 	authenticate,
 	authorizeRoles("Admin"),
 	adminController.adminListInvestmentRequests,
+);
+
+router.get(
+	"/investment-requests/:id",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminController.getInvestmentRequest,
 );
 
 router.put(
@@ -82,6 +96,13 @@ router.get(
 	authenticate,
 	authorizeRoles("Admin"),
 	adminController.listInvestments,
+);
+
+router.get(
+	"/investments/:id",
+	authenticate,
+	authorizeRoles("Admin"),
+	adminController.getInvestment,
 );
 
 // Admin user approval workflow
@@ -393,6 +414,8 @@ router.get("/payments/:paymentId", authenticate, authorizeRoles("Admin"), adminE
 router.post("/payments/:paymentId/refund", authenticate, authorizeRoles("Admin"), adminExtended.refundPayment);
 router.post("/payments/:paymentId/flag", authenticate, authorizeRoles("Admin"), adminExtended.flagPaymentSuspicious);
 router.post("/payments/:paymentId/chargeback", authenticate, authorizeRoles("Admin"), adminExtended.recordChargeback);
+router.post("/payments/:paymentId/release-escrow", authenticate, authorizeRoles("Admin"), adminExtended.releaseEscrowPayment);
+router.patch("/payments/:paymentId/dispute-status", authenticate, authorizeRoles("Admin"), adminExtended.updatePaymentDisputeStatus);
 
 // Content moderation flags
 router.get("/content/flags", authenticate, authorizeRoles("Admin"), adminExtended.listContentFlags);
@@ -407,8 +430,11 @@ router.get("/reports/kpi", authenticate, authorizeRoles("Admin"), adminExtended.
 // Maintenance: backup, errors, fraud
 router.get("/maintenance/backup", authenticate, authorizeRoles("Admin"), adminExtended.getBackupStatus);
 router.post("/maintenance/backup", authenticate, authorizeRoles("Admin"), adminExtended.triggerBackup);
+router.get("/maintenance/backup/:backupId/download", authenticate, authorizeRoles("Admin"), adminExtended.downloadBackup);
+router.post("/maintenance/backup/:backupId/restore", authenticate, authorizeRoles("Admin"), adminExtended.restoreBackup);
 router.get("/maintenance/error-logs", authenticate, authorizeRoles("Admin"), adminExtended.listErrorLogs);
 router.post("/maintenance/error-logs", authenticate, authorizeRoles("Admin"), adminExtended.logSystemError);
 router.get("/monitoring/fraud-summary", authenticate, authorizeRoles("Admin"), adminExtended.getFraudSummary);
+router.post("/monitoring/fraud-scan", authenticate, authorizeRoles("Admin"), adminExtended.runPaymentFraudScan);
 
 module.exports = router;

@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { routeAfterLogin, userFromLoginResponse } from "@/lib/accountGate";
 
-export default function GoogleSignInButton({ onError, role }) {
+export default function GoogleSignInButton({ onError, role, mode = "login" }) {
 	const router = useRouter();
 	const buttonWrapRef = useRef(null);
 	const [buttonWidth, setButtonWidth] = useState(400);
@@ -51,7 +51,7 @@ export default function GoogleSignInButton({ onError, role }) {
 			if (!credential) throw new Error("Google sign-in failed");
 
 			clearRegistrationAccountInfo();
-			const data = await googleAuth(credential, role);
+			const data = await googleAuth(credential, role, mode);
 
 			if (data.needsRoleSelection) {
 				clearRegistrationAccountInfo();

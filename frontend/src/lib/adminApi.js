@@ -41,6 +41,21 @@ export function updateStartupStatus(startupId, status, comment) {
 	});
 }
 
+export function updateStartupListing(startupId, listed, comment) {
+	return apiPatchJson(`/admin/dashboard/startups/${startupId}/listing`, {
+		listed,
+		comment,
+	});
+}
+
+export function fetchDashboardMentor(mentorId) {
+	return apiFetch(`/admin/dashboard/mentors/${mentorId}`);
+}
+
+export function fetchDashboardInvestor(investorId) {
+	return apiFetch(`/admin/dashboard/investors/${investorId}`);
+}
+
 export function fetchDashboardMentors(params = {}) {
 	const q = new URLSearchParams();
 	if (params.approval) q.set("approval", params.approval);
@@ -439,6 +454,18 @@ export function fetchAdminProjects(params = {}) {
 	return apiFetch(`/admin/projects${qs ? `?${qs}` : ""}`);
 }
 
+export function fetchAdminProject(projectId) {
+	return apiFetch(`/admin/projects/${projectId}`);
+}
+
+export function fetchInvestmentRequest(requestId) {
+	return apiFetch(`/admin/investment-requests/${requestId}`);
+}
+
+export function fetchInvestment(investmentId) {
+	return apiFetch(`/admin/investments/${investmentId}`);
+}
+
 export function updateProjectStatus(projectId, status) {
 	return apiPutJson(`/admin/projects/${projectId}/status`, { status });
 }
@@ -539,6 +566,18 @@ export function recordChargeback(paymentId, notes = "") {
 	});
 }
 
+export function updatePaymentDisputeStatus(paymentId, body) {
+	return apiPatchJson(`/admin/payments/${paymentId}/dispute-status`, body);
+}
+
+export function releaseEscrowPayment(paymentId, notes = "") {
+	return apiFetch(`/admin/payments/${paymentId}/release-escrow`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ notes }),
+	});
+}
+
 export function fetchSuspiciousPayments() {
 	return apiFetch("/admin/payments/suspicious");
 }
@@ -619,11 +658,50 @@ export function triggerBackup() {
 	return apiFetch("/admin/maintenance/backup", { method: "POST" });
 }
 
+export function restoreBackup(backupId, confirm = "RESTORE_BACKUP") {
+	return apiFetch(`/admin/maintenance/backup/${backupId}/restore`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ confirm }),
+	});
+}
+
+export async function downloadBackup(backupId) {
+	const token = getToken();
+	if (!token) throw new Error("Not authenticated");
+	const url = `${API_BASE}/admin/maintenance/backup/${backupId}/download`;
+	const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+	if (!res.ok) {
+		let message = "Backup download failed";
+		try {
+			const data = await res.json();
+			message = data.message || data.error || message;
+		} catch {
+			/* ignore */
+		}
+		throw new Error(message);
+	}
+	const blob = await res.blob();
+	const filename = res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] || `backup-${backupId}.json`;
+	const blobUrl = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = blobUrl;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 export function fetchErrorLogs(limit = 100) {
 	return apiFetch(`/admin/maintenance/error-logs?limit=${encodeURIComponent(String(limit))}`);
 }
 
 export function fetchFraudSummary() {
 	return apiFetch("/admin/monitoring/fraud-summary");
+}
+
+export function runPaymentFraudScan() {
+	return apiFetch("/admin/monitoring/fraud-scan", { method: "POST" });
 }
 

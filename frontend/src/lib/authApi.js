@@ -16,8 +16,8 @@ export async function verifyLogin2FA(pendingToken, code, backupCode) {
 	});
 }
 
-export async function googleAuth(credential, role) {
-	return apiPostJson("/auth/google", { credential, role });
+export async function googleAuth(credential, role, mode = "login") {
+	return apiPostJson("/auth/google", { credential, role, mode });
 }
 
 export async function googleCompleteRole(googleSignupToken, role) {

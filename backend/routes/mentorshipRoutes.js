@@ -146,6 +146,13 @@ router.get(
 );
 
 router.get(
+	"/sessions/:sessionId/calendar.ics",
+	authenticate,
+	requireApproval,
+	mentorshipAdvancedController.downloadMentorshipSessionCalendar,
+);
+
+router.get(
 	"/sessions/:sessionId",
 	authenticate,
 	mentorshipAdvancedController.getMentorshipSessionById,

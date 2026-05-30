@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/investor/Sidebar";
 import {
   createInvestorMeeting,
+  downloadInvestorMeetingCalendar,
   getInvestorFundingOffers,
   getInvestorMeetings,
   getInvestorStartups,
@@ -148,6 +149,15 @@ function MeetingsContent() {
     }
   }
 
+  async function handleCalendar(meetingId) {
+    try {
+      setError("");
+      await downloadInvestorMeetingCalendar(meetingId);
+    } catch (err) {
+      setError(err.message || "Failed to download calendar file.");
+    }
+  }
+
   return (
     <div className="flex h-screen bg-white font-sans text-gray-900 overflow-hidden">
       <Sidebar />
@@ -284,6 +294,13 @@ function MeetingsContent() {
                           Open meeting link
                         </a>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => handleCalendar(meeting.investor_meeting_id)}
+                        className="mt-3 block text-xs font-bold text-[#0a4d3c] hover:text-[#072a21]"
+                      >
+                        Download .ics
+                      </button>
                       {meeting.status !== "cancelled" ? (
                         <div className="mt-4 flex gap-2">
                           <button

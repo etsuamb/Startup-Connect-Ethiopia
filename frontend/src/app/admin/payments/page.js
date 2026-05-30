@@ -8,7 +8,10 @@ import {
 	fetchSuspiciousPayments,
 	flagPayment,
 	recordChargeback,
+	releaseEscrowPayment,
 	refundPayment,
+	runPaymentFraudScan,
+	updatePaymentDisputeStatus,
 } from "@/lib/adminApi";
 import AdminTabs from "@/components/admin/AdminTabs";
 
@@ -20,6 +23,7 @@ const TABS = [
 function PaymentDetailModal({ payment, onClose, onAction }) {
 	if (!payment) return null;
 	const p = payment;
+	const fraudFlags = Array.isArray(p.fraud_flags) ? p.fraud_flags : [];
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
 			<div className="bg-white rounded-2xl max-w-lg w-full p-6 border shadow-xl max-h-[90vh] overflow-y-auto">
@@ -51,6 +55,26 @@ function PaymentDetailModal({ payment, onClose, onAction }) {
 						<dd className="capitalize font-medium">{p.status}</dd>
 					</div>
 					<div className="flex justify-between gap-4">
+						<dt className="text-slate-500">Escrow</dt>
+						<dd className="capitalize font-medium">{String(p.escrow_status || "not_applicable").replace(/_/g, " ")}</dd>
+					</div>
+					<div className="flex justify-between gap-4">
+						<dt className="text-slate-500">Risk score</dt>
+						<dd className="font-bold">{p.risk_score || 0}/100</dd>
+					</div>
+					{fraudFlags.length ? (
+						<div>
+							<dt className="text-slate-500 mb-1">Fraud flags</dt>
+							<dd className="flex flex-wrap gap-2">
+								{fraudFlags.map((flag) => (
+									<span key={flag.code || flag.label} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">
+										{flag.label || flag.code}
+									</span>
+								))}
+							</dd>
+						</div>
+					) : null}
+					<div className="flex justify-between gap-4">
 						<dt className="text-slate-500">Reference</dt>
 						<dd>{p.reference_type || "—"} #{p.reference_id || "—"}</dd>
 					</div>
@@ -77,25 +101,56 @@ function PaymentDetailModal({ payment, onClose, onAction }) {
 					{p.status === "completed" ? (
 						<button
 							type="button"
-							onClick={() => onAction(() => refundPayment(p.payment_id))}
+							onClick={() => onAction(() => refundPayment(p.payment_id, window.prompt("Refund notes", "") || ""))}
 							className="px-3 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold"
 						>
 							Refund
 						</button>
 					) : null}
+					{p.status === "completed" && ["held", "authorized"].includes(p.escrow_status) ? (
+						<button
+							type="button"
+							onClick={() => onAction(() => releaseEscrowPayment(p.payment_id, window.prompt("Escrow release notes", "") || ""))}
+							className="px-3 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold"
+						>
+							Release escrow
+						</button>
+					) : null}
 					<button
 						type="button"
-						onClick={() => onAction(() => flagPayment(p.payment_id, !p.is_suspicious))}
+						onClick={() => onAction(() => flagPayment(p.payment_id, !p.is_suspicious, window.prompt("Flag notes", "") || ""))}
 						className="px-3 py-2 rounded-xl bg-amber-100 text-amber-800 text-xs font-bold"
 					>
 						{p.is_suspicious ? "Unflag" : "Flag suspicious"}
 					</button>
 					<button
 						type="button"
-						onClick={() => onAction(() => recordChargeback(p.payment_id))}
+						onClick={() => onAction(() => recordChargeback(p.payment_id, window.prompt("Chargeback notes", "") || ""))}
 						className="px-3 py-2 rounded-xl bg-red-100 text-red-700 text-xs font-bold"
 					>
 						Record chargeback
+					</button>
+					<button
+						type="button"
+						onClick={() => onAction(() => updatePaymentDisputeStatus(p.payment_id, {
+							type: "refund",
+							status: "provider_pending",
+							notes: window.prompt("Provider refund notes", "") || "",
+						}))}
+						className="px-3 py-2 rounded-xl bg-blue-100 text-blue-800 text-xs font-bold"
+					>
+						Provider refund pending
+					</button>
+					<button
+						type="button"
+						onClick={() => onAction(() => updatePaymentDisputeStatus(p.payment_id, {
+							type: "chargeback",
+							status: "under_review",
+							notes: window.prompt("Chargeback review notes", "") || "",
+						}))}
+						className="px-3 py-2 rounded-xl bg-red-50 text-red-800 text-xs font-bold"
+					>
+						Chargeback review
 					</button>
 				</div>
 			</div>
@@ -139,6 +194,7 @@ export default function AdminPaymentsPage() {
 	}, [status, page, view]);
 
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		load();
 	}, [load]);
 
@@ -181,7 +237,7 @@ export default function AdminPaymentsPage() {
 			{error ? <div className="mb-4 p-4 rounded-2xl bg-red-50 text-red-700 text-sm">{error}</div> : null}
 			{msg ? <div className="mb-4 p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-sm">{msg}</div> : null}
 
-			<div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+			<div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
 				<div className="bg-white rounded-2xl p-5 border">
 					<p className="text-xs font-bold text-slate-400 uppercase">Total transactions</p>
 					<p className="text-2xl font-black mt-1">{s.total_transactions ?? "—"}</p>
@@ -198,9 +254,27 @@ export default function AdminPaymentsPage() {
 					<p className="text-xs font-bold text-slate-400 uppercase">Platform revenue</p>
 					<p className="text-2xl font-black mt-1">{Number(s.total_revenue || 0).toLocaleString()}</p>
 				</div>
+				<div className="bg-white rounded-2xl p-5 border">
+					<p className="text-xs font-bold text-slate-400 uppercase">Escrow held</p>
+					<p className="text-2xl font-black text-blue-700 mt-1">{s.escrow_held ?? "0"}</p>
+				</div>
+				<div className="bg-white rounded-2xl p-5 border">
+					<p className="text-xs font-bold text-slate-400 uppercase">Suspicious</p>
+					<p className="text-2xl font-black text-amber-700 mt-1">{s.suspicious_transactions ?? "0"}</p>
+				</div>
 			</div>
 
 			<AdminTabs tabs={TABS} active={view} onChange={(id) => { setView(id); setPage(1); }} />
+			<div className="mb-4">
+				<button
+					type="button"
+					onClick={() => runAction(runPaymentFraudScan)}
+					className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-800"
+				>
+					Run fraud scan
+				</button>
+				<span className="ml-3 text-xs text-slate-500">Average risk score: {s.avg_risk_score ?? 0}/100</span>
+			</div>
 
 			{view === "all" ? (
 				<select
@@ -227,6 +301,7 @@ export default function AdminPaymentsPage() {
 								<th className="px-4 py-3">Parties</th>
 								<th className="px-4 py-3">Amount</th>
 								<th className="px-4 py-3">Status</th>
+								<th className="px-4 py-3">Escrow</th>
 								<th className="px-4 py-3">Flags</th>
 								<th className="px-4 py-3">Actions</th>
 							</tr>
@@ -240,10 +315,12 @@ export default function AdminPaymentsPage() {
 									</td>
 									<td className="px-4 py-3 font-semibold">{p.amount} {p.currency || "ETB"}</td>
 									<td className="px-4 py-3">{p.status}</td>
+									<td className="px-4 py-3 text-xs capitalize">{String(p.escrow_status || "not_applicable").replace(/_/g, " ")} - risk {p.risk_score || 0}</td>
 									<td className="px-4 py-3 text-xs">
 										{p.is_suspicious ? <span className="text-amber-700 font-bold">Suspicious</span> : null}
 										{p.chargeback_status ? <span className="text-red-700 font-bold ml-1">Chargeback</span> : null}
 										{p.refund_status ? <span className="text-slate-600 ml-1">Refunded</span> : null}
+										{Array.isArray(p.fraud_flags) && p.fraud_flags.length ? <span className="text-amber-700 font-bold ml-1">Flags: {p.fraud_flags.length}</span> : null}
 									</td>
 									<td className="px-4 py-3">
 										<button
