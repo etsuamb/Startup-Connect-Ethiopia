@@ -4,10 +4,11 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/startup/Sidebar";
 import {
-  getStartupSessions,
   createStartupSession,
-  updateStartupSession,
+  downloadStartupSessionCalendar,
+  getStartupSessions,
   getStartupOffers,
+  updateStartupSession,
 } from "@/lib/startupApi";
 
 function formatDateTime(value) {
@@ -142,6 +143,15 @@ function MeetingsContent() {
       setMeetings(Array.isArray(meetingData.sessions) ? meetingData.sessions : []);
     } catch (err) {
       setError(err.message || "Failed to update meeting.");
+    }
+  }
+
+  async function handleCalendar(sessionId) {
+    try {
+      setError("");
+      await downloadStartupSessionCalendar(sessionId);
+    } catch (err) {
+      setError(err.message || "Failed to download calendar file.");
     }
   }
 
@@ -323,6 +333,14 @@ function MeetingsContent() {
                       </a>
                     ) : null}
                     
+                    <button
+                      type="button"
+                      onClick={() => handleCalendar(meeting.unique_id)}
+                      className="mb-3 block text-xs font-bold text-[#0f3d32] hover:text-[#0b2f26]"
+                    >
+                      Download .ics
+                    </button>
+
                     {meeting.status === "scheduled" || meeting.status === "pending" ? (
                       <div className="pt-3 border-t border-gray-100 flex gap-2">
                         <button

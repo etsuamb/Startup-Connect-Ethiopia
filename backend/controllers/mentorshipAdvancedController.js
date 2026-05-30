@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { addMinutes, buildIcsEvent, sendIcs } = require("../utils/calendarIcs");
 
 async function getStartupIdByUserId(userId) {
 	const result = await pool.query(
@@ -194,6 +195,91 @@ exports.getMentorshipSessionById = async (req, res) => {
 		}
 
 		return res.status(200).json(result.rows[0]);
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+exports.downloadMentorshipSessionCalendar = async (req, res) => {
+	try {
+		const { user_id: userId, role } = req.user;
+		const sessionId = Number(req.params.sessionId);
+
+		if (!Number.isInteger(sessionId) || sessionId <= 0) {
+			return res.status(400).json({ error: "Invalid session id" });
+		}
+
+		if (!ensureMentorOrStartupRole(role)) {
+			return res.status(403).json({
+				error: "Only Startup and Mentor roles can export mentorship sessions",
+			});
+		}
+
+		const startupId =
+			role === "Startup" ? await getStartupIdByUserId(userId) : null;
+		const mentorId =
+			role === "Mentor" ? await getMentorIdByUserId(userId) : null;
+
+		if (role === "Startup" && !startupId) {
+			return res.status(404).json({ error: "Startup profile not found" });
+		}
+
+		if (role === "Mentor" && !mentorId) {
+			return res.status(404).json({ error: "Mentor profile not found" });
+		}
+
+		const condition =
+			role === "Startup" ? "mr.startup_id = $2" : "mr.mentor_id = $2";
+		const params =
+			role === "Startup" ? [sessionId, startupId] : [sessionId, mentorId];
+
+		const result = await pool.query(
+			`SELECT
+         ms.*,
+         mr.subject,
+         s.startup_name,
+         su.first_name AS startup_owner_first_name,
+         su.last_name AS startup_owner_last_name,
+         mu.first_name AS mentor_first_name,
+         mu.last_name AS mentor_last_name
+       FROM mentorship_sessions ms
+       JOIN mentorship_requests mr ON mr.mentorship_request_id = ms.mentorship_request_id
+       JOIN startups s ON s.startup_id = mr.startup_id
+       JOIN mentors m ON m.mentor_id = mr.mentor_id
+       JOIN users su ON su.user_id = s.user_id
+       JOIN users mu ON mu.user_id = m.user_id
+       WHERE ms.mentorship_session_id = $1 AND ${condition}`,
+			params,
+		);
+
+		if (!result.rowCount) {
+			return res.status(404).json({ error: "Mentorship session not found" });
+		}
+
+		const session = result.rows[0];
+		const mentorName = `${session.mentor_first_name || ""} ${session.mentor_last_name || ""}`.trim() || "Mentor";
+		const startupOwner = `${session.startup_owner_first_name || ""} ${session.startup_owner_last_name || ""}`.trim() || "Startup owner";
+		const title = session.subject || `Mentorship session with ${session.startup_name}`;
+		const description = [
+			`Startup: ${session.startup_name}`,
+			`Startup owner: ${startupOwner}`,
+			`Mentor: ${mentorName}`,
+			`Status: ${session.status}`,
+			session.notes ? `Notes: ${session.notes}` : null,
+		].filter(Boolean).join("\n");
+		const ics = buildIcsEvent({
+			uid: `mentorship-session-${session.mentorship_session_id}@startupconnect.local`,
+			title,
+			description,
+			location: session.meeting_link || "Online meeting",
+			url: session.meeting_link,
+			start: session.scheduled_at,
+			end: addMinutes(session.scheduled_at, session.duration_minutes || 60),
+			created: session.created_at,
+			updated: session.updated_at,
+		});
+
+		return sendIcs(res, `startupconnect-mentorship-session-${session.mentorship_session_id}.ics`, ics);
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}

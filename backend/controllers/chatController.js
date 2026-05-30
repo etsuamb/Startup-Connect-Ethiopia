@@ -1,6 +1,11 @@
 const pool = require("../config/db");
 const crypto = require("crypto");
 
+function videoJoinUrl(roomId) {
+	const base = (process.env.VIDEO_MEETING_BASE_URL || process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+	return `${base}/video-room/${encodeURIComponent(roomId)}`;
+}
+
 /** SQL fragment: conversation row c is unlocked for investor chat */
 const CHAT_UNLOCK_EXISTS = `(
   EXISTS (
@@ -574,7 +579,7 @@ exports.videoStart = async (req, res) => {
 			[peerUserId, `Room ${roomId}`, ins.rows[0].video_call_id],
 		);
 
-		return res.status(201).json({ video_call: ins.rows[0] });
+		return res.status(201).json({ video_call: { ...ins.rows[0], join_url: videoJoinUrl(roomId) } });
 	} catch (err) {
 		await client.query("ROLLBACK").catch(() => {});
 		return res.status(500).json({ error: err.message });
@@ -621,7 +626,7 @@ exports.videoJoin = async (req, res) => {
 
 		await ensureVideoParticipantJoined(pool, call.video_call_id, userId);
 
-		return res.json({ video_call: upd.rows[0] });
+		return res.json({ video_call: { ...upd.rows[0], join_url: videoJoinUrl(upd.rows[0].room_id) } });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -667,7 +672,7 @@ exports.videoEnd = async (req, res) => {
 
 		await closeParticipantSessionsForCall(pool, call.video_call_id);
 
-		return res.json({ video_call: upd.rows[0] });
+		return res.json({ video_call: { ...upd.rows[0], join_url: videoJoinUrl(upd.rows[0].room_id) } });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -717,6 +722,7 @@ exports.videoStatus = async (req, res) => {
 			video_call: {
 				video_call_id: vc.video_call_id,
 				room_id: vc.room_id,
+				join_url: videoJoinUrl(vc.room_id),
 				started_by_user_id: vc.started_by_user_id,
 				screen_share_user_id: vc.screen_share_user_id,
 				participant_user_ids: vc.participant_user_ids,

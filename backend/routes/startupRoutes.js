@@ -202,6 +202,14 @@ router.post(
   startupController.createStartupSession,
 );
 
+router.get(
+  "/sessions/:sessionId/calendar.ics",
+  authenticate,
+  authorizeRoles("Startup"),
+  requireApproval,
+  startupController.downloadStartupSessionCalendar,
+);
+
 router.patch(
   "/sessions/:sessionId",
   authenticate,

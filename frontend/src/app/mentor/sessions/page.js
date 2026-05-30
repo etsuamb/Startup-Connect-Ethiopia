@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import {
+	downloadMentorshipSessionCalendar,
 	fetchIncomingRequests,
 	fetchMentorDashboard,
 	fetchMentorSessions,
@@ -235,6 +236,15 @@ function MentorSessionsContent() {
 			await load();
 		} catch (ex) {
 			setError(ex.message || "Update failed.");
+		}
+	}
+
+	async function handleCalendar(sessionId) {
+		setError("");
+		try {
+			await downloadMentorshipSessionCalendar(sessionId);
+		} catch (ex) {
+			setError(ex.message || "Failed to download calendar file.");
 		}
 	}
 
@@ -494,6 +504,9 @@ function MentorSessionsContent() {
 										<Icon path="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
 										{formatTimeRange(session)}
 									</p>
+									<button type="button" onClick={() => handleCalendar(session.mentorship_session_id)} className="mr-4 text-xs font-black text-[#0b4a3c]">
+										Download .ics
+									</button>
 									{String(session.status || "").toLowerCase() === "scheduled" ? (
 										<button type="button" onClick={() => markComplete(session.mentorship_session_id)} className="text-xs font-black text-[#0b4a3c]">
 											Mark completed

@@ -136,6 +136,14 @@ router.post(
 	investorController.createMeeting,
 );
 
+router.get(
+	"/meetings/:meetingId/calendar.ics",
+	authenticate,
+	requireApproval,
+	authorizeRoles("Investor"),
+	investorController.downloadMeetingCalendar,
+);
+
 router.patch(
 	"/meetings/:meetingId",
 	authenticate,

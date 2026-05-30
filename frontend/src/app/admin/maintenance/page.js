@@ -6,11 +6,13 @@ import {
 	clearOldAuditLogs,
 	createCategory,
 	deleteCategory,
+	downloadBackup,
 	fetchBackupStatus,
 	fetchCategories,
 	fetchMaintenanceStatus,
 	fetchPlatformSettings,
 	scheduleReport,
+	restoreBackup,
 	triggerBackup,
 	updatePlatformSettings,
 } from "@/lib/adminApi";
@@ -36,6 +38,7 @@ export default function AdminMaintenancePage() {
 	const [tab, setTab] = useState("health");
 	const [status, setStatus] = useState(null);
 	const [backup, setBackup] = useState(null);
+	const [backupLogs, setBackupLogs] = useState([]);
 	const [categories, setCategories] = useState([]);
 	const [config, setConfig] = useState(null);
 	const [days, setDays] = useState(365);
@@ -57,6 +60,7 @@ export default function AdminMaintenancePage() {
 			]);
 			setStatus(st);
 			setBackup(bk.backup);
+			setBackupLogs(bk.logs || []);
 			setCategories(cats.categories || []);
 			setConfig(settings.settings?.platform_config || null);
 		} catch (ex) {
@@ -67,6 +71,7 @@ export default function AdminMaintenancePage() {
 	}, []);
 
 	useEffect(() => {
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		load();
 	}, [load]);
 
@@ -130,7 +135,7 @@ export default function AdminMaintenancePage() {
 					<div className="bg-white rounded-2xl border p-6">
 						<h2 className="font-bold mb-1">Backup tracking</h2>
 						<p className="text-xs text-slate-500 mb-3">
-							Records when an admin triggered a backup snapshot. For production, pair this with real pg_dump or cloud backup on your server.
+							Creates a downloadable JSON snapshot of the public database tables and records each backup attempt.
 						</p>
 						<dl className="text-sm space-y-2 mb-4">
 							<div className="flex justify-between">
@@ -163,8 +168,60 @@ export default function AdminMaintenancePage() {
 							}}
 							className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold disabled:opacity-50"
 						>
-							Record backup now
+							Create backup now
 						</button>
+						<div className="mt-5 border-t pt-4">
+							<h3 className="mb-3 text-sm font-bold">Backup logs</h3>
+							<div className="space-y-2">
+								{backupLogs.length ? backupLogs.map((log) => (
+									<div key={log.backup_log_id} className="flex flex-col gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+										<div>
+											<p className="font-bold text-slate-900">#{log.backup_log_id} - {log.status}</p>
+											<p className="text-slate-500">
+												{log.completed_at ? new Date(log.completed_at).toLocaleString() : new Date(log.started_at).toLocaleString()}
+												{log.file_size_bytes ? ` - ${Number(log.file_size_bytes).toLocaleString()} bytes` : ""}
+											</p>
+											{log.error_message ? <p className="mt-1 text-red-600">{log.error_message}</p> : null}
+										</div>
+										{log.status === "completed" ? (
+											<div className="flex flex-wrap gap-2">
+												<button
+													type="button"
+													onClick={async () => {
+														try {
+															await downloadBackup(log.backup_log_id);
+														} catch (ex) {
+															setError(ex.message);
+														}
+													}}
+													className="self-start rounded-lg border border-emerald-200 bg-white px-3 py-1.5 font-bold text-emerald-700"
+												>
+													Download
+												</button>
+												<button
+													type="button"
+													onClick={async () => {
+														if (!window.confirm("Restore this backup? This replaces current database rows.")) return;
+														try {
+															const d = await restoreBackup(log.backup_log_id);
+															setMsg(d.message || "Backup restored.");
+															await load();
+														} catch (ex) {
+															setError(ex.message);
+														}
+													}}
+													className="self-start rounded-lg border border-red-200 bg-white px-3 py-1.5 font-bold text-red-700"
+												>
+													Restore
+												</button>
+											</div>
+										) : null}
+									</div>
+								)) : (
+									<p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">No backup logs yet.</p>
+								)}
+							</div>
+						</div>
 					</div>
 				</div>
 			) : tab === "categories" ? (

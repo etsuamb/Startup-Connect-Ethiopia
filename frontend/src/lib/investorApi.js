@@ -149,3 +149,15 @@ export function createInvestorMeeting(payload) {
 export function updateInvestorMeeting(meetingId, payload) {
 	return apiPatchJson(`/investors/meetings/${meetingId}`, payload);
 }
+
+export async function downloadInvestorMeetingCalendar(meetingId) {
+	const { blob, filename } = await apiFetchBlob(`/investors/meetings/${meetingId}/calendar.ics`);
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename || `investor-meeting-${meetingId}.ics`;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

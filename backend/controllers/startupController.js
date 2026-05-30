@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { addMinutes, buildIcsEvent, sendIcs } = require("../utils/calendarIcs");
 
 async function ensureInvestmentRequestDirectionSchema(client = pool) {
   await client.query("ALTER TABLE investment_requests ALTER COLUMN project_id DROP NOT NULL");
@@ -1323,6 +1324,93 @@ exports.updateStartupSession = async (req, res) => {
     }
 
     return res.status(400).json({ error: "Invalid session format" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.downloadStartupSessionCalendar = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const { sessionId } = req.params;
+
+    const startupRes = await pool.query("SELECT startup_id, startup_name FROM startups WHERE user_id = $1", [userId]);
+    if (startupRes.rowCount === 0) {
+      return res.status(404).json({ error: "Startup profile not found" });
+    }
+    const startup = startupRes.rows[0];
+
+    let result;
+    let type;
+    if (sessionId.startsWith("mentor_")) {
+      type = "mentor";
+      const id = parseInt(sessionId.split("_")[1], 10);
+      result = await pool.query(
+        `SELECT
+           ms.mentorship_session_id AS id,
+           ms.scheduled_at,
+           ms.duration_minutes,
+           ms.meeting_link,
+           ms.status,
+           ms.created_at,
+           ms.updated_at,
+           mr.subject,
+           u.first_name || ' ' || u.last_name AS actor_name
+         FROM mentorship_sessions ms
+         JOIN mentorship_requests mr ON mr.mentorship_request_id = ms.mentorship_request_id
+         JOIN mentors m ON m.mentor_id = mr.mentor_id
+         JOIN users u ON u.user_id = m.user_id
+         WHERE ms.mentorship_session_id = $1 AND mr.startup_id = $2`,
+        [id, startup.startup_id],
+      );
+    } else if (sessionId.startsWith("investor_")) {
+      type = "investor";
+      const id = parseInt(sessionId.split("_")[1], 10);
+      result = await pool.query(
+        `SELECT
+           im.investor_meeting_id AS id,
+           im.scheduled_at,
+           im.duration_minutes,
+           im.meeting_link,
+           im.status,
+           im.created_at,
+           im.updated_at,
+           im.topic AS subject,
+           COALESCE(i.organization_name, u.first_name || ' ' || u.last_name) AS actor_name
+         FROM investor_meetings im
+         JOIN investors i ON i.investor_id = im.investor_id
+         JOIN users u ON u.user_id = i.user_id
+         WHERE im.investor_meeting_id = $1 AND im.startup_id = $2`,
+        [id, startup.startup_id],
+      );
+    } else {
+      return res.status(400).json({ error: "Invalid session format" });
+    }
+
+    if (!result.rowCount) {
+      return res.status(404).json({ error: "Session not found" });
+    }
+
+    const session = result.rows[0];
+    const title = session.subject || `${type === "mentor" ? "Mentorship session" : "Investor meeting"} with ${session.actor_name}`;
+    const description = [
+      `Startup: ${startup.startup_name}`,
+      `${type === "mentor" ? "Mentor" : "Investor"}: ${session.actor_name}`,
+      `Status: ${session.status}`,
+    ].join("\n");
+    const ics = buildIcsEvent({
+      uid: `startup-${type}-session-${session.id}@startupconnect.local`,
+      title,
+      description,
+      location: session.meeting_link || "Online meeting",
+      url: session.meeting_link,
+      start: session.scheduled_at,
+      end: addMinutes(session.scheduled_at, session.duration_minutes || 30),
+      created: session.created_at,
+      updated: session.updated_at,
+    });
+
+    return sendIcs(res, `startupconnect-${type}-session-${session.id}.ics`, ics);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

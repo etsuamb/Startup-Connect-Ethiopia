@@ -36,29 +36,6 @@ function publicUser(user) {
 	};
 }
 
-async function hasRoleProfile(user) {
-	if (!user?.user_id) return false;
-	if (user.role === "Startup") {
-		const r = await pool.query("SELECT 1 FROM startups WHERE user_id = $1 LIMIT 1", [
-			user.user_id,
-		]);
-		return r.rowCount > 0;
-	}
-	if (user.role === "Investor") {
-		const r = await pool.query("SELECT 1 FROM investors WHERE user_id = $1 LIMIT 1", [
-			user.user_id,
-		]);
-		return r.rowCount > 0;
-	}
-	if (user.role === "Mentor") {
-		const r = await pool.query("SELECT 1 FROM mentors WHERE user_id = $1 LIMIT 1", [
-			user.user_id,
-		]);
-		return r.rowCount > 0;
-	}
-	return true;
-}
-
 function googleProfileToken(userId) {
 	return jwt.sign({ userId, purpose: "google_profile" }, JWT_SECRET, { expiresIn: "7d" });
 }
@@ -597,6 +574,7 @@ exports.get2FAStatus = async (req, res) => {
 exports.googleAuth = async (req, res) => {
 	try {
 		const { credential, role } = req.body;
+		const mode = req.body.mode === "register" ? "register" : "login";
 		if (!credential) return res.status(400).json({ message: "Google credential is required" });
 
 		const payload = await verifyGoogleCredential(credential);
@@ -619,6 +597,12 @@ exports.googleAuth = async (req, res) => {
 
 		if (userR.rowCount) {
 			let user = userR.rows[0];
+			if (mode === "register") {
+				return res.status(409).json({
+					message: "An account with this Google email already exists. Sign in instead.",
+					code: "ACCOUNT_EXISTS",
+				});
+			}
 			if (!user.google_id) {
 				await pool.query(
 					`UPDATE users
@@ -637,19 +621,17 @@ exports.googleAuth = async (req, res) => {
 			if (!user.is_active) {
 				return res.status(403).json({ message: "Account disabled" });
 			}
-			if (!(await hasRoleProfile(user))) {
-				return res.json({
-					needsProfileCompletion: true,
-					role: user.role,
-					user: publicUser(user),
-					googleSignupToken: googleProfileToken(user.user_id),
-					message: "Complete your profile registration before accessing the dashboard.",
-				});
-			}
 			return finishLoginOr2FA(req, res, user, email, ip, userAgent);
 		}
 
 		// New user — need role
+		if (mode === "login") {
+			return res.status(404).json({
+				message: "No account exists for this Google email. Register first.",
+				code: "GOOGLE_ACCOUNT_NOT_FOUND",
+			});
+		}
+
 		const allowedRoles = ["Startup", "Investor", "Mentor"];
 		const normalizedRole = role ? String(role).trim() : null;
 		if (!normalizedRole || !allowedRoles.includes(normalizedRole)) {

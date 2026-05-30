@@ -1,6 +1,11 @@
 const pool = require("../config/db");
 const crypto = require("crypto");
 
+function videoJoinUrl(roomId) {
+	const base = (process.env.VIDEO_MEETING_BASE_URL || process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/$/, "");
+	return `${base}/video-room/${encodeURIComponent(roomId)}`;
+}
+
 async function getStartupByUserId(userId) {
 	const r = await pool.query("SELECT startup_id, user_id FROM startups WHERE user_id = $1", [userId]);
 	return r.rows[0] || null;
@@ -522,7 +527,7 @@ exports.videoStart = async (req, res) => {
 			[peerUserId, `Room ${roomId}`, ins.rows[0].mentor_video_call_id],
 		);
 
-		return res.status(201).json({ video_call: ins.rows[0] });
+		return res.status(201).json({ video_call: { ...ins.rows[0], join_url: videoJoinUrl(roomId) } });
 	} catch (err) {
 		await client.query("ROLLBACK").catch(() => {});
 		return res.status(500).json({ error: err.message });
@@ -570,7 +575,7 @@ exports.videoJoin = async (req, res) => {
 
 		await ensureMentorVideoParticipantJoined(pool, call.mentor_video_call_id, userId);
 
-		return res.json({ video_call: upd.rows[0] });
+		return res.json({ video_call: { ...upd.rows[0], join_url: videoJoinUrl(upd.rows[0].room_id) } });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -615,7 +620,7 @@ exports.videoEnd = async (req, res) => {
 
 		await closeMentorParticipantSessionsForCall(pool, call.mentor_video_call_id);
 
-		return res.json({ video_call: upd.rows[0] });
+		return res.json({ video_call: { ...upd.rows[0], join_url: videoJoinUrl(upd.rows[0].room_id) } });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}
@@ -665,6 +670,7 @@ exports.videoStatus = async (req, res) => {
 				mentor_video_call_id: vc.mentor_video_call_id,
 				mentor_conversation_id: vc.mentor_conversation_id,
 				room_id: vc.room_id,
+				join_url: videoJoinUrl(vc.room_id),
 				started_by_user_id: vc.started_by_user_id,
 				screen_share_user_id: vc.screen_share_user_id,
 				participant_user_ids: vc.participant_user_ids,

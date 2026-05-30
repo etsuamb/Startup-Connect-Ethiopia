@@ -52,12 +52,38 @@ async function ensurePaymentGatewayColumns() {
 	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (platform_fee >= 0)");
 	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_amount DECIMAL(14,2) NOT NULL DEFAULT 0 CHECK (net_amount >= 0)");
 	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS gateway_details JSONB");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(30) NOT NULL DEFAULT 'not_applicable'");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_authorized_at TIMESTAMPTZ");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_released_at TIMESTAMPTZ");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_refunded_at TIMESTAMPTZ");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS fraud_flags JSONB NOT NULL DEFAULT '[]'::jsonb");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_suspicious BOOLEAN NOT NULL DEFAULT false");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30)");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS chargeback_status VARCHAR(30)");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS admin_notes TEXT");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS risk_score INTEGER NOT NULL DEFAULT 0");
+	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_action_status VARCHAR(40)");
 	
 	// Drop old constraint and add new one to support processing/cancelled
 	await pool.query("ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check");
 	await pool.query("ALTER TABLE payments ADD CONSTRAINT payments_status_check CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'))");
 	
 	await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS payments_tx_ref_uidx ON payments(tx_ref) WHERE tx_ref IS NOT NULL");
+}
+
+function buildPaymentFraudFlags(payment, recentCount = 0) {
+	const flags = [];
+	const amount = Number(payment?.amount || 0);
+	if (amount >= 100000) flags.push({ code: "large_amount", label: "Large payment amount" });
+	if (recentCount >= 3) flags.push({ code: "rapid_payments", label: "Multiple payments in one hour" });
+	if (payment?.from_user_id && payment?.from_user_id === payment?.to_user_id) {
+		flags.push({ code: "same_sender_receiver", label: "Sender and receiver are the same user" });
+	}
+	return flags;
+}
+
+function paymentFraudScore(flags) {
+	return Math.min(100, (Array.isArray(flags) ? flags.length : 0) * 25);
 }
 
 async function getInvestorId(userId) {
@@ -365,12 +391,30 @@ async function verifyAndUpdatePayment(txRef) {
 			? "failed"
 			: "pending";
 
+	const current = await pool.query("SELECT * FROM payments WHERE tx_ref = $1", [txRef]);
+	const existing = current.rows[0] || {};
+	const recent = await pool.query(
+		`SELECT COUNT(*)::int AS count
+		 FROM payments
+		 WHERE from_user_id = $1 AND created_at >= NOW() - INTERVAL '1 hour'`,
+		[existing.from_user_id],
+	);
+	const flags = buildPaymentFraudFlags(existing, recent.rows[0]?.count || 0);
+	const escrowStatus = status === "completed" ? "held" : existing.escrow_status || "not_applicable";
+
 	const updated = await pool.query(
 		`UPDATE payments
-		 SET status = $1, provider_reference = COALESCE($2, provider_reference), updated_at = CURRENT_TIMESTAMP
+		 SET status = $1,
+		     provider_reference = COALESCE($2, provider_reference),
+		     escrow_status = $4,
+		     escrow_authorized_at = CASE WHEN $1 = 'completed' THEN COALESCE(escrow_authorized_at, CURRENT_TIMESTAMP) ELSE escrow_authorized_at END,
+		     fraud_flags = $5::jsonb,
+		     risk_score = $6,
+		     is_suspicious = CASE WHEN $6 >= 50 THEN true ELSE is_suspicious END,
+		     updated_at = CURRENT_TIMESTAMP
 		 WHERE tx_ref = $3
 		 RETURNING *`,
-		[status, chapaData.data?.reference || chapaData.data?.tx_ref || null, txRef],
+		[status, chapaData.data?.reference || chapaData.data?.tx_ref || null, txRef, escrowStatus, JSON.stringify(flags), paymentFraudScore(flags)],
 	);
 
 	return { payment: updated.rows[0] || null, chapa: chapaData };

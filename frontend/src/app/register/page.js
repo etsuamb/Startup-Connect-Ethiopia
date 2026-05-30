@@ -145,7 +145,7 @@ export default function RegisterAccountInfo() {
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 sm:p-10">
             <div className="mb-6">
-              <GoogleSignInButton onError={setError} />
+              <GoogleSignInButton onError={setError} mode="register" />
             </div>
 
             <div className="relative mb-6">
