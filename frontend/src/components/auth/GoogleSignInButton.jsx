@@ -40,7 +40,7 @@ export default function GoogleSignInButton({ onError, role, mode = "login" }) {
 			<p className="text-center text-xs text-gray-400 font-medium">
 				Google sign-in is unavailable. Set{" "}
 				<code className="text-[10px] bg-gray-100 px-1 rounded">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in{" "}
-				<code className="text-[10px] bg-gray-100 px-1 rounded">frontend/.env.local</code>.
+				<code className="text-[10px] bg-gray-100 px-1 rounded">frontend/.env</code>.
 			</p>
 		);
 	}

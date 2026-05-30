@@ -18,15 +18,19 @@ const ADMIN_PASSWORD = "AdminPass123!";
 			userId = exists.rows[0].user_id;
 			await pool.query(
 				`UPDATE users
-         SET password_hash=$1, role='Admin', is_approved=true, is_active=true
+         SET password_hash=$1, role='Admin', is_approved=true, is_active=true,
+             email_verified=true, provider_type='local', updated_at=NOW()
          WHERE user_id=$2`,
 				[hash, userId],
 			);
 			console.log("Admin user already exists; password reset:", ADMIN_EMAIL);
 		} else {
 			const inserted = await pool.query(
-				`INSERT INTO users (first_name, last_name, email, password_hash, role, is_approved, is_active, created_at)
-         VALUES ($1,$2,$3,$4,'Admin',true,true,NOW())
+				`INSERT INTO users (
+           first_name, last_name, email, password_hash, role,
+           is_approved, is_active, email_verified, provider_type, created_at
+         )
+         VALUES ($1,$2,$3,$4,'Admin',true,true,true,'local',NOW())
          RETURNING user_id`,
 				["Platform", "Admin", ADMIN_EMAIL, hash],
 			);
@@ -44,6 +48,11 @@ const ADMIN_PASSWORD = "AdminPass123!";
 				[userId, 10],
 			);
 			console.log("Linked admins profile (privilege_level 10)");
+		} else {
+			await pool.query(
+				"UPDATE admins SET privilege_level = $1 WHERE user_id = $2",
+				[10, userId],
+			);
 		}
 
 		console.log("Credentials:");

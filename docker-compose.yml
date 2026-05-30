@@ -1,68 +1,109 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: finalpro
-      POSTGRES_DB: connect_startup
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-finalpro}
+      POSTGRES_DB: ${POSTGRES_DB:-connect_startup}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-connect_startup}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-
-  api-gateway:
-    image: node:18-alpine
-    working_dir: /app
-    volumes:
-      - ./microservices/api-gateway:/app
-    ports:
-      - "5000:5000" # Gateway is the new entry point
-    command: sh -c "npm install && npm run dev"
-    depends_on:
-      - legacy-backend
-      - communication-service
-
-  communication-service:
-    image: node:18-alpine
-    working_dir: /app
-    volumes:
-      - ./microservices/communication-service:/app
-    ports:
-      - "5002:5002"
-    environment:
-      - PORT=5002
-      - DB_HOST=db
-      - REDIS_HOST=redis
+  migrate:
+    build:
+      context: ./backend
     env_file:
       - ./backend/.env
-    command: sh -c "npm install && npm run dev"
-    depends_on:
-      - db
-      - redis
-
-  legacy-backend:
-    image: node:18-alpine
-    working_dir: /app
-    volumes:
-      - ./backend:/app
-    ports:
-      - "5001:5001" # Monolith shifted to 5001
     environment:
-      - PORT=5001
-      - DB_HOST=db
-      - REDIS_HOST=redis
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-finalpro}
+      DB_NAME: ${POSTGRES_DB:-connect_startup}
+    command: ["npm", "run", "migrate"]
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  ensure-admin:
+    build:
+      context: ./backend
     env_file:
       - ./backend/.env
-    command: sh -c "npm install && npm run dev"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-finalpro}
+      DB_NAME: ${POSTGRES_DB:-connect_startup}
+    command: ["npm", "run", "ensure-admin"]
     depends_on:
-      - db
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      PORT: 5001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-finalpro}
+      DB_NAME: ${POSTGRES_DB:-connect_startup}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      ensure-admin:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        BACKEND_URL: http://backend:5001
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-http://localhost:5001}
+        NEXT_PUBLIC_CHAT_E2E_SECRET: ${NEXT_PUBLIC_CHAT_E2E_SECRET:-}
+    environment:
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      BACKEND_URL: http://backend:5001
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  uploads_data:
