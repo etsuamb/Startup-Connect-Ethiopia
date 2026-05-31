@@ -103,7 +103,7 @@ export default function LoginForm() {
 				<div className="text-center mt-2">
 					<p className="text-[13px] text-gray-500">
 						Don&apos;t have an account?{" "}
-						<Link href="/register/role" className="font-bold text-[#115b4c] hover:underline">
+						<Link href="/register" className="font-bold text-[#115b4c] hover:underline">
 							Register
 						</Link>
 					</p>

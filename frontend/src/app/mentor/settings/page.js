@@ -6,6 +6,7 @@ import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import { clearSession } from "@/lib/authStorage";
 import { useRouter } from "next/navigation";
 import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
+import { useMentorLocale } from "@/components/mentor/MentorLocaleProvider";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fieldValue(value) {
@@ -293,6 +294,7 @@ const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sun
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 export default function MentorSettingsPage() {
   const router = useRouter();
+  const { language, setLocale } = useMentorLocale();
   const [activeTab, setActiveTab] = useState("profile");
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -1411,6 +1413,22 @@ export default function MentorSettingsPage() {
 
       <main className="mx-auto w-full max-w-[1120px] px-5 py-8 lg:px-8">
         <AccountAccessBanner />
+        <SectionCard className="mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Language</h2>
+              <p className="text-sm text-gray-500">Switch the mentor portal between English and Amharic.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLocale(language === "Amharic" ? "en" : "am")}
+              className="inline-flex items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+            >
+              {language === "Amharic" ? "Switch to English" : "Switch to Amharic"}
+            </button>
+          </div>
+          <p className="mt-3 text-xs text-gray-500">Current language: {language}</p>
+        </SectionCard>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
 
           {/* Sidebar Nav */}
