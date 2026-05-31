@@ -10,6 +10,7 @@ const MIGRATION_FILES = [
 	"004_profile_privacy.sql",
 	"005_auth_security.sql",
 	"006_admin_uc.sql",
+	"007_payment_gateway.sql",
 ];
 
 async function ensureUploads() {

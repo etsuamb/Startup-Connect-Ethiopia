@@ -1,18 +1,9 @@
 const pool = require("../config/db");
-
-async function ensurePaymentReviewSchema() {
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(30) NOT NULL DEFAULT 'not_applicable'");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS fraud_flags JSONB NOT NULL DEFAULT '[]'::jsonb");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_suspicious BOOLEAN NOT NULL DEFAULT false");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_status VARCHAR(30)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS chargeback_status VARCHAR(30)");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS risk_score INTEGER NOT NULL DEFAULT 0");
-	await pool.query("ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_action_status VARCHAR(40)");
-}
+const { ensurePaymentSchema } = require("../services/ensurePaymentSchema");
 
 exports.getAllPayments = async (req, res) => {
 	try {
-		await ensurePaymentReviewSchema();
+		await ensurePaymentSchema();
 		const { status, payment_method, page = 1, limit = 50 } = req.query;
 		const offset = (Math.max(1, page) - 1) * limit;
 
@@ -63,7 +54,7 @@ exports.getAllPayments = async (req, res) => {
 
 exports.getPaymentStats = async (req, res) => {
 	try {
-		await ensurePaymentReviewSchema();
+		await ensurePaymentSchema();
 		const statsQuery = `
 			SELECT 
 				COUNT(*) as total_transactions,
