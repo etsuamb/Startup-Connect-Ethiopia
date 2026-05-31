@@ -6,6 +6,7 @@ import { getInvestorSettings, updateInvestorSettings } from "@/lib/investorApi";
 import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import AccountSecurityPanel from "@/components/auth/AccountSecurityPanel";
 import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
+import { useInvestorLocale } from "@/components/investor/InvestorLocaleProvider";
 
 const inputClass =
   "w-full bg-white border border-gray-200 text-gray-800 py-3.5 px-4 rounded-xl outline-none focus:border-[#0a4d3c]/50 focus:ring-4 focus:ring-[#0a4d3c]/10 transition text-[14px]";
@@ -24,6 +25,7 @@ function splitFullName(fullName) {
 }
 
 export default function SettingsPage() {
+  const { language, setLocale } = useInvestorLocale();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -269,6 +271,31 @@ export default function SettingsPage() {
                     <div className="md:col-span-2">
                       <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest mb-2">Bio</label>
                       <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} className={inputClass} />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 mb-1">Language</h2>
+                      <p className="text-[13px] text-gray-500">Choose your investor portal language.</p>
+                    </div>
+                    <div className="inline-flex rounded-full border border-gray-200 bg-gray-100 p-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setLocale("English")}
+                        className={`px-4 py-2 text-sm font-semibold rounded-full transition ${language === "English" ? "bg-[#0a3a2e] text-white" : "text-gray-600 hover:bg-white"}`}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocale("Amharic")}
+                        className={`px-4 py-2 text-sm font-semibold rounded-full transition ${language === "Amharic" ? "bg-[#0a3a2e] text-white" : "text-gray-600 hover:bg-white"}`}
+                      >
+                        Amharic
+                      </button>
                     </div>
                   </div>
                 </section>
