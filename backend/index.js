@@ -1,6 +1,7 @@
 const http = require("http");
 const express = require("express");
 const pool = require("./config/db");
+const initializeSocket = require("./socket");
 const authRoutes = require("./routes/authRoutes");
 const {
   requireVerifiedAndApprovedIfAuthenticated,
@@ -8,6 +9,7 @@ const {
 
 const app = express();
 const server = http.createServer(app);
+initializeSocket(server);
 const PORT = Number(process.env.PORT) || 5000;
 
 // Middleware
