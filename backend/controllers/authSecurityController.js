@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const authSecurity = require("../services/authSecurityService");
 const { ensureAuthSecuritySchema } = require("../services/ensureAuthSecuritySchema");
+const { MailDeliveryError } = require("../utils/mail");
 const securityMonitoringService = require("../services/securityMonitoringService");
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
@@ -17,6 +18,23 @@ try {
 
 const hasStrongPassword = (password) =>
 	typeof password === "string" && /(?=.*[A-Z])(?=.*[!@#$%^&*])(?=.*\d).{8,}/.test(password);
+
+function respondEmailDeliveryFailure(res, err, fallbackMessage) {
+	if (err instanceof MailDeliveryError) {
+		return res.status(503).json({
+			message: err.message,
+			code: err.code,
+			details: err.details || undefined,
+		});
+	}
+	if (/could not be delivered|resend|smtp|email provider|brevo/i.test(String(err.message || ""))) {
+		return res.status(503).json({
+			message: err.message || fallbackMessage,
+			code: "EMAIL_DELIVERY_FAILED",
+		});
+	}
+	return null;
+}
 
 async function loadUserById(userId) {
 	const r = await pool.query(`SELECT * FROM users WHERE user_id = $1`, [userId]);
@@ -172,13 +190,12 @@ exports.resendVerification = async (req, res) => {
 		return res.json({ message: "If that account exists, a verification email has been sent." });
 	} catch (err) {
 		console.error("resendVerification", err);
-		if (/could not be delivered|resend|smtp|email provider/i.test(String(err.message || ""))) {
-			return res.status(503).json({
-				message:
-					"We could not send the verification email right now. Please try again in a few minutes.",
-				code: "EMAIL_DELIVERY_FAILED",
-			});
-		}
+		const deliveryResponse = respondEmailDeliveryFailure(
+			res,
+			err,
+			"We could not send the verification email right now. Please try again in a few minutes.",
+		);
+		if (deliveryResponse) return deliveryResponse;
 		return res.status(500).json({ error: err.message });
 	}
 };
@@ -315,13 +332,12 @@ exports.forgotPassword = async (req, res) => {
 		return res.json({ message: genericMessage });
 	} catch (err) {
 		console.error("forgotPassword", err);
-		if (/could not be delivered|resend|smtp|email provider/i.test(String(err.message || ""))) {
-			return res.status(503).json({
-				message:
-					"We could not send the reset email right now. Please try again in a few minutes or contact support.",
-				code: "EMAIL_DELIVERY_FAILED",
-			});
-		}
+		const deliveryResponse = respondEmailDeliveryFailure(
+			res,
+			err,
+			"We could not send the reset email right now. Please try again in a few minutes or contact support.",
+		);
+		if (deliveryResponse) return deliveryResponse;
 		return res.status(500).json({ error: err.message });
 	}
 };

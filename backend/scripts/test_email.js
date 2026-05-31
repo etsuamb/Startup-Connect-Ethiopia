@@ -9,14 +9,21 @@ if (!to) {
 
 async function main() {
 	console.log("Mail setup:", mail.getMailProviderStatus());
-	const result = await mail.sendMail(
-		to,
-		"StartupConnect email test",
-		"If you received this, email delivery is working.",
-		"<p>If you received this, <strong>email delivery is working</strong>.</p>",
-	);
-	console.log("Result:", result);
-	if (!result.delivered) {
+	try {
+		const result = await mail.sendMail(
+			to,
+			"StartupConnect email test",
+			"If you received this, email delivery is working.",
+			"<p>If you received this, <strong>email delivery is working</strong>.</p>",
+		);
+		console.log("Result:", result);
+		if (!result.delivered) {
+			process.exitCode = 1;
+		}
+	} catch (err) {
+		console.error("Send failed:", err.message || err);
+		if (err.code) console.error("Code:", err.code);
+		if (err.details) console.error("Details:", err.details);
 		process.exitCode = 1;
 	}
 }
