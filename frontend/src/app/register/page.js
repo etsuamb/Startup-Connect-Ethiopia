@@ -3,7 +3,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadRegistrationAccountInfo, saveRegistrationAccountInfo } from "@/lib/registerAccountStorage";
-import { validateRegistrationEmail } from "@/lib/authApi";
+import {
+  getRegistrationEmailVerificationStatus,
+  startRegistrationEmailVerification,
+  validateRegistrationEmail,
+} from "@/lib/authApi";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 export default function RegisterAccountInfo() {
@@ -23,6 +27,12 @@ export default function RegisterAccountInfo() {
   });
   const [accountDraftReady, setAccountDraftReady] = useState(false);
   const [showDraftNotice, setShowDraftNotice] = useState(false);
+  const [verificationId, setVerificationId] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationExpiresAt, setVerificationExpiresAt] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [sendingVerification, setSendingVerification] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -30,6 +40,13 @@ export default function RegisterAccountInfo() {
       name === "firstName" || name === "lastName"
         ? value.replace(/[^A-Za-z ]/g, "")
         : value;
+    if (name === "email" && cleanedValue.trim().toLowerCase() !== verificationEmail) {
+      setVerificationId("");
+      setVerificationEmail("");
+      setVerificationExpiresAt("");
+      setEmailVerified(false);
+      setRemainingSeconds(0);
+    }
     setFormData({ ...formData, [name]: cleanedValue });
   };
 
@@ -42,19 +59,25 @@ export default function RegisterAccountInfo() {
   useEffect(() => {
     const saved = loadRegistrationAccountInfo();
     if (!saved) {
-      setAccountDraftReady(true);
+      queueMicrotask(() => setAccountDraftReady(true));
       return;
     }
     const phoneTail = String(saved.phone_number || "").replace(/^\+?251/, "");
-    setFormData({
-      firstName: saved.first_name || "",
-      lastName: saved.last_name || "",
-      email: saved.email || "",
-      password: saved.password || "",
-      confirmPassword: saved.confirm_password || "",
-      phoneTail,
+    queueMicrotask(() => {
+      setFormData({
+        firstName: saved.first_name || "",
+        lastName: saved.last_name || "",
+        email: saved.email || "",
+        password: saved.password || "",
+        confirmPassword: saved.confirm_password || "",
+        phoneTail,
+      });
+      setVerificationId(saved.registration_email_verification_id || "");
+      setVerificationEmail(saved.registration_email_verification_id ? saved.email?.trim().toLowerCase() || "" : "");
+      setVerificationExpiresAt(saved.registration_email_verification_expires_at || "");
+      setEmailVerified(Boolean(saved.registration_email_verified));
+      setAccountDraftReady(true);
     });
-    setAccountDraftReady(true);
   }, []);
 
   useEffect(() => {
@@ -67,30 +90,105 @@ export default function RegisterAccountInfo() {
       password: formData.password,
       confirm_password: formData.confirmPassword,
       phone_number: formData.phoneTail ? `+251${String(formData.phoneTail).replace(/\D/g, "")}` : "",
+      registration_email_verification_id: verificationId,
+      registration_email_verification_expires_at: verificationExpiresAt,
+      registration_email_verified: emailVerified && verificationEmail === formData.email.trim().toLowerCase(),
     });
-  }, [accountDraftReady, formData]);
+  }, [accountDraftReady, emailVerified, formData, verificationEmail, verificationExpiresAt, verificationId]);
+
+  useEffect(() => {
+    if (!verificationExpiresAt || emailVerified) return;
+    const updateCounter = () => {
+      const seconds = Math.max(0, Math.ceil((new Date(verificationExpiresAt).getTime() - Date.now()) / 1000));
+      setRemainingSeconds(seconds);
+      if (seconds === 0) {
+        setVerificationId("");
+        setVerificationEmail("");
+        setVerificationExpiresAt("");
+        setFormData((current) => ({ ...current, email: "" }));
+        setError("The one-minute verification window expired. Re-enter your email to request a new link.");
+      }
+    };
+    updateCounter();
+    const timer = setInterval(updateCounter, 1000);
+    return () => clearInterval(timer);
+  }, [emailVerified, verificationExpiresAt]);
+
+  useEffect(() => {
+    if (!verificationId || !verificationEmail || emailVerified) return;
+    let cancelled = false;
+    const checkStatus = async () => {
+      try {
+        const status = await getRegistrationEmailVerificationStatus(verificationId, verificationEmail);
+        if (!cancelled && status.status === "verified") {
+          setEmailVerified(true);
+          setRemainingSeconds(0);
+          setError("");
+        }
+      } catch {
+        // Keep polling until the visible one-minute window expires.
+      }
+    };
+    checkStatus();
+    const timer = setInterval(checkStatus, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [emailVerified, verificationEmail, verificationId]);
+
+  const resetEmailVerification = () => {
+    setVerificationId("");
+    setVerificationEmail("");
+    setVerificationExpiresAt("");
+    setEmailVerified(false);
+    setRemainingSeconds(0);
+  };
+
+  const handleSendVerification = async () => {
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    setError("");
+    if (!normalizedEmail) {
+      setError("Enter your email address first.");
+      return;
+    }
+
+    setValidatingEmail(true);
+    setSendingVerification(true);
+    try {
+      const check = await validateRegistrationEmail(normalizedEmail);
+      if (!check?.valid) {
+        setError(check?.message || "Enter a real email address you can access.");
+        return;
+      }
+      const verification = await startRegistrationEmailVerification(normalizedEmail);
+      setVerificationId(verification.verificationId);
+      setVerificationEmail(normalizedEmail);
+      setVerificationExpiresAt(verification.expiresAt);
+      setRemainingSeconds(60);
+      setEmailVerified(false);
+      setError("");
+    } catch (ex) {
+      setError(ex.message || "Could not send the verification email. Try again.");
+    } finally {
+      setValidatingEmail(false);
+      setSendingVerification(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords must match.");
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    if (!emailVerified || verificationEmail !== normalizedEmail || !verificationId) {
+      setError("Verify your email address before continuing.");
       return;
     }
 
-    setValidatingEmail(true);
-    try {
-      const check = await validateRegistrationEmail(formData.email);
-      if (!check?.valid) {
-        setError(check?.message || "Enter a real email address you can access.");
-        return;
-      }
-    } catch (ex) {
-      setError(ex.message || "Could not validate email. Try again.");
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords must match.");
       return;
-    } finally {
-      setValidatingEmail(false);
     }
 
     const rawPhone = String(formData.phoneTail || "").replace(/\D/g, "");
@@ -118,6 +216,9 @@ export default function RegisterAccountInfo() {
       password: formData.password,
       confirm_password: formData.confirmPassword,
       phone_number: phoneNumber,
+      registration_email_verification_id: verificationId,
+      registration_email_verification_expires_at: verificationExpiresAt,
+      registration_email_verified: true,
     });
 
     router.push("/register/role");
@@ -151,6 +252,9 @@ export default function RegisterAccountInfo() {
                 password: formData.password,
                 confirm_password: formData.confirmPassword,
                 phone_number: formData.phoneTail ? `+251${String(formData.phoneTail).replace(/\D/g, "")}` : "",
+                registration_email_verification_id: verificationId,
+                registration_email_verification_expires_at: verificationExpiresAt,
+                registration_email_verified: emailVerified && verificationEmail === formData.email.trim().toLowerCase(),
               });
               setShowDraftNotice(true);
               setTimeout(() => setShowDraftNotice(false), 2000);
@@ -237,10 +341,58 @@ export default function RegisterAccountInfo() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  readOnly={Boolean(verificationId) || emailVerified}
                   required
                   placeholder="abebe@example.com"
                   className="w-full px-5 py-3.5 bg-[#c9dbd5] border border-transparent rounded-full focus:outline-none focus:ring-2 focus:ring-[#438265]/35 focus:bg-[#d3e2dd] transition text-[14px] text-[#315f55] placeholder-[#52746b]"
                 />
+                {verificationId && !emailVerified ? (
+                  <div className="mt-2 flex items-center justify-between gap-3 text-sm text-amber-700">
+                    <span>
+                      Check your inbox. Link expires in 00:
+                      {String(remainingSeconds).padStart(2, "0")}
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 underline"
+                      onClick={() => {
+                        resetEmailVerification();
+                        setFormData((current) => ({ ...current, email: "" }));
+                      }}
+                    >
+                      Change email
+                    </button>
+                  </div>
+                ) : null}
+                {emailVerified ? (
+                  <div className="mt-2 flex items-center justify-between gap-3 text-sm text-green-700">
+                    <span>Email verified. You can continue.</span>
+                    <button
+                      type="button"
+                      className="shrink-0 underline"
+                      onClick={() => {
+                        resetEmailVerification();
+                        setFormData((current) => ({ ...current, email: "" }));
+                      }}
+                    >
+                      Use another email
+                    </button>
+                  </div>
+                ) : null}
+                {!verificationId && !emailVerified ? (
+                  <button
+                    type="button"
+                    onClick={handleSendVerification}
+                    disabled={validatingEmail || sendingVerification}
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-full border border-[#438265] px-4 py-2.5 text-sm font-bold text-[#0a4d3c] transition hover:bg-[#d3e2dd] disabled:opacity-60"
+                  >
+                    {sendingVerification
+                      ? "Sending verification link..."
+                      : validatingEmail
+                        ? "Checking email..."
+                        : "Send verification link"}
+                  </button>
+                ) : null}
               </div>
 
               <div>
@@ -394,10 +546,10 @@ export default function RegisterAccountInfo() {
 
               <button
                 type="submit"
-                disabled={validatingEmail}
+                disabled={!emailVerified || validatingEmail || sendingVerification}
                 className="w-full py-3.5 bg-[#438265] hover:bg-[#356e56] disabled:opacity-60 text-white font-bold rounded-full shadow-md shadow-[#438265]/20 transition text-[14px] mt-2"
               >
-                {validatingEmail ? "Checking email…" : "Continue"}
+                {emailVerified ? "Continue" : "Verify email above to continue"}
               </button>
             </form>
 
