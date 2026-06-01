@@ -6,6 +6,7 @@ import { getInvestorSettings, updateInvestorSettings } from "@/lib/investorApi";
 import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import AccountSecurityPanel from "@/components/auth/AccountSecurityPanel";
 import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
+import { IndustrySelectWithOther } from "@/components/register/IndustryFields";
 
 const inputClass =
   "w-full bg-white border border-gray-200 text-gray-800 py-3.5 px-4 rounded-xl outline-none focus:border-[#0a4d3c]/50 focus:ring-4 focus:ring-[#0a4d3c]/10 transition text-[14px]";
@@ -246,10 +247,14 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest mb-2">Preferred Industry</label>
-                      <input value={preferredIndustry} onChange={(e) => setPreferredIndustry(e.target.value)} className={inputClass} />
-                    </div>
+                    <IndustrySelectWithOther
+                      label="Preferred Industry"
+                      value={preferredIndustry}
+                      onChange={setPreferredIndustry}
+                      labelClassName="block text-[10px] font-bold text-gray-700 uppercase tracking-widest"
+                      selectClassName={`${inputClass} mt-2 appearance-none normal-case tracking-normal`}
+                      inputClassName={`${inputClass} mt-3 normal-case tracking-normal`}
+                    />
                     <div>
                       <label className="block text-[10px] font-bold text-gray-700 uppercase tracking-widest mb-2">Preferred Startup Stage</label>
                       <input value={investmentStage} onChange={(e) => setInvestmentStage(e.target.value)} className={inputClass} />

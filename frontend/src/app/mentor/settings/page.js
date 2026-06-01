@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { fetchMentorDocument, fetchMentorProfile, updateMentorProfile } from "@/lib/mentorApi";
-import { fetchPlatformCategories } from "@/lib/adminApi";
 import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import { clearSession } from "@/lib/authStorage";
 import { useRouter } from "next/navigation";
 import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
+import { IndustrySelectWithOther } from "@/components/register/IndustryFields";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fieldValue(value) {
@@ -317,7 +317,6 @@ export default function MentorSettingsPage() {
   // ── Expertise state ──
   const [expertiseAreas,    setExpertiseAreas]    = useState([]);
   const [primaryIndustry,   setPrimaryIndustry]   = useState("");
-  const [industries,        setIndustries]        = useState([]);
   const [spokenLanguages,   setSpokenLanguages]   = useState([]);
   const [mentorshipFocus,   setMentorshipFocus]   = useState("");
   const [sessionRate,       setSessionRate]       = useState("");
@@ -422,16 +421,6 @@ export default function MentorSettingsPage() {
       })
       .finally(() => alive && setLoading(false));
 
-    // load platform industries for selects
-    (async () => {
-      try {
-        const cats = await fetchPlatformCategories("industry");
-        const list = (cats?.categories || []).map((c) => c.name || c).filter(Boolean);
-        setIndustries(list);
-      } catch (e) {
-        // ignore
-      }
-    })();
     return () => { alive = false; };
   }, []);
 
@@ -751,12 +740,14 @@ export default function MentorSettingsPage() {
         <SectionCard>
           <SectionHeader title="Industry Focus" description="Your primary industry focus helps startups find the right mentor." />
           <div className="grid gap-5 sm:grid-cols-2">
-            <SelectField
+            <IndustrySelectWithOther
               label="Primary industry"
               value={primaryIndustry}
-              onChange={(e) => setPrimaryIndustry(e.target.value)}
-              options={industries}
+              onChange={setPrimaryIndustry}
               placeholder="Select primary industry"
+              labelClassName="block text-xs font-bold text-gray-700"
+              selectClassName={`${inputClass} mt-2 appearance-none`}
+              inputClassName={`${inputClass} mt-3`}
             />
             <FormField label="Mentorship focus statement" hint="A one-liner about your unique mentorship style.">
               <input
