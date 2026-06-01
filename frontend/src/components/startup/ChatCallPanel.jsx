@@ -183,7 +183,17 @@ export default function ChatCallPanel({
 		};
 		pc.ontrack = (event) => {
 			const [incomingStream] = event.streams;
-			if (incomingStream) setRemoteStream(incomingStream);
+			if (incomingStream) {
+				setRemoteStream(incomingStream);
+				return;
+			}
+			setRemoteStream((current) => {
+				const nextStream = current || new MediaStream();
+				if (event.track) {
+					nextStream.addTrack(event.track);
+				}
+				return nextStream;
+			});
 		};
 		for (const track of localStreamRef.current?.getTracks?.() || []) {
 			pc.addTrack(track, localStreamRef.current);
@@ -334,6 +344,7 @@ export default function ChatCallPanel({
 	useEffect(() => {
 		if (remoteVideoRef.current && remoteStream) {
 			remoteVideoRef.current.srcObject = remoteStream;
+			remoteVideoRef.current.play?.().catch(() => {});
 		}
 	}, [remoteStream]);
 
@@ -683,7 +694,14 @@ export default function ChatCallPanel({
 					</div>
 
 					<div className="overflow-hidden rounded-xl border border-gray-200 bg-[#1a1a1a] min-h-[180px]">
-						{screenStream ? (
+						{remoteStream && !screenStream ? (
+							<video
+								ref={remoteVideoRef}
+								autoPlay
+								playsInline
+								className="h-full w-full min-h-[180px] object-cover"
+							/>
+						) : screenStream ? (
 							<video
 								ref={screenVideoRef}
 								autoPlay
@@ -716,7 +734,9 @@ export default function ChatCallPanel({
 										d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
 									/>
 								</svg>
-								<p className="text-sm">Partner video appears when they join</p>
+								<p className="text-sm">
+									Partner audio and video appear when they join
+								</p>
 							</div>
 						)}
 						<p className="bg-black/70 px-2 py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white/80">
