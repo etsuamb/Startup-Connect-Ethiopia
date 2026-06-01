@@ -843,7 +843,7 @@ export default function MentorMessagesPage() {
 
 								<form
 									onSubmit={send}
-									className="shrink-0 border-t border-gray-100 bg-white px-6 py-5"
+									className="shrink-0 border-t border-gray-200 bg-white p-6"
 								>
 									{file ? (
 										<div className="mb-3 flex items-center gap-3 text-xs font-semibold text-gray-600">
@@ -859,7 +859,7 @@ export default function MentorMessagesPage() {
 											</button>
 										</div>
 									) : null}
-									<div className="flex items-center gap-3 rounded-full bg-gray-100 px-4 py-2">
+									<div className="flex items-center gap-3">
 										<input
 											ref={fileInputRef}
 											type="file"
@@ -871,7 +871,7 @@ export default function MentorMessagesPage() {
 										<button
 											type="button"
 											onClick={() => fileInputRef.current?.click()}
-											className="text-gray-400 hover:text-[#073f32]"
+											className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-300 text-gray-500 hover:bg-gray-50"
 											title="Attach file"
 										>
 											<svg
@@ -888,20 +888,14 @@ export default function MentorMessagesPage() {
 												/>
 											</svg>
 										</button>
-										<input
-											value={text}
-											onChange={(event) => setText(event.target.value)}
-											placeholder="Type your message here..."
-											className="h-10 min-w-0 flex-1 border-0 bg-transparent text-sm outline-none"
-										/>
 										<button
 											type="button"
 											onClick={startDictation}
-											className={
+											className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${
 												recording
-													? "text-red-500"
-													: "text-gray-400 hover:text-[#073f32]"
-											}
+													? "border-red-200 bg-red-50 text-red-600"
+													: "border-gray-300 text-gray-500 hover:bg-gray-50"
+											}`}
 											title="Dictate message"
 										>
 											<svg
@@ -918,14 +912,21 @@ export default function MentorMessagesPage() {
 												/>
 											</svg>
 										</button>
+										<input
+											value={text}
+											onChange={(event) => setText(event.target.value)}
+											placeholder="Type your message here..."
+											className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-5 py-3.5 text-[14px] outline-none shadow-sm transition focus:border-[#0a4d3c]/50 focus:ring-4 focus:ring-[#0a4d3c]/10"
+										/>
 										<button
 											type="submit"
 											disabled={sending || (!text.trim() && !file)}
-											className="flex h-10 w-10 items-center justify-center rounded-full bg-[#073f32] text-white shadow-sm hover:bg-[#052f26] disabled:opacity-40"
+											className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0a3a2e] px-6 py-3.5 text-[14px] font-bold text-white shadow-md transition hover:bg-[#072a21] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
 											title="Send"
 										>
+											{sending ? "Sending..." : file ? "Send File" : "Send"}
 											<svg
-												className="h-5 w-5"
+												className="h-4 w-4"
 												fill="none"
 												stroke="currentColor"
 												viewBox="0 0 24 24"

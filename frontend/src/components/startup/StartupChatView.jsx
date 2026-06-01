@@ -1064,7 +1064,7 @@ export default function StartupChatView({
 						{/* Composer */}
 						<form
 							onSubmit={handleSend}
-							className="shrink-0 border-t border-gray-100 bg-white px-4 sm:px-6 py-4"
+							className="shrink-0 border-t border-gray-200 bg-white p-6"
 						>
 							{selectedFile && (
 								<div className="mb-3 flex items-center gap-2 text-xs text-gray-600">
@@ -1080,12 +1080,12 @@ export default function StartupChatView({
 									</button>
 								</div>
 							)}
-							<div className="flex items-end gap-2">
+							<div className="flex items-center gap-3">
 								<button
 									type="button"
 									onClick={() => fileInputRef.current?.click()}
 									disabled={!selected || sending}
-									className="p-2.5 rounded-xl text-gray-400 hover:text-[#0f3d32] hover:bg-gray-50 disabled:opacity-40"
+									className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
 									title="Attach file"
 								>
 									<svg
@@ -1112,10 +1112,10 @@ export default function StartupChatView({
 									type="button"
 									onClick={startVoiceRecording}
 									disabled={!selected || sending}
-									className={`p-2.5 rounded-xl disabled:opacity-40 ${
+									className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border disabled:opacity-50 ${
 										isRecording
-											? "text-red-500 bg-red-50"
-											: "text-gray-400 hover:text-[#0f3d32] hover:bg-gray-50"
+											? "border-red-200 bg-red-50 text-red-600"
+											: "border-gray-300 text-gray-500 hover:bg-gray-50"
 									}`}
 									title="Dictate message"
 								>
@@ -1129,11 +1129,11 @@ export default function StartupChatView({
 											strokeLinecap="round"
 											strokeLinejoin="round"
 											strokeWidth="2"
-											d="M12 4v16m8-8H4"
+											d="M12 18.5a6 6 0 006-6m-12 0a6 6 0 006 6m0 0v3m-4 0h8M12 15a3 3 0 003-3V5a3 3 0 10-6 0v7a3 3 0 003 3z"
 										/>
 									</svg>
 								</button>
-								<div className="flex-grow relative">
+								<div className="flex-grow">
 									<input
 										value={messageText}
 										onChange={handleMessageInputChange}
@@ -1144,28 +1144,8 @@ export default function StartupChatView({
 												? `Write your message to ${selected.contactName?.split(" ")[0] || "them"}…`
 												: "Select a conversation first"
 										}
-										className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 pr-10 text-sm outline-none focus:border-[#0f3d32]/40 focus:ring-2 focus:ring-[#0f3d32]/10 disabled:bg-gray-50"
+										className="w-full rounded-xl border border-gray-300 bg-white px-5 py-3.5 text-[14px] outline-none shadow-sm transition focus:border-[#0a4d3c]/50 focus:ring-4 focus:ring-[#0a4d3c]/10 disabled:bg-gray-50"
 									/>
-									<button
-										type="button"
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300"
-										tabIndex={-1}
-										aria-hidden
-									>
-										<svg
-											className="w-5 h-5"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
-										>
-											<path
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												strokeWidth="2"
-												d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-											/>
-										</svg>
-									</button>
 								</div>
 								<button
 									type="submit"
@@ -1174,11 +1154,12 @@ export default function StartupChatView({
 										sending ||
 										(!messageText.trim() && !selectedFile)
 									}
-									className="w-11 h-11 rounded-full bg-[#0f3d32] text-white flex items-center justify-center hover:bg-[#0a2921] disabled:opacity-40 shadow-md shrink-0"
+									className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0a3a2e] px-6 py-3.5 text-[14px] font-bold text-white shadow-md transition hover:bg-[#072a21] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:shadow-none"
 									title="Send"
 								>
+									{sending ? "Sending..." : selectedFile ? "Send File" : "Send"}
 									<svg
-										className="w-5 h-5"
+										className="w-4 h-4"
 										fill="none"
 										stroke="currentColor"
 										viewBox="0 0 24 24"
@@ -1192,22 +1173,6 @@ export default function StartupChatView({
 									</svg>
 								</button>
 							</div>
-							<p className="text-center text-[10px] text-gray-400 mt-3 flex items-center justify-center gap-1">
-								<svg
-									className="w-3 h-3"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-									/>
-								</svg>
-								End-to-end encrypted for your security
-							</p>
 						</form>
 					</section>
 				</div>
