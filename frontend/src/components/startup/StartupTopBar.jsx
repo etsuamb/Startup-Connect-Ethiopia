@@ -1,56 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import NotificationBell from "@/components/NotificationBell";
 import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
-import { getStartupProfile } from "@/lib/startupApi";
-import { fetchDocumentBlob, resolveUploadedFileUrl } from "@/lib/viewUploadedFile";
-
-function initials(value) {
-	const text = String(value || "Startup").trim();
-	return text
-		.split(/\s+/)
-		.filter(Boolean)
-		.map((word) => word[0])
-		.slice(0, 2)
-		.join("")
-		.toUpperCase();
-}
-
-function normalizeText(value) {
-	return String(value || "")
-		.toLowerCase()
-		.replace(/[_-]/g, " ")
-		.replace(/\s+/g, " ")
-		.trim();
-}
-
-function isCompanyLogoDocument(doc) {
-	const description = normalizeText(doc?.description || doc?.document_type);
-	const fileName = normalizeText(doc?.file_name);
-	const fileType = normalizeText(doc?.file_type);
-	const isLogo =
-		description.includes("company logo") ||
-		(description.includes("logo") && !description.includes("profile"));
-	const isImage = fileType.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/.test(fileName);
-	return isLogo && isImage;
-}
-
-function isLogoDocument(doc) {
-	const description = normalizeText(doc?.description || doc?.document_type);
-	const fileName = normalizeText(doc?.file_name);
-	const fileType = normalizeText(doc?.file_type);
-	const isLogo =
-		description.includes("logo") ||
-		description.includes("profile photo") ||
-		description.includes("profile picture") ||
-		description.includes("profile image") ||
-		description.includes("avatar") ||
-		fileName.includes("logo") ||
-		fileName.includes("profile");
-	const isImage = fileType.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/.test(fileName);
-	return isLogo && isImage;
-}
 
 export default function StartupTopBar({
 	searchValue = "",
@@ -60,98 +11,9 @@ export default function StartupTopBar({
 	showSearch = true,
 	profileName = "My Startup",
 	profileSubtitle = "Startup account",
-	profileDocuments,
 	refreshing = false,
 	onRefresh,
 }) {
-	const [loadedProfile, setLoadedProfile] = useState(null);
-	const [profileImageSrc, setProfileImageSrc] = useState(null);
-	const effectiveProfile = loadedProfile?.startup || null;
-	const directProfileImage =
-		effectiveProfile?.logo_url ||
-		effectiveProfile?.logo_path ||
-		effectiveProfile?.profile_image_url ||
-		effectiveProfile?.profile_picture_url ||
-		effectiveProfile?.avatar_url ||
-		null;
-	const effectiveName =
-		profileName !== "My Startup"
-			? profileName
-			: effectiveProfile?.startup_name || profileName;
-	const effectiveSubtitle =
-		profileSubtitle !== "Startup account"
-			? profileSubtitle
-			: effectiveProfile?.admin_status || effectiveProfile?.status_label || profileSubtitle;
-	const effectiveDocuments = useMemo(
-		() => profileDocuments ?? loadedProfile?.documents ?? [],
-		[loadedProfile?.documents, profileDocuments],
-	);
-	const avatar = useMemo(() => initials(effectiveName), [effectiveName]);
-	const logoDocument = useMemo(() => {
-		const docs = Array.isArray(effectiveDocuments) ? effectiveDocuments : [];
-		return docs.find(isCompanyLogoDocument) || docs.find(isLogoDocument) || null;
-	}, [effectiveDocuments]);
-
-	useEffect(() => {
-		let ignore = false;
-
-		async function loadProfile() {
-			if (profileDocuments !== undefined) return;
-			try {
-				const data = await getStartupProfile();
-				if (!ignore) setLoadedProfile(data || null);
-			} catch {
-				if (!ignore) setLoadedProfile(null);
-			}
-		}
-
-		loadProfile();
-
-		return () => {
-			ignore = true;
-		};
-	}, [profileDocuments]);
-
-	useEffect(() => {
-		let objectUrl = null;
-		let cancelled = false;
-
-		async function loadProfileImage() {
-			setProfileImageSrc(null);
-			const directProfileImageUrl = resolveUploadedFileUrl(directProfileImage) || directProfileImage;
-			if (directProfileImageUrl) {
-				setProfileImageSrc(directProfileImageUrl);
-				return;
-			}
-			if (!logoDocument) return;
-
-			const directUrl = resolveUploadedFileUrl(logoDocument.file_path);
-			if (directUrl) {
-				setProfileImageSrc(directUrl);
-				return;
-			}
-
-			const documentId = logoDocument.document_id || logoDocument.id;
-			if (!documentId) return;
-
-			try {
-				const { blob } = await fetchDocumentBlob(documentId);
-				if (cancelled) return;
-				objectUrl = URL.createObjectURL(blob);
-				setProfileImageSrc(objectUrl);
-			} catch {
-				if (!cancelled) setProfileImageSrc(null);
-			}
-		}
-
-		loadProfileImage();
-
-		return () => {
-			cancelled = true;
-			if (objectUrl) URL.revokeObjectURL(objectUrl);
-		};
-	}, [directProfileImage, logoDocument]);
-
 	function handleSearchSubmit(event) {
 		event.preventDefault();
 		if (onSearchSubmit) onSearchSubmit(searchValue);
@@ -194,8 +56,8 @@ export default function StartupTopBar({
 					<NotificationBell />
 
 					<StartupProfileMenu
-						profileName={effectiveName}
-						profileSubtitle={effectiveSubtitle}
+						profileName={profileName}
+						profileSubtitle={profileSubtitle}
 					/>
 				</div>
 			</div>

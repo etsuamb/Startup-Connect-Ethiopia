@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import { verifyChapaPayment } from "@/lib/startupApi";
 
 function formatCurrency(value, currency = "ETB") {
@@ -55,7 +56,10 @@ function PaymentCompletedContent() {
   return (
     <div className="min-h-screen bg-[#f4f7f9] font-sans text-gray-900 flex">
       <Sidebar />
-      <main className="flex-grow flex items-center justify-center px-4 py-16">
+      <main className="relative flex-grow flex items-center justify-center px-4 py-16">
+        <div className="absolute right-4 top-4 sm:right-8">
+          <StartupProfileMenu />
+        </div>
         <div className="w-full max-w-lg rounded-[32px] border border-gray-100 bg-white p-8 shadow-sm text-center">
           <div className={`mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full ${isCompleted ? "bg-[#dcfce7] text-[#166534]" : "bg-amber-100 text-amber-700"}`}>
             {loading ? "…" : isCompleted ? "✓" : "!"}

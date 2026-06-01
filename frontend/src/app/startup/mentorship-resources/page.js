@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import { getMentorshipResources } from "@/lib/startupApi";
 import { openUploadedFileForView, resolveUploadedFileUrl } from "@/lib/viewUploadedFile";
 
@@ -215,6 +216,7 @@ export default function StartupMentorshipResourcesPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <StartupProfileMenu showText={false} />
               <Link
                 href="/startup/chat?kind=mentor"
                 className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"

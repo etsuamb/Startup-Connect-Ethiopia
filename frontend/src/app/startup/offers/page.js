@@ -2,6 +2,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import { getStartupOffers, updateOfferStatus } from "@/lib/startupApi";
 import { formatFolderLabel } from "@/lib/offerUtils";
 
@@ -490,6 +491,9 @@ export default function StartupOffersPage() {
       )}
 
       <main className="flex-grow overflow-y-auto">
+        <header className="sticky top-0 z-30 flex justify-end border-b border-gray-100 bg-white px-4 py-3 sm:px-8">
+          <StartupProfileMenu />
+        </header>
         <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-8 py-8">
 
           {/* ── Page Header ── */}

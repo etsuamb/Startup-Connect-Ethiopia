@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import { getInvestorRecommendations, getMentorRecommendations } from "@/lib/startupApi";
 
 function formatMoney(value) {
@@ -79,7 +80,11 @@ export default function StartupRecommendationsPage() {
     <div className="flex min-h-screen bg-white font-sans text-gray-900">
       <Sidebar />
 
-      <main className="flex-1 overflow-y-auto px-4 py-8 md:px-8 lg:px-10">
+      <main className="flex-1 overflow-y-auto">
+        <header className="sticky top-0 z-30 flex justify-end border-b border-gray-100 bg-white px-4 py-3 sm:px-8">
+          <StartupProfileMenu />
+        </header>
+        <div className="px-4 py-8 md:px-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
           <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -221,6 +226,7 @@ export default function StartupRecommendationsPage() {
               </section>
             </div>
           ) : null}
+        </div>
         </div>
       </main>
     </div>
