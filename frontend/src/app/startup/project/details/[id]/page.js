@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import { getProjectDetails } from "@/lib/startupApi";
 
 export default function ProjectDetails() {
@@ -75,12 +76,15 @@ export default function ProjectDetails() {
             <h1 className="text-3xl font-bold text-[#0f3d32] tracking-tight">Project Details</h1>
             <p className="text-sm text-gray-500 mt-1">View and manage your project information</p>
           </div>
-          <Link
-            href="/startup/project"
-            className="px-6 py-3 bg-white border border-[#0f3d32] text-[#0f3d32] font-bold rounded-lg hover:bg-gray-50 transition text-sm shadow-sm"
-          >
-            Back to My Projects
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/startup/project"
+              className="px-6 py-3 bg-white border border-[#0f3d32] text-[#0f3d32] font-bold rounded-lg hover:bg-gray-50 transition text-sm shadow-sm"
+            >
+              Back to My Projects
+            </Link>
+            <StartupProfileMenu showText={false} />
+          </div>
         </header>
 
         <div className="px-4 sm:px-10 py-10 w-full max-w-[1200px] mx-auto pb-24">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clearSession } from "@/lib/authStorage";
@@ -82,9 +83,12 @@ export default function StartupProfileMenu({
 					</div>
 				) : null}
 				{imageSrc ? (
-					<img
+					<Image
 						src={imageSrc}
 						alt={`${name} logo`}
+						width={40}
+						height={40}
+						unoptimized
 						className="h-10 w-10 shrink-0 rounded-full border border-gray-100 object-cover"
 					/>
 				) : (

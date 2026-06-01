@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import {
   getDashboardActivities,
   getDocuments,
@@ -179,7 +180,11 @@ export default function StartupReportsPage() {
   return (
     <div className="flex min-h-screen bg-[#f4f7f6] font-sans text-gray-900">
       <Sidebar />
-      <main className="min-w-0 flex-grow overflow-y-auto p-6 pt-24">
+      <main className="min-w-0 flex-grow overflow-y-auto">
+        <header className="sticky top-0 z-30 flex justify-end border-b border-gray-100 bg-white px-4 py-3 sm:px-8">
+          <StartupProfileMenu />
+        </header>
+        <div className="p-6">
         <div className="mx-auto grid max-w-[1180px] gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="min-w-0 space-y-5">
             <div className="relative overflow-hidden rounded-lg bg-[#073f32] p-8 text-white shadow-sm">
@@ -273,6 +278,7 @@ export default function StartupReportsPage() {
               </pre>
             </div>
           </aside>
+        </div>
         </div>
       </main>
     </div>

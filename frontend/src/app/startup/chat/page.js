@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Sidebar from "@/components/startup/Sidebar";
 import StartupChatView from "@/components/startup/StartupChatView";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 import { useRealtimeChat } from "@/hooks/useRealtimeChat";
 import {
 	downloadInvestorChatFile,
+	downloadMentorChatFile,
 	createInvestorChatConversation,
 	createMentorChatConversation,
 	endInvestorVideoCall,
@@ -157,9 +159,14 @@ function StartupAllChats() {
 		<div className="flex h-screen overflow-hidden bg-white font-sans text-gray-900">
 			<Sidebar />
 			<main className="min-w-0 flex-1 overflow-y-auto bg-[#fafbfc]">
-				<header className="border-b border-gray-100 bg-white px-6 py-5 sm:px-8">
-					<h1 className="text-xl font-bold">Messages</h1>
-					<p className="mt-1 text-sm text-gray-500">Investor and mentor conversations</p>
+				<header className="flex items-center gap-4 border-b border-gray-100 bg-white px-6 py-5 sm:px-8">
+					<div>
+						<h1 className="text-xl font-bold">Messages</h1>
+						<p className="mt-1 text-sm text-gray-500">Investor and mentor conversations</p>
+					</div>
+					<div className="ml-auto">
+						<StartupProfileMenu />
+					</div>
 				</header>
 				<section className="mx-auto max-w-4xl px-4 py-6 sm:px-8">
 					<div className="mb-5 flex flex-wrap gap-2">

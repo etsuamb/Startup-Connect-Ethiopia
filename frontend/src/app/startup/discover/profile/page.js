@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import Sidebar from "@/components/startup/Sidebar";
+import StartupProfileMenu from "@/components/startup/StartupProfileMenu";
 
 export default function InvestorProfile() {
   return (
@@ -31,15 +32,7 @@ export default function InvestorProfile() {
                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
              </button>
              
-             <div className="flex items-center gap-3 border-l border-gray-200 pl-6">
-                <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-xs font-bold text-gray-900">Abebe Kebede</span>
-                  <span className="text-[10px] text-gray-400 font-medium tracking-tight">Startup Founder</span>
-                </div>
-                <div className="w-9 h-9 rounded-full bg-[#1e293b] text-white overflow-hidden shrink-0 flex items-center justify-center font-bold text-xs shadow-sm border border-gray-200">
-                  AK
-                </div>
-             </div>
+             <StartupProfileMenu />
           </div>
         </header>
 
