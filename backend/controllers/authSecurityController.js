@@ -151,11 +151,75 @@ exports.validateEmailInput = async (req, res) => {
 	}
 };
 
+// POST /auth/registration-email/start { email }
+exports.startRegistrationEmailVerification = async (req, res) => {
+	try {
+		await ensureAuthSecuritySchema();
+		const email = String(req.body?.email || "").trim().toLowerCase();
+		if (!email) return res.status(400).json({ message: "Email is required" });
+
+		const validation = await authSecurity.validateEmailDeliverability(email);
+		if (!validation.ok) {
+			return res.status(400).json({
+				message: authSecurity.emailRejectMessage(validation.reason),
+				code: validation.reason,
+			});
+		}
+
+		const existing = await pool.query(`SELECT user_id FROM users WHERE email = $1`, [email]);
+		if (existing.rowCount) {
+			return res.status(409).json({ message: "An account with this email already exists" });
+		}
+
+		const result = await authSecurity.sendRegistrationVerificationEmail(email);
+		return res.json({
+			message: "Verification link sent. Open it within one minute to continue.",
+			verificationId: result.verificationId,
+			expiresAt: result.expiresAt,
+		});
+	} catch (err) {
+		console.error("startRegistrationEmailVerification", err);
+		const deliveryResponse = respondEmailDeliveryFailure(
+			res,
+			err,
+			"We could not send the verification email. Please try another email or try again shortly.",
+		);
+		if (deliveryResponse) return deliveryResponse;
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// GET /auth/registration-email/status?verificationId=&email=
+exports.getRegistrationEmailVerificationStatus = async (req, res) => {
+	try {
+		await ensureAuthSecuritySchema();
+		const verificationId = String(req.query.verificationId || "").trim();
+		const email = String(req.query.email || "").trim().toLowerCase();
+		if (!verificationId || !email) {
+			return res.status(400).json({ message: "verificationId and email are required" });
+		}
+		return res.json(await authSecurity.getRegistrationEmailVerificationStatus(verificationId, email));
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
 // GET /auth/verify-email?token=
 exports.verifyEmail = async (req, res) => {
 	try {
 		const raw = req.query.token || req.body?.token;
 		if (!raw) return res.status(400).json({ message: "Verification token is required" });
+		if (req.query.mode === "registration" || req.body?.mode === "registration") {
+			await ensureAuthSecuritySchema();
+			const registration = await authSecurity.verifyRegistrationEmailToken(raw);
+			if (!registration) {
+				return res.status(400).json({ message: "Invalid or expired registration verification link" });
+			}
+			return res.json({
+				message: "Registration email verified. Return to the registration page to continue.",
+				mode: "registration",
+			});
+		}
 		const row = await authSecurity.consumeEmailToken(raw, "email_verify");
 		if (!row) {
 			return res.status(400).json({ message: "Invalid or expired verification link" });
@@ -249,6 +313,18 @@ exports.updateCurrentAccount = async (req, res) => {
 		}
 
 		const emailChanged = email !== current.email;
+		const accountPendingApproval = current.role !== "Admin" && !current.is_approved;
+		if (
+			accountPendingApproval &&
+			(firstName !== String(current.first_name || "").trim() ||
+				lastName !== String(current.last_name || "").trim() ||
+				phoneNumber !== (current.phone_number || null))
+		) {
+			return res.status(403).json({
+				message: "While your account is pending admin approval, only your email address can be changed.",
+				code: "ACCOUNT_PENDING_APPROVAL",
+			});
+		}
 		if (emailChanged) {
 			const validation = await authSecurity.validateEmailDeliverability(email);
 			if (!validation.ok) {

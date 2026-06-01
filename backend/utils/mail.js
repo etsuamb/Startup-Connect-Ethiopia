@@ -298,9 +298,6 @@ async function sendMail(to, subject, text, html) {
 			return await sendViaBrevoApi(to, subject, plainText, html, config.brevoHttpApiKey);
 		} catch (err) {
 			brevoAttempted = true;
-			if (err instanceof MailDeliveryError) {
-				throw err;
-			}
 			errors.push(`Brevo API: ${err.message || err}`);
 			console.error("[mail-error] Brevo API failed:", err.message || err);
 		}
@@ -320,13 +317,14 @@ async function sendMail(to, subject, text, html) {
 		} catch (err) {
 			const message = String(err.message || err);
 			if (/unauthorized ip address/i.test(message)) {
-				throw new MailDeliveryError(
-					"Brevo SMTP blocked this server IP. On Render, use BREVO_HTTP_API_KEY (xkeysib-...) instead of SMTP.",
-					"BREVO_SMTP_IP_BLOCKED",
+				errors.push(
+					"Brevo SMTP: blocked this server IP. Disable Brevo IP blocking or authorize the server IP.",
 				);
+				console.error("[mail-error] Brevo SMTP blocked this server IP");
+			} else {
+				errors.push(`Brevo SMTP: ${message}`);
+				console.error("[mail-error] Brevo SMTP failed:", message);
 			}
-			errors.push(`Brevo SMTP: ${message}`);
-			console.error("[mail-error] Brevo SMTP failed:", message);
 		}
 	}
 
@@ -342,7 +340,7 @@ async function sendMail(to, subject, text, html) {
 		}
 	}
 
-	if (!brevoAttempted && config.genericTransporter) {
+	if (config.genericTransporter) {
 		try {
 			return await sendViaGenericSmtp(
 				to,

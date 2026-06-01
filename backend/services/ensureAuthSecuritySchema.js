@@ -43,6 +43,27 @@ async function ensureAuthSecuritySchema() {
 			WHERE used_at IS NULL
 	`);
 	await pool.query(`
+		CREATE TABLE IF NOT EXISTS auth_registration_email_verifications (
+			verification_id TEXT PRIMARY KEY,
+			email TEXT NOT NULL,
+			token_hash TEXT NOT NULL,
+			expires_at TIMESTAMPTZ NOT NULL,
+			verified_at TIMESTAMPTZ,
+			consumed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+	await pool.query(`
+		CREATE INDEX IF NOT EXISTS idx_auth_registration_email_verifications_lookup
+			ON auth_registration_email_verifications (verification_id, email)
+			WHERE consumed_at IS NULL
+	`);
+	await pool.query(`
+		CREATE INDEX IF NOT EXISTS idx_auth_registration_email_verifications_token
+			ON auth_registration_email_verifications (token_hash)
+			WHERE consumed_at IS NULL
+	`);
+	await pool.query(`
 		CREATE TABLE IF NOT EXISTS auth_pending_logins (
 			pending_id SERIAL PRIMARY KEY,
 			user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
