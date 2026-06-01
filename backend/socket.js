@@ -136,6 +136,38 @@ module.exports = function initializeSocket(httpServer) {
 			if (conversationId) socket.leave(roomKey(channel, conversationId));
 		});
 
+		socket.on("webrtc_signal", async (data, callback) => {
+			try {
+				const { channel, conversationId } = parseConversationPayload(data);
+				if (!Number.isInteger(conversationId) || conversationId <= 0 || !validWebRtcSignal(data?.signal)) {
+					if (callback) callback({ error: "Invalid WebRTC signal" });
+					return;
+				}
+
+				const access = await chatAccessService.assertChatAccess(userId, {
+					channel,
+					conversationId,
+				});
+				if (!access.allowed) {
+					if (callback) callback({ error: access.message, code: access.code });
+					return;
+				}
+
+				const room = roomKey(channel, conversationId);
+				socket.join(room);
+				socket.to(room).emit("webrtc_signal", {
+					channel,
+					conversationId,
+					senderUserId: userId,
+					signal: data.signal,
+				});
+				if (callback) callback({ success: true });
+			} catch (err) {
+				console.error("webrtc_signal error:", err);
+				if (callback) callback({ error: "Server error" });
+			}
+		});
+
 		socket.on("typing", (data) => {
 			const { channel, conversationId } = parseConversationPayload(data);
 			if (!conversationId) return;
