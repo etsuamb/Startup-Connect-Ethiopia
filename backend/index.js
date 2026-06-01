@@ -3,14 +3,16 @@ const express = require("express");
 const pool = require("./config/db");
 const { initDatabase } = require("./services/initDatabase");
 const initializeSocket = require("./socket");
+const { setSocketServer } = require("./services/socketBus");
 const authRoutes = require("./routes/authRoutes");
 const {
-  requireVerifiedAndApprovedIfAuthenticated,
+	requireVerifiedAndApprovedIfAuthenticated,
 } = require("./middleware/authMiddleware");
 
 const app = express();
 const server = http.createServer(app);
-initializeSocket(server);
+const io = initializeSocket(server);
+setSocketServer(io);
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 const STARTUP_RETRIES = Number(process.env.STARTUP_RETRIES) || 5;
@@ -39,15 +41,15 @@ app.use("/api", requireVerifiedAndApprovedIfAuthenticated);
 
 // Test DB connection
 app.get("/", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT NOW()");
-    res.json({
-      message: "Database connected ✅",
-      time: result.rows[0],
-    });
-  } catch (err) {
-    res.status(500).send(err.message);
-  }
+	try {
+		const result = await pool.query("SELECT NOW()");
+		res.json({
+			message: "Database connected ✅",
+			time: result.rows[0],
+		});
+	} catch (err) {
+		res.status(500).send(err.message);
+	}
 });
 
 const testRoutes = require("./routes/testRoutes");
@@ -103,8 +105,16 @@ app.use("/api/startups/discover", discoverRoutes);
 const ratingRoutes = require("./routes/ratingRoutes");
 app.use("/api/ratings", ratingRoutes);
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function startServer() {
+	try {
+		await initDatabase();
+		server.listen(PORT, () => {
+			console.log(`Server running on port ${PORT} (Legacy Monolith)`);
+		});
+	} catch (err) {
+		console.error("Server startup failed:", err.message || err);
+		process.exit(1);
+	}
 }
 
 async function startServer() {
