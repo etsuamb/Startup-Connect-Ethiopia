@@ -368,7 +368,6 @@ export default function MentorSettingsPage() {
   // ── Load profile data ──
   useEffect(() => {
     let alive = true;
-    setLoading(true);
     fetchMentorProfile()
       .then((data) => {
         if (!alive) return;
@@ -422,7 +421,7 @@ export default function MentorSettingsPage() {
       .finally(() => alive && setLoading(false));
 
     return () => { alive = false; };
-  }, []);
+  }, [showToast]);
 
   // ── Save helpers ──
   async function saveProfile() {
@@ -839,7 +838,7 @@ export default function MentorSettingsPage() {
             <div>
               <h2 className="text-base font-bold text-gray-900">Accepting New Mentees</h2>
               <p className="text-sm text-gray-500 mt-1">
-                When turned off, you won't appear in search results and startups cannot send you new requests.
+                When turned off, you won&apos;t appear in search results and startups cannot send you new requests.
               </p>
             </div>
             <ToggleSwitch enabled={acceptingMentees} onToggle={() => setAcceptingMentees((v) => !v)} />
@@ -1274,7 +1273,7 @@ export default function MentorSettingsPage() {
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold text-gray-900 mb-1">Pause Mentorship Activity</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Temporarily pause your mentor account. You won't appear in search results, and no new requests can be sent to you. Your existing mentorships remain active.
+                Temporarily pause your mentor account. You won&apos;t appear in search results, and no new requests can be sent to you. Your existing mentorships remain active.
               </p>
               <button
                 type="button"
@@ -1378,55 +1377,27 @@ export default function MentorSettingsPage() {
     }
   }
 
-  const currentTabLabel = TABS.find((t) => t.id === activeTab)?.label || "Settings";
-
   return (
-    <div className="min-h-full bg-[#f8fafc] text-[#061f1a]">
-      {/* Toast */}
+    <div className="min-h-full bg-[#f6f8f9] text-gray-900">
       <Toast {...toast} />
 
-      {/* Top bar */}
-      <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-gray-100 bg-white px-5 sm:px-8 shadow-sm">
-        <div>
-          <h1 className="text-lg font-black text-[#052b23] tracking-tight">Settings</h1>
-          <p className="text-xs font-medium text-gray-400 mt-0.5">Manage your mentor profile and preferences</p>
+      <main className="mx-auto w-full max-w-[1200px] px-4 py-8 sm:px-8">
+        <div className="mb-8">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#0f3d32]">Mentor · Settings</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-gray-900">Settings</h1>
+          <p className="mt-1.5 text-sm text-gray-500">Manage your account, mentor profile, expertise, availability, security, and notification preferences.</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Breadcrumb badge */}
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-[#f0faf7] border border-[#c6e8dc] text-[#0f3d32] text-xs font-bold px-3 py-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" />
-            {currentTabLabel}
-          </span>
-        </div>
-      </header>
 
-      <main className="mx-auto w-full max-w-[1120px] px-5 py-8 lg:px-8">
         <AccountAccessBanner />
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
 
-          {/* Sidebar Nav */}
-          <aside className="lg:sticky lg:top-[88px] lg:self-start">
-            {/* Profile completeness */}
-            <div className="mb-6">
-              <ProfileCompleteness fields={profileFields} />
-            </div>
-
-            {/* Settings Nav */}
-            <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-4 py-2">Navigation</p>
+          <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               <SettingsNav activeTab={activeTab} onTabChange={setActiveTab} />
             </div>
-
-            {/* Quick tip */}
-            <div className="mt-4 rounded-xl border-l-2 border-[#0f3d32] bg-[#f0faf7] p-4">
-              <p className="text-[10px] font-black text-[#0f3d32] uppercase tracking-widest mb-1">Mentor Tip</p>
-              <p className="text-xs text-[#0a3026] leading-relaxed">
-                Mentors with complete profiles receive <strong>3x more</strong> mentorship requests.
-              </p>
-            </div>
+            <ProfileCompleteness fields={profileFields} />
           </aside>
 
-          {/* Main content */}
           <div className="min-w-0">
             {renderTabContent()}
           </div>
