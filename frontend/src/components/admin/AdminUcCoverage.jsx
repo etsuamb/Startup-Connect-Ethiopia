@@ -30,12 +30,6 @@ const SECTIONS = [
 		links: [
 			{ href: "/admin/activity", label: "Logs & fraud" },
 			{ href: "/admin/reports", label: "Reports & exports" },
-		],
-	},
-	{
-		title: "Maintenance",
-		links: [
-			{ href: "/admin/maintenance", label: "DB, backup, categories" },
 			{ href: "/admin/settings", label: "Admin settings" },
 		],
 	},

@@ -109,7 +109,12 @@ function sanitizeStartup(row, access) {
 /** Documents: full metadata only when sensitive unlocked */
 function sanitizeDocuments(documents, access) {
 	if (!Array.isArray(documents)) return documents;
-	if (access?.sensitiveVisible) return documents;
+	if (access?.sensitiveVisible) {
+		return documents.map(({ file_data, file_hash, ...doc }) => ({
+			...doc,
+			file_available: Boolean(file_data || doc.file_path),
+		}));
+	}
 	return documents.map((doc) => ({
 		document_id: doc.document_id ?? doc.mentor_document_id,
 		file_type: doc.file_type ?? doc.document_type,

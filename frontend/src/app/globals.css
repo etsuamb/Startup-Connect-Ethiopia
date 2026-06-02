@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    background-color: #f8fafc;
-    color: #111827;
-  }
+	body {
+		background-color: #f8fafc;
+		color: #111827;
+	}
 
-  form :is(input, select, textarea)[aria-invalid="true"] {
-    border-color: #ef4444;
-  }
+	form :is(input, select, textarea)[aria-invalid="true"] {
+		border-color: #ef4444;
+	}
 }
