@@ -471,7 +471,7 @@ exports.forgotPassword = async (req, res) => {
 			return res.json({ message: genericMessage });
 		}
 		const user = r.rows[0];
-		if (!user.password_hash || user.provider_type === "google") {
+		if (!user.password_hash) {
 			return res.json({ message: genericMessage });
 		}
 		await authSecurity.sendPasswordResetEmail(user);
