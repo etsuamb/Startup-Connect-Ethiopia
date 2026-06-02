@@ -94,6 +94,22 @@ export async function updateCurrentAccount(payload) {
 	});
 }
 
+export async function exportCurrentAccount() {
+	return apiFetch("/auth/me/export");
+}
+
+export async function deactivateCurrentAccount() {
+	return apiFetch("/auth/me/deactivate", { method: "PUT" });
+}
+
+export async function deleteCurrentAccount(confirmation) {
+	return apiFetch("/auth/me", {
+		method: "DELETE",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ confirmation }),
+	});
+}
+
 export async function get2FAStatus() {
 	return apiFetch("/auth/2fa/status");
 }

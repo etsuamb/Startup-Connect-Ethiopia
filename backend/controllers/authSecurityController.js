@@ -268,9 +268,9 @@ exports.getCurrentAccount = async (req, res) => {
 	try {
 		const r = await pool.query(
 			`SELECT user_id, first_name, last_name, email, phone_number, role,
-			        is_active, is_approved, email_verified, provider_type
-			   FROM users
-			  WHERE user_id = $1`,
+								is_active, is_approved, email_verified, provider_type
+					 FROM users
+					WHERE user_id = $1`,
 			[req.user.user_id],
 		);
 		if (!r.rowCount) return res.status(404).json({ message: "User not found" });
@@ -353,15 +353,15 @@ exports.updateCurrentAccount = async (req, res) => {
 
 		const updatedR = await pool.query(
 			`UPDATE users
-			    SET first_name = $1,
-			        last_name = $2,
-			        phone_number = $3,
-			        email = $4,
-			        email_verified = CASE WHEN $5 THEN false ELSE email_verified END,
-			        updated_at = CURRENT_TIMESTAMP
+				SET first_name = $1,
+					last_name = $2,
+					phone_number = $3,
+					email = $4,
+					email_verified = CASE WHEN $5 THEN false ELSE email_verified END,
+					updated_at = CURRENT_TIMESTAMP
 			  WHERE user_id = $6
 			  RETURNING user_id, first_name, last_name, email, phone_number, role,
-			            is_active, is_approved, email_verified, provider_type`,
+						is_active, is_approved, email_verified, provider_type`,
 			[firstName, lastName, phoneNumber, email, emailChanged, userId],
 		);
 		const user = updatedR.rows[0];
@@ -382,6 +382,77 @@ exports.updateCurrentAccount = async (req, res) => {
 				: "Account information updated.",
 			user,
 		});
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// GET /auth/me/export
+exports.exportCurrentAccount = async (req, res) => {
+	try {
+		const userId = req.user.user_id;
+		const userR = await pool.query(
+			`SELECT user_id, first_name, last_name, email, phone_number, role,
+			        is_active, is_approved, email_verified,
+			        created_at, updated_at
+			   FROM users WHERE user_id = $1`,
+			[userId],
+		);
+		if (!userR.rowCount) return res.status(404).json({ message: "User not found" });
+
+		const role = userR.rows[0].role;
+		const profileTable =
+			role === "Startup" ? "startups" :
+			role === "Investor" ? "investors" :
+			role === "Mentor" ? "mentors" :
+			null;
+		const profileR = profileTable
+			? await pool.query(`SELECT * FROM ${profileTable} WHERE user_id = $1`, [userId])
+			: { rows: [] };
+
+		return res.json({
+			exported_at: new Date().toISOString(),
+			account: userR.rows[0],
+			profile: profileR.rows[0] || null,
+		});
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// PUT /auth/me/deactivate
+exports.deactivateCurrentAccount = async (req, res) => {
+	try {
+		if (req.user.role === "Admin") {
+			return res.status(403).json({ message: "Admin accounts cannot deactivate themselves." });
+		}
+		const result = await pool.query(
+			`UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP
+			  WHERE user_id = $1 RETURNING user_id, is_active`,
+			[req.user.user_id],
+		);
+		if (!result.rowCount) return res.status(404).json({ message: "User not found" });
+		return res.json({ message: "Account deactivated.", user: result.rows[0] });
+	} catch (err) {
+		return res.status(500).json({ error: err.message });
+	}
+};
+
+// DELETE /auth/me
+exports.deleteCurrentAccount = async (req, res) => {
+	try {
+		if (req.user.role === "Admin") {
+			return res.status(403).json({ message: "Admin accounts cannot delete themselves." });
+		}
+		if (req.body?.confirmation !== "DELETE MY ACCOUNT") {
+			return res.status(400).json({ message: "Type DELETE MY ACCOUNT to confirm deletion." });
+		}
+		const result = await pool.query(
+			"DELETE FROM users WHERE user_id = $1 RETURNING user_id",
+			[req.user.user_id],
+		);
+		if (!result.rowCount) return res.status(404).json({ message: "User not found" });
+		return res.json({ message: "Account permanently deleted." });
 	} catch (err) {
 		return res.status(500).json({ error: err.message });
 	}

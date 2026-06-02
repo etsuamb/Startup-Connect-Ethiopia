@@ -35,7 +35,7 @@ const NAV_SECTIONS = [
       },
       {
         id: "startups",
-        label: "My Startups",
+        label: "Discover",
         href: "/mentor/startups",
         icon: (
           <path

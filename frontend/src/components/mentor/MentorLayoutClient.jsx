@@ -88,7 +88,24 @@ function MentorTopbar() {
   function onSearchSubmit(event) {
     event.preventDefault();
     const q = search.trim();
-    if (q) router.push(`/mentor/startups?search=${encodeURIComponent(q)}`);
+    if (!q) return;
+    if (pathname?.includes("/requests")) {
+      router.push(`/mentor/requests?search=${encodeURIComponent(q)}`);
+      return;
+    }
+    if (pathname?.includes("/reports")) {
+      router.push(`/mentor/reports?search=${encodeURIComponent(q)}`);
+      return;
+    }
+    if (pathname?.includes("/messages")) {
+      router.push(`/mentor/messages?search=${encodeURIComponent(q)}`);
+      return;
+    }
+    if (pathname?.includes("/resources")) {
+      router.push(`/mentor/resources?search=${encodeURIComponent(q)}`);
+      return;
+    }
+    router.push(`/mentor/startups?search=${encodeURIComponent(q)}`);
   }
 
   function logout() {
