@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { fetchMentorDocument, fetchMentorProfile, updateMentorProfile } from "@/lib/mentorApi";
-import { getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
+import { deactivateCurrentAccount, deleteCurrentAccount, exportCurrentAccount, getCurrentAccount, updateCurrentAccount } from "@/lib/authApi";
 import { clearSession } from "@/lib/authStorage";
 import { useRouter } from "next/navigation";
 import AccountAccessBanner from "@/components/auth/AccountAccessBanner";
@@ -13,6 +13,17 @@ import { IndustrySelectWithOther } from "@/components/register/IndustryFields";
 function fieldValue(value) {
   if (value === null || value === undefined) return "";
   return String(value);
+}
+
+function arrayValue(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return String(value).split(",").map((item) => item.trim()).filter(Boolean);
+  }
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -371,6 +382,7 @@ export default function MentorSettingsPage() {
       .then((data) => {
         if (!alive) return;
         const p = data?.profile || data?.mentor || data || {};
+        const availability = p.availability || {};
         setFirstName(fieldValue(p.first_name));
         setLastName(fieldValue(p.last_name));
         setEmail(fieldValue(p.email));
@@ -379,24 +391,24 @@ export default function MentorSettingsPage() {
         setPhone(fieldValue(p.phone_number || p.phone));
         setHeadline(fieldValue(p.headline || p.professional_title));
         setBio(fieldValue(p.bio || p.description));
-        setLocation(fieldValue(p.location || p.city));
-        setLinkedin(fieldValue(p.linkedin_url || p.linkedin));
+        setLocation(fieldValue(p.location || p.city_location || p.city));
+        setLinkedin(fieldValue(p.linkedin_url || p.linkedin_or_portfolio || p.linkedin));
         setWebsite(fieldValue(p.website));
         setYearsExperience(fieldValue(p.years_experience || p.experience_years));
-        setCurrentCompany(fieldValue(p.current_company || p.company));
+        setCurrentCompany(fieldValue(p.current_company || p.current_organization || p.company));
         setCurrentTitle(fieldValue(p.current_title || p.job_title));
         if (Array.isArray(p.expertise_areas)) setExpertiseAreas(p.expertise_areas);
         if (p.primary_industry) setPrimaryIndustry(p.primary_industry);
-        if (Array.isArray(p.languages)) setSpokenLanguages(p.languages);
+        setSpokenLanguages(arrayValue(p.languages));
         if (p.mentorship_focus) setMentorshipFocus(p.mentorship_focus);
         if (p.session_pricing_min != null) setSessionRateMin(fieldValue(p.session_pricing_min));
         if (p.session_pricing != null || p.hourly_rate != null) setSessionRateMax(fieldValue(p.session_pricing ?? p.hourly_rate));
         if (p.max_startups)     setMaxStartups(fieldValue(p.max_startups));
-        if (p.timezone)         setTimezone(p.timezone);
-        if (p.session_duration) setSessionDuration(fieldValue(p.session_duration));
-        if (Array.isArray(p.available_days)) setAvailableDays(p.available_days);
-        if (p.available_from)   setAvailableFrom(p.available_from);
-        if (p.available_to)     setAvailableTo(p.available_to);
+        if (p.timezone || availability.timezone) setTimezone(p.timezone || availability.timezone);
+        if (p.session_duration || availability.session_duration) setSessionDuration(fieldValue(p.session_duration || availability.session_duration));
+        if (Array.isArray(p.available_days || availability.available_days)) setAvailableDays(p.available_days || availability.available_days);
+        if (p.available_from || availability.available_from) setAvailableFrom(p.available_from || availability.available_from);
+        if (p.available_to || availability.available_to) setAvailableTo(p.available_to || availability.available_to);
         if (typeof p.accepting_mentees === "boolean") setAcceptingMentees(p.accepting_mentees);
         else if (typeof availability.accepting_mentees === "boolean") setAcceptingMentees(availability.accepting_mentees);
         else if (p.availability_preference) setAcceptingMentees(!/not|unavailable|closed/i.test(p.availability_preference));
@@ -453,38 +465,80 @@ export default function MentorSettingsPage() {
         showToast(data.message || "Account information updated.");
         return;
       }
+      let accountUpdated = false;
+
+      if (!emailVerified || emailChanged) {
+        const accountData = await updateCurrentAccount({
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim(),
+          phone_number: phone.trim(),
+        });
+        const user = accountData.user || {};
+        setFirstName(fieldValue(user.first_name));
+        setLastName(fieldValue(user.last_name));
+        setEmail(fieldValue(user.email));
+        setOriginalEmail(fieldValue(user.email));
+        setEmailVerified(user.email_verified !== false);
+        setPhone(fieldValue(user.phone_number));
+        accountUpdated = true;
+      }
+
       const payload = {
-        // user account fields
         first_name: firstName.trim(),
-        last_name:  lastName.trim(),
+        last_name: lastName.trim(),
         email: email.trim(),
         phone_number: phone.trim(),
-        headline:   headline.trim(),
-        bio:        bio.trim(),
-        location:   location.trim(),
+        headline: headline.trim(),
+        bio: bio.trim(),
+        location: location.trim(),
         linkedin_url: linkedin.trim(),
-        website:    website.trim(),
-        years_experience: yearsExperience,
-        current_company:  currentCompany.trim(),
-        current_title:    currentTitle.trim(),
-        // expertise
-        expertise_areas:   expertiseAreas,
-        primary_industry:  primaryIndustry,
-        languages:         spokenLanguages,
-        mentorship_focus:  mentorshipFocus.trim(),
-        session_pricing_min: sessionRateMin,
-        session_pricing:   sessionRateMax,
-        hourly_rate:       sessionRateMax,
-        max_startups:      maxStartups,
-        // availability
+        website: website.trim(),
+        years_experience: yearsExperience ? Number(yearsExperience) : null,
+        current_company: currentCompany.trim(),
+        current_title: currentTitle.trim(),
+        expertise: expertiseAreas.length ? expertiseAreas.join(", ") : null,
+        expertise_areas: expertiseAreas,
+        primary_industry: primaryIndustry,
+        languages: spokenLanguages,
+        mentorship_focus: mentorshipFocus.trim(),
+        session_pricing_min: sessionRateMin ? Number(sessionRateMin) : null,
+        session_pricing: sessionRateMax ? Number(sessionRateMax) : null,
+        hourly_rate: sessionRateMax ? Number(sessionRateMax) : null,
+        max_startups: maxStartups ? Number(maxStartups) : null,
         timezone,
-        session_duration:  sessionDuration,
-        available_days:    availableDays,
-        available_from:    availableFrom,
-        available_to:      availableTo,
+        session_duration: sessionDuration,
+        available_days: availableDays,
+        available_from: availableFrom,
+        available_to: availableTo,
         accepting_mentees: acceptingMentees,
-      }
-      showToast("Settings saved successfully.");
+      };
+
+      const mentorData = await updateMentorProfile(payload);
+      const m = mentorData.mentor || mentorData || {};
+      if (m.headline) setHeadline(fieldValue(m.headline));
+      if (m.bio) setBio(fieldValue(m.bio));
+      if (m.location || m.city_location) setLocation(fieldValue(m.location || m.city_location));
+      if (m.linkedin_url || m.linkedin_or_portfolio) setLinkedin(fieldValue(m.linkedin_url || m.linkedin_or_portfolio));
+      if (m.website) setWebsite(fieldValue(m.website));
+      if (m.years_experience != null) setYearsExperience(fieldValue(m.years_experience));
+      if (m.current_company || m.current_organization) setCurrentCompany(fieldValue(m.current_company || m.current_organization));
+      if (m.current_title) setCurrentTitle(fieldValue(m.current_title));
+      if (Array.isArray(m.expertise_areas)) setExpertiseAreas(m.expertise_areas);
+      if (m.primary_industry) setPrimaryIndustry(fieldValue(m.primary_industry));
+      setSpokenLanguages(arrayValue(m.languages));
+      if (m.mentorship_focus) setMentorshipFocus(fieldValue(m.mentorship_focus));
+      if (m.session_pricing_min != null) setSessionRateMin(fieldValue(m.session_pricing_min));
+      if (m.session_pricing != null) setSessionRateMax(fieldValue(m.session_pricing));
+      if (m.max_startups != null) setMaxStartups(fieldValue(m.max_startups));
+      const savedAvailability = m.availability || {};
+      if (savedAvailability.timezone) setTimezone(fieldValue(savedAvailability.timezone));
+      if (savedAvailability.session_duration) setSessionDuration(fieldValue(savedAvailability.session_duration));
+      if (Array.isArray(savedAvailability.available_days)) setAvailableDays(savedAvailability.available_days);
+      if (savedAvailability.available_from) setAvailableFrom(fieldValue(savedAvailability.available_from));
+      if (savedAvailability.available_to) setAvailableTo(fieldValue(savedAvailability.available_to));
+      if (typeof savedAvailability.accepting_mentees === "boolean") setAcceptingMentees(savedAvailability.accepting_mentees);
+      showToast(accountUpdated ? "Settings and account updated successfully." : "Settings saved successfully.");
     } catch (err) {
       showToast(err.message || "Unable to save settings.", "error");
     } finally {
@@ -512,6 +566,42 @@ export default function MentorSettingsPage() {
 
   function toggleNotification(key) {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  async function pauseAccount() {
+    if (!window.confirm("Deactivate your mentor account? You will be signed out and an administrator must reactivate it.")) return;
+    try {
+      await deactivateCurrentAccount();
+      clearSession();
+      router.push("/login");
+    } catch (err) {
+      showToast(err.message || "Unable to deactivate account.", "error");
+    }
+  }
+
+  async function downloadAccountExport() {
+    try {
+      const data = await exportCurrentAccount();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "mentor-account-export.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast("Account data exported.");
+    } catch (err) {
+      showToast(err.message || "Unable to export account data.", "error");
+    }
+  }
+
+  async function permanentlyDeleteAccount() {
+    try {
+      await deleteCurrentAccount(deleteConfirm);
+      clearSession();
+      router.push("/login");
+    } catch (err) {
+      showToast(err.message || "Unable to delete account.", "error");
+    }
   }
 
   // ─── Profile completeness fields ─────────────────────────────────────────
@@ -1140,17 +1230,17 @@ export default function MentorSettingsPage() {
               <Icon path="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-gray-900 mb-1">Pause Mentorship Activity</h3>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Deactivate Mentor Account</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Temporarily pause your mentor account. You won&apos;t appear in search results, and no new requests can be sent to you. Your existing mentorships remain active.
+                Deactivate your mentor account and sign out. Your profile will stop appearing in search until an administrator reactivates it.
               </p>
               <button
                 type="button"
                 id="pause-account-btn"
-                onClick={() => showToast("Your mentor account has been paused.", "error")}
+                onClick={pauseAccount}
                 className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-bold text-amber-800 hover:bg-amber-100 transition"
               >
-                Pause Account
+                Deactivate Account
               </button>
             </div>
           </div>
@@ -1165,15 +1255,15 @@ export default function MentorSettingsPage() {
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold text-gray-900 mb-1">Export My Data</h3>
               <p className="text-sm text-gray-500 mb-4">
-                Download all your mentor profile data, session history, and mentorship records as a JSON file.
+                Download your account and mentor profile data as a JSON file.
               </p>
               <button
                 type="button"
                 id="export-data-btn"
-                onClick={() => showToast("Your data export is being prepared. You'll receive an email shortly.")}
+                onClick={downloadAccountExport}
                 className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-5 py-2.5 text-sm font-bold text-blue-800 hover:bg-blue-100 transition"
               >
-                Request Data Export
+                Download Data Export
               </button>
             </div>
           </div>
@@ -1208,10 +1298,7 @@ export default function MentorSettingsPage() {
                   type="button"
                   id="delete-account-btn"
                   disabled={deleteConfirm !== "DELETE MY ACCOUNT"}
-                  onClick={() => {
-                    clearSession();
-                    router.push("/login");
-                  }}
+                  onClick={permanentlyDeleteAccount}
                   className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <IconTrash />
