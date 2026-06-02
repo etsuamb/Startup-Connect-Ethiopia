@@ -173,9 +173,9 @@ export default function AdminDirectoryPage() {
 				/>
 			) : null}
 
-			<header className="mb-6 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8">
+			<header className="mb-6 rounded-2xl bg-[#0a4d3c] text-white p-8 border border-[#07382b]/20">
 				<h1 className="text-2xl md:text-3xl font-bold tracking-tight">Public directory</h1>
-				<p className="text-slate-300 text-sm mt-2 max-w-3xl">
+				<p className="text-white/80 text-sm mt-2 max-w-3xl">
 					Manage which approved startups, mentors, and investors appear in Discover search. Listed profiles are visible to other users; hidden profiles remain in the system but are not shown publicly. Startups can also have an operational status (Pending, Active, Funded, Closed).
 				</p>
 			</header>
@@ -194,8 +194,8 @@ export default function AdminDirectoryPage() {
 						onClick={() => setTab(t.id)}
 						className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 -mb-px transition ${
 							tab === t.id
-								? "border-emerald-600 text-emerald-700"
-								: "border-transparent text-slate-500 hover:text-slate-800"
+								? "border-[#0a4d3c] text-[#0a4d3c]"
+								: "border-transparent text-gray-500 hover:text-gray-800"
 						}`}
 					>
 						{t.label}

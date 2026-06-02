@@ -10,8 +10,8 @@ export default function AdminTabs({ tabs, active, onChange }) {
 					onClick={() => onChange(tab.id)}
 					className={`px-4 py-2 rounded-full text-xs font-bold border transition ${
 						active === tab.id
-							? "bg-emerald-600 text-white border-emerald-600"
-							: "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+							? "bg-[#0a4d3c] text-white border-[#0a4d3c]"
+							: "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
 					}`}
 				>
 					{tab.label}

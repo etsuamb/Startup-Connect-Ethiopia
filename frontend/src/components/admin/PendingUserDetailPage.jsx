@@ -41,7 +41,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, isLoading, confirm
 						onClick={onConfirm}
 						disabled={isLoading}
 						className={`flex-1 px-4 py-3 rounded-2xl text-white font-semibold transition disabled:opacity-50 ${
-							isDangerous ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
+							isDangerous ? "bg-red-600 hover:bg-red-700" : "bg-[#0a4d3c] hover:bg-[#07382b]"
 						}`}
 					>
 						{isLoading ? "Processing…" : confirmText}
@@ -90,8 +90,8 @@ function DocumentCard({ doc, onView, loadingId }) {
 
 	return (
 		<div className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:border-emerald-200 hover:bg-emerald-50/30 transition">
-			<div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-xl shrink-0">
-				📄
+			<div className="w-12 h-12 rounded-xl bg-[#0a4d3c]/10 border border-[#0a4d3c]/20 flex items-center justify-center text-[10px] font-black text-[#0a4d3c] shrink-0">
+				DOC
 			</div>
 			<div className="flex-1 min-w-0">
 				<p className="font-bold text-slate-900 text-sm truncate">{typeLabel}</p>
@@ -106,7 +106,7 @@ function DocumentCard({ doc, onView, loadingId }) {
 				type="button"
 				onClick={() => onView(doc)}
 				disabled={isLoading}
-				className="shrink-0 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-60 transition"
+				className="shrink-0 px-4 py-2 rounded-xl bg-[#0a4d3c] text-white text-xs font-bold hover:bg-[#07382b] disabled:opacity-60 transition"
 			>
 				{isLoading ? "Opening…" : "View file"}
 			</button>
@@ -209,7 +209,7 @@ export default function PendingUserDetailPage({ userId }) {
 			<div className="max-w-6xl mx-auto">
 				<Link
 					href="/admin/users"
-					className="inline-flex items-center gap-2 text-sm font-bold text-emerald-700 hover:text-emerald-800 mb-6"
+					className="inline-flex items-center gap-2 text-sm font-bold text-[#0a4d3c] hover:text-[#07382b] mb-6"
 				>
 					← Back to pending users
 				</Link>
@@ -276,14 +276,14 @@ export default function PendingUserDetailPage({ userId }) {
 			) : null}
 
 			{/* Hero */}
-			<header className="rounded-[32px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-8 mb-8 shadow-lg border border-slate-700/50">
+			<header className="rounded-2xl bg-[#0a4d3c] text-white p-8 mb-8 shadow-sm border border-[#07382b]/20">
 				<div className="flex flex-col md:flex-row md:items-center gap-6">
 					<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-xl font-black">
 						{String(user.role || "User").slice(0, 2).toUpperCase()}
 					</div>
 					<div className="flex-1 min-w-0">
 						<h1 className="text-3xl font-bold tracking-tight">{fullName || "Unnamed applicant"}</h1>
-						<p className="text-slate-300 mt-1">{user.email}</p>
+						<p className="text-white/80 mt-1">{user.email}</p>
 						<div className="flex flex-wrap items-center gap-3 mt-4">
 							<span
 								className={`px-3 py-1 rounded-full text-xs font-bold border ${
@@ -293,10 +293,10 @@ export default function PendingUserDetailPage({ userId }) {
 								{user.role}
 							</span>
 							{user.phone_number ? (
-								<span className="text-sm text-slate-300">{user.phone_number}</span>
+								<span className="text-sm text-white/80">{user.phone_number}</span>
 							) : null}
 							{user.created_at ? (
-								<span className="text-sm text-slate-400">
+								<span className="text-sm text-white/70">
 									Applied {new Date(user.created_at).toLocaleDateString()}
 								</span>
 							) : null}
@@ -387,7 +387,7 @@ export default function PendingUserDetailPage({ userId }) {
 								className={`w-full py-3 rounded-2xl text-white font-bold text-sm transition ${
 									approvalBlocked
 										? "bg-slate-300 cursor-not-allowed"
-										: "bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-600/20"
+										: "bg-[#0a4d3c] hover:bg-[#07382b] shadow-md shadow-[#0a4d3c]/20"
 								}`}
 							>
 								Approve application

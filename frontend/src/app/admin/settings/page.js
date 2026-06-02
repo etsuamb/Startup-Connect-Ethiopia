@@ -407,7 +407,7 @@ export default function AdminSettingsPage() {
           </button>
           <button 
             onClick={handleSaveAll}
-            className="px-5 py-2.5 rounded-xl bg-[#006054] text-white font-bold text-sm hover:bg-[#004d43] transition shadow-md shadow-[#006054]/20"
+            className="px-5 py-2.5 rounded-xl bg-[#0a4d3c] text-white font-bold text-sm hover:bg-[#07382b] transition shadow-md shadow-[#0a4d3c]/20"
           >
             Save All Settings
           </button>
@@ -421,14 +421,14 @@ export default function AdminSettingsPage() {
           {/* Profile Card */}
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col items-center text-center">
             <div className="relative mb-6">
-              <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white shadow-lg bg-[#006054] flex items-center justify-center">
+              <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-white shadow-lg bg-[#0a4d3c] flex items-center justify-center">
                 <span className="text-3xl font-bold text-white">
                   {accountLoading ? "…" : `${profile.firstName?.[0] || ""}${profile.lastName?.[0] || ""}`.toUpperCase() || "AD"}
                 </span>
               </div>
               <button 
                 onClick={openEditProfile}
-                className="absolute bottom-0 right-0 w-8 h-8 bg-[#006054] text-white rounded-full flex items-center justify-center border-2 border-white hover:bg-[#004d43] transition shadow"
+                className="absolute bottom-0 right-0 w-8 h-8 bg-[#0a4d3c] text-white rounded-full flex items-center justify-center border-2 border-white hover:bg-[#07382b] transition shadow"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
@@ -439,14 +439,14 @@ export default function AdminSettingsPage() {
             <h2 className="text-2xl font-bold text-slate-800 mb-2">
               {accountLoading ? "Loading…" : `${profile.firstName} ${profile.lastName}`.trim() || "Administrator"}
             </h2>
-            <div className="px-3 py-1 rounded-md bg-[#e6f0ee] text-[#006054] text-[10px] font-bold tracking-widest uppercase mb-4">
+            <div className="px-3 py-1 rounded-md bg-[#e6f0ee] text-[#0a4d3c] text-[10px] font-bold tracking-widest uppercase mb-4">
               {profile.role}
             </div>
             <p className="text-sm text-slate-500 mb-2 leading-relaxed max-w-[280px] break-all">{profile.email || "—"}</p>
             <p className="text-xs text-slate-400 mb-8">{profile.phone_number || "No phone on file"}</p>
             <button 
               onClick={openEditProfile}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-[#006054] text-[#006054] font-bold text-sm hover:bg-[#f0fdf4] transition"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-[#0a4d3c] text-[#0a4d3c] font-bold text-sm hover:bg-[#f0fdf4] transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
@@ -458,7 +458,7 @@ export default function AdminSettingsPage() {
           {/* Platform Settings Card */}
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
-              <svg className="w-5 h-5 text-[#006054]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#0a4d3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
               </svg>
@@ -473,7 +473,7 @@ export default function AdminSettingsPage() {
                 </div>
                 <button
                   onClick={() => handleToggle('userRegistration')}
-                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.userRegistration ? 'bg-[#006054]' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.userRegistration ? 'bg-[#0a4d3c]' : 'bg-slate-200'}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform duration-300 ${toggles.userRegistration ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                 </button>
@@ -486,7 +486,7 @@ export default function AdminSettingsPage() {
                 </div>
                 <button 
                   onClick={() => handleToggle('strictVerification')}
-                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.strictVerification ? 'bg-[#006054]' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.strictVerification ? 'bg-[#0a4d3c]' : 'bg-slate-200'}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform duration-300 ${toggles.strictVerification ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                 </button>
@@ -499,7 +499,7 @@ export default function AdminSettingsPage() {
                 </div>
                 <button
                   onClick={() => handleToggle('twoFactor')}
-                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.twoFactor ? 'bg-[#006054]' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.twoFactor ? 'bg-[#0a4d3c]' : 'bg-slate-200'}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform duration-300 ${toggles.twoFactor ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                 </button>
@@ -509,13 +509,13 @@ export default function AdminSettingsPage() {
                 <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
                   <button 
                     onClick={() => { setLangPreference("English"); setLocale("English"); triggerToast(t("language.englishSelected"), "info"); }}
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${langPreference === "English" ? "bg-white text-[#006054] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${langPreference === "English" ? "bg-white text-[#0a4d3c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                   >
                     {t("language.english")}
                   </button>
                   <button 
                     onClick={() => { setLangPreference("Amharic"); setLocale("Amharic"); triggerToast(t("language.amharicSelected"), "info"); }}
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${langPreference === "Amharic" ? "bg-white text-[#006054] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${langPreference === "Amharic" ? "bg-white text-[#0a4d3c] shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
                   >
                     {t("language.amharic")}
                   </button>
@@ -527,7 +527,7 @@ export default function AdminSettingsPage() {
           {/* Reports & Logs Card */}
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
-              <svg className="w-5 h-5 text-[#006054]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#0a4d3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
               </svg>
               <h2 className="text-lg font-bold text-slate-800">Reports & Logs</h2>
@@ -538,7 +538,7 @@ export default function AdminSettingsPage() {
                 onClick={() => setActiveModal("systemLogs")}
                 className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-100 transition text-left group"
               >
-                <svg className="w-6 h-6 text-slate-400 group-hover:text-[#006054] transition mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-slate-400 group-hover:text-[#0a4d3c] transition mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                 </svg>
                 <h3 className="font-bold text-sm text-slate-800">View System Logs</h3>
@@ -548,7 +548,7 @@ export default function AdminSettingsPage() {
                 onClick={handleDownloadData}
                 className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:border-slate-200 hover:bg-slate-100 transition text-left group"
               >
-                <svg className="w-6 h-6 text-slate-400 group-hover:text-[#006054] transition mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 text-slate-400 group-hover:text-[#0a4d3c] transition mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
                 <h3 className="font-bold text-sm text-slate-800">Download Data</h3>
@@ -564,7 +564,7 @@ export default function AdminSettingsPage() {
           {/* Account & Security Card */}
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
-              <svg className="w-5 h-5 text-[#006054]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#0a4d3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
               </svg>
               <h2 className="text-lg font-bold text-slate-800">Account & Security</h2>
@@ -576,7 +576,7 @@ export default function AdminSettingsPage() {
                 className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition group"
               >
                 <div className="flex items-center gap-4">
-                  <svg className="w-5 h-5 text-slate-400 group-hover:text-[#006054] transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-slate-400 group-hover:text-[#0a4d3c] transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                   </svg>
                   <div className="text-left">
@@ -599,7 +599,7 @@ export default function AdminSettingsPage() {
                     <p className="text-xs text-slate-500 mt-0.5">Manage your personal 2FA</p>
                   </div>
                 </div>
-                <button type="button" onClick={() => setActiveModal("twoFactor")} className="text-xs font-bold text-[#006054] hover:underline">Manage</button>
+                <button type="button" onClick={() => setActiveModal("twoFactor")} className="text-xs font-bold text-[#0a4d3c] hover:underline">Manage</button>
               </div>
 
               <button 
@@ -607,7 +607,7 @@ export default function AdminSettingsPage() {
                 className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-slate-200 transition group"
               >
                 <div className="flex items-center gap-4">
-                  <svg className="w-5 h-5 text-slate-400 group-hover:text-[#006054] transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 text-slate-400 group-hover:text-[#0a4d3c] transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                   </svg>
                   <div className="text-left">
@@ -625,7 +625,7 @@ export default function AdminSettingsPage() {
           {/* Notifications Card */}
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
-              <svg className="w-5 h-5 text-[#006054]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#0a4d3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
               </svg>
               <h2 className="text-lg font-bold text-slate-800">Notifications</h2>
@@ -636,7 +636,7 @@ export default function AdminSettingsPage() {
                 <h3 className="text-sm font-medium text-slate-700">New User Registrations</h3>
                 <button 
                   onClick={() => handleToggle('notifNewUsers')}
-                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.notifNewUsers ? 'bg-[#006054]' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.notifNewUsers ? 'bg-[#0a4d3c]' : 'bg-slate-200'}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform duration-300 ${toggles.notifNewUsers ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                 </button>
@@ -645,7 +645,7 @@ export default function AdminSettingsPage() {
                 <h3 className="text-sm font-medium text-slate-700">Verification Requests</h3>
                 <button 
                   onClick={() => handleToggle('notifVerification')}
-                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.notifVerification ? 'bg-[#006054]' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.notifVerification ? 'bg-[#0a4d3c]' : 'bg-slate-200'}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform duration-300 ${toggles.notifVerification ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                 </button>
@@ -654,7 +654,7 @@ export default function AdminSettingsPage() {
                 <h3 className="text-sm font-medium text-slate-700">System Alerts</h3>
                 <button 
                   onClick={() => handleToggle('notifAlerts')}
-                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.notifAlerts ? 'bg-[#006054]' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full relative transition-colors duration-300 shrink-0 ${toggles.notifAlerts ? 'bg-[#0a4d3c]' : 'bg-slate-200'}`}
                 >
                   <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform duration-300 ${toggles.notifAlerts ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                 </button>
@@ -662,7 +662,7 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="flex items-center gap-3 mb-6">
-              <svg className="w-5 h-5 text-[#006054]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-[#0a4d3c]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
               </svg>
               <h2 className="text-lg font-bold text-slate-800">User Management</h2>
@@ -764,20 +764,20 @@ export default function AdminSettingsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase mb-2">First Name</label>
-                    <input type="text" value={profileForm.firstName} onChange={(e) => setProfileForm(p => ({ ...p, firstName: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm" required />
+                    <input type="text" value={profileForm.firstName} onChange={(e) => setProfileForm(p => ({ ...p, firstName: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm" required />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Last Name</label>
-                    <input type="text" value={profileForm.lastName} onChange={(e) => setProfileForm(p => ({ ...p, lastName: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm" required />
+                    <input type="text" value={profileForm.lastName} onChange={(e) => setProfileForm(p => ({ ...p, lastName: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm" required />
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Email</label>
-                  <input type="email" value={profileForm.email} onChange={(e) => setProfileForm(p => ({ ...p, email: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm" required />
+                  <input type="email" value={profileForm.email} onChange={(e) => setProfileForm(p => ({ ...p, email: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm" required />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Phone Number</label>
-                  <input type="tel" value={profileForm.phone_number} onChange={(e) => setProfileForm(p => ({ ...p, phone_number: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm" placeholder="+251..." />
+                  <input type="tel" value={profileForm.phone_number} onChange={(e) => setProfileForm(p => ({ ...p, phone_number: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm" placeholder="+251..." />
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
                   <button 
@@ -789,7 +789,7 @@ export default function AdminSettingsPage() {
                   </button>
                   <button 
                     type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#006054] text-white font-bold text-sm hover:bg-[#004d43] transition shadow-md shadow-[#006054]/20"
+                    className="px-5 py-2.5 rounded-xl bg-[#0a4d3c] text-white font-bold text-sm hover:bg-[#07382b] transition shadow-md shadow-[#0a4d3c]/20"
                   >
                     Apply Changes
                   </button>
@@ -811,7 +811,7 @@ export default function AdminSettingsPage() {
                       type={showPasswords.current ? "text" : "password"}
                       value={passwordForm.current}
                       onChange={(e) => setPasswordForm(p => ({ ...p, current: e.target.value }))}
-                      className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm font-medium"
+                      className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm font-medium"
                       placeholder="Enter current password"
                       required
                     />
@@ -831,7 +831,7 @@ export default function AdminSettingsPage() {
                       type={showPasswords.newPassword ? "text" : "password"}
                       value={passwordForm.newPassword}
                       onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                      className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm font-medium"
+                      className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm font-medium"
                       placeholder="8+ characters with uppercase, lowercase, number, special char"
                       required
                     />
@@ -849,7 +849,7 @@ export default function AdminSettingsPage() {
                         <div className={`h-1.5 flex-1 rounded-full ${getPasswordStrengthColor(passwordForm.newPassword)}`}></div>
                         <span className="text-slate-600 font-medium min-w-fit">
                           {passwordForm.newPassword.length < 8 ? "Too short" : 
-                           isStrongPassword(passwordForm.newPassword) ? "✓ Strong" : "Weak"}
+                           isStrongPassword(passwordForm.newPassword) ? "Strong" : "Weak"}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500">
@@ -869,7 +869,7 @@ export default function AdminSettingsPage() {
                       type={showPasswords.confirm ? "text" : "password"}
                       value={passwordForm.confirm}
                       onChange={(e) => setPasswordForm(p => ({ ...p, confirm: e.target.value }))}
-                      className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm font-medium"
+                      className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm font-medium"
                       placeholder="Repeat new password"
                       required
                     />
@@ -882,10 +882,10 @@ export default function AdminSettingsPage() {
                     </button>
                   </div>
                   {passwordForm.confirm && passwordForm.newPassword !== passwordForm.confirm && (
-                    <p className="text-xs text-red-600 mt-1">✗ Passwords do not match</p>
+                    <p className="text-xs text-red-600 mt-1">Passwords do not match</p>
                   )}
                   {passwordForm.confirm && passwordForm.newPassword === passwordForm.confirm && (
-                    <p className="text-xs text-emerald-600 mt-1">✓ Passwords match</p>
+                    <p className="text-xs text-[#0a4d3c] mt-1">Passwords match</p>
                   )}
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
@@ -899,7 +899,7 @@ export default function AdminSettingsPage() {
                   <button 
                     type="submit"
                     disabled={!isStrongPassword(passwordForm.newPassword) || passwordForm.newPassword !== passwordForm.confirm}
-                    className="px-5 py-2.5 rounded-xl bg-[#006054] text-white font-bold text-sm hover:bg-[#004d43] transition shadow-md shadow-[#006054]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-5 py-2.5 rounded-xl bg-[#0a4d3c] text-white font-bold text-sm hover:bg-[#07382b] transition shadow-md shadow-[#0a4d3c]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Change Password
                   </button>
@@ -984,7 +984,7 @@ export default function AdminSettingsPage() {
                     <select 
                       value={roleForm.defaultRole} 
                       onChange={(e) => setRoleForm({ defaultRole: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#006054] text-sm text-slate-800 font-medium bg-white"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#0a4d3c] text-sm text-slate-800 font-medium bg-white"
                     >
                       <option value="Startup">Startup Founder</option>
                       <option value="Investor">Verified Investor</option>
@@ -1009,7 +1009,7 @@ export default function AdminSettingsPage() {
                       triggerToast(`Default user role updated to ${roleForm.defaultRole}. Save settings to persist.`, "success");
                       setActiveModal(null);
                     }}
-                    className="px-5 py-2.5 rounded-xl bg-[#006054] text-white font-bold text-sm hover:bg-[#004d43] transition shadow-md shadow-[#006054]/20"
+                    className="px-5 py-2.5 rounded-xl bg-[#0a4d3c] text-white font-bold text-sm hover:bg-[#07382b] transition shadow-md shadow-[#0a4d3c]/20"
                   >
                     Save Configuration
                   </button>
@@ -1034,27 +1034,27 @@ export default function AdminSettingsPage() {
                     <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
                       <tr>
                         <td className="p-3 font-semibold text-slate-800">User Management</td>
-                        <td className="p-3 text-center text-emerald-600 font-bold">✓ Full</td>
-                        <td className="p-3 text-center text-slate-400">✗ None</td>
-                        <td className="p-3 text-center text-slate-400">✗ None</td>
+                        <td className="p-3 text-center text-[#0a4d3c] font-bold">Full</td>
+                        <td className="p-3 text-center text-gray-400">None</td>
+                        <td className="p-3 text-center text-gray-400">None</td>
                       </tr>
                       <tr>
                         <td className="p-3 font-semibold text-slate-800">Reports & Audit</td>
-                        <td className="p-3 text-center text-emerald-600 font-bold">✓ Full</td>
-                        <td className="p-3 text-center text-amber-600 font-bold">⚠ Own</td>
-                        <td className="p-3 text-center text-amber-600 font-bold">⚠ Own</td>
+                        <td className="p-3 text-center text-[#0a4d3c] font-bold">Full</td>
+                        <td className="p-3 text-center text-orange-700 font-bold">Own</td>
+                        <td className="p-3 text-center text-orange-700 font-bold">Own</td>
                       </tr>
                       <tr>
                         <td className="p-3 font-semibold text-slate-800">Verify KYC status</td>
-                        <td className="p-3 text-center text-emerald-600 font-bold">✓ Full</td>
-                        <td className="p-3 text-center text-slate-400">✗ None</td>
-                        <td className="p-3 text-center text-slate-400">✗ None</td>
+                        <td className="p-3 text-center text-[#0a4d3c] font-bold">Full</td>
+                        <td className="p-3 text-center text-gray-400">None</td>
+                        <td className="p-3 text-center text-gray-400">None</td>
                       </tr>
                       <tr>
                         <td className="p-3 font-semibold text-slate-800">Submit Investments</td>
-                        <td className="p-3 text-center text-emerald-600 font-bold">✓ Full</td>
-                        <td className="p-3 text-center text-slate-400">✗ None</td>
-                        <td className="p-3 text-center text-emerald-600 font-bold">✓ Full</td>
+                        <td className="p-3 text-center text-[#0a4d3c] font-bold">Full</td>
+                        <td className="p-3 text-center text-gray-400">None</td>
+                        <td className="p-3 text-center text-[#0a4d3c] font-bold">Full</td>
                       </tr>
                     </tbody>
                   </table>

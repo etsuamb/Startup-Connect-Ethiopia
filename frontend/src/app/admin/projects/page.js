@@ -283,9 +283,9 @@ export default function AdminProjectsPage() {
 				<ProjectDetailModal projectId={selectedId} onClose={() => setSelectedId(null)} onUpdated={load} />
 			) : null}
 
-			<section className="mb-8 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8">
+			<section className="mb-8 rounded-2xl bg-[#0a4d3c] text-white p-8 border border-[#07382b]/20">
 				<h1 className="text-3xl font-bold mb-2">Projects</h1>
-				<p className="text-slate-300 text-sm max-w-2xl">
+				<p className="text-white/80 text-sm max-w-2xl">
 					Review startup fundraising projects, update status, flag content, or remove posts from the platform.
 				</p>
 			</section>
