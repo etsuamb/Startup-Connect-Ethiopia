@@ -13,6 +13,7 @@ import {
   getDraftSavedAt,
   formatSavedTime,
 } from "@/lib/formDraft";
+import { openUploadedFileForView } from "@/lib/viewUploadedFile";
 
 const DRAFT_KEY = "mentor_resources_share";
 
@@ -578,7 +579,7 @@ export default function MentorResourcesPage() {
                       <th className="py-2">Startup</th>
                       <th className="py-2">Type</th>
                       <th className="py-2">Date</th>
-                      <th className="py-2 text-right">Status</th>
+                      <th className="py-2 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -615,11 +616,34 @@ export default function MentorResourcesPage() {
                               {formatDate(resource.created_at)}
                             </td>
                             <td className="py-3 text-right">
-                              <span
-                                className={`rounded px-2 py-1 text-[10px] font-black ${statusClass(status)}`}
-                              >
-                                {status}
-                              </span>
+                              {resource.file_path ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openUploadedFileForView({
+                                    filePath: resource.file_path,
+                                    fileName: resource.file_name,
+                                    fileType: resource.file_type,
+                                  })}
+                                  className="rounded-lg bg-[#073f32] px-3 py-2 text-[10px] font-black uppercase text-white transition hover:bg-[#052d24]"
+                                >
+                                  View file
+                                </button>
+                              ) : resource.external_url ? (
+                                <a
+                                  href={resource.external_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-lg border border-gray-200 px-3 py-2 text-[10px] font-black uppercase text-[#073f32] transition hover:bg-gray-50"
+                                >
+                                  Open link
+                                </a>
+                              ) : (
+                                <span
+                                  className={`rounded px-2 py-1 text-[10px] font-black ${statusClass(status)}`}
+                                >
+                                  {status}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );

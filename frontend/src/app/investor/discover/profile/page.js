@@ -10,6 +10,7 @@ import {
 	getInvestorStartupDetails,
 } from "@/lib/investorApi";
 import { isSensitiveVisible, privacyMessage } from "@/lib/profilePrivacy";
+import { canPreviewDocument, openUploadedFileForView } from "@/lib/viewUploadedFile";
 
 function formatCurrency(value) {
 	const amount = Number(value || 0);
@@ -345,16 +346,41 @@ function StartupProfileContent() {
 											<h3 className="text-sm font-bold text-[#0a4d3c]">Investment Documents</h3>
 										</div>
 										<div className="space-y-4">
-											{documents.length ? documents.map((doc) => (
-												<div key={doc.document_id} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition">
+											{documents.length ? documents.map((doc) => {
+												const canView = !doc.summary_only && canPreviewDocument({
+													documentId: doc.document_id,
+													filePath: doc.file_path,
+													fileAvailable: doc.file_available,
+												});
+												return (
+												<div key={doc.document_id} className="flex items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition">
 													<div className="min-w-0">
 														<p className="text-sm font-bold text-gray-900 truncate">{doc.file_name}</p>
 														<p className="text-[10px] text-gray-500 font-medium">
 															{doc.file_type || "Document"} • {formatBytes(doc.file_size_bytes)} • {formatDate(doc.created_at)}
 														</p>
 													</div>
+													{canView ? (
+														<button
+															type="button"
+															onClick={() => openUploadedFileForView({
+																documentId: doc.document_id,
+																filePath: doc.file_path,
+																fileName: doc.file_name,
+																fileType: doc.file_type,
+															})}
+															className="shrink-0 rounded-lg bg-[#0a4d3c] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-white transition hover:bg-[#07382b]"
+														>
+															View file
+														</button>
+													) : (
+														<span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+															Protected
+														</span>
+													)}
 												</div>
-											)) : (
+											);
+											}) : (
 												<p className="text-sm text-gray-500">No investor documents are available yet.</p>
 											)}
 										</div>

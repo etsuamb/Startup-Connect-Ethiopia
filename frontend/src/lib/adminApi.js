@@ -193,17 +193,6 @@ export function fetchMaintenanceStatus() {
 }
 
 // Public platform categories (industries, etc.)
-export function fetchPlatformCategories(type) {
-	const q = type ? `?type=${encodeURIComponent(type)}` : "";
-	return apiFetch(`/platform/categories${q}`);
-}
-export function clearOldAuditLogs(days = 365) {
-	return apiFetch("/admin/maintenance/clear-audit-logs", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ days }),
-	});
-}
 
 export function fetchAuditLogs({ limit = 100, offset = 0 } = {}) {
 	const q = new URLSearchParams();
@@ -612,7 +601,7 @@ export function fetchKpiReport() {
 	return apiFetch("/admin/reports/kpi");
 }
 
-/** Platform & maintenance */
+/** Platform settings */
 export function fetchPlatformSettings() {
 	return apiFetch("/admin/platform/settings");
 }
@@ -625,72 +614,8 @@ export function updatePlatformSettings(value, key = "platform_config") {
 	});
 }
 
-export function fetchCategories(type) {
-	const q = type ? `?type=${encodeURIComponent(type)}` : "";
-	return apiFetch(`/admin/platform/categories${q}`);
-}
-
 export function suggestPlatformCategory(body) {
   return apiPostJson(`/platform/categories/suggest`, body);
-}
-
-export function createCategory(body) {
-	return apiFetch("/admin/platform/categories", {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(body),
-	});
-}
-
-export function updateCategory(id, body) {
-	return apiPatchJson(`/admin/platform/categories/${id}`, body);
-}
-
-export function deleteCategory(id) {
-	return apiFetch(`/admin/platform/categories/${id}`, { method: "DELETE" });
-}
-
-export function fetchBackupStatus() {
-	return apiFetch("/admin/maintenance/backup");
-}
-
-export function triggerBackup() {
-	return apiFetch("/admin/maintenance/backup", { method: "POST" });
-}
-
-export function restoreBackup(backupId, confirm = "RESTORE_BACKUP") {
-	return apiFetch(`/admin/maintenance/backup/${backupId}/restore`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ confirm }),
-	});
-}
-
-export async function downloadBackup(backupId) {
-	const token = getToken();
-	if (!token) throw new Error("Not authenticated");
-	const url = `${API_BASE}/admin/maintenance/backup/${backupId}/download`;
-	const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-	if (!res.ok) {
-		let message = "Backup download failed";
-		try {
-			const data = await res.json();
-			message = data.message || data.error || message;
-		} catch {
-			/* ignore */
-		}
-		throw new Error(message);
-	}
-	const blob = await res.blob();
-	const filename = res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] || `backup-${backupId}.json`;
-	const blobUrl = URL.createObjectURL(blob);
-	const a = document.createElement("a");
-	a.href = blobUrl;
-	a.download = filename;
-	document.body.appendChild(a);
-	a.click();
-	a.remove();
-	setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
 export function fetchErrorLogs(limit = 100) {

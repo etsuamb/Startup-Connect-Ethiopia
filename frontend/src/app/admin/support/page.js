@@ -16,10 +16,10 @@ export default function AdminSupportPage() {
 					<ul className="text-sm text-slate-600 space-y-2">
 						<li>
 							<strong>Technical issues:</strong> Check{" "}
-							<Link href="/admin/maintenance" className="text-emerald-700 font-semibold hover:underline">
-								Maintenance
+							<Link href="/admin/activity" className="text-emerald-700 font-semibold hover:underline">
+								System activity
 							</Link>{" "}
-							for database health.
+							for database health and error logs.
 						</li>
 						<li>
 							<strong>Security:</strong> Review{" "}

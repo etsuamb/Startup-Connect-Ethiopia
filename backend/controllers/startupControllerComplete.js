@@ -1,5 +1,6 @@
 const pool = require("../config/db");
 const profileSanitizer = require("../services/profileSanitizer");
+const profileAccessService = require("../services/profileAccessService");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -495,15 +496,33 @@ exports.getDocumentFile = async (req, res) => {
          JOIN startups s ON s.startup_id = d.startup_id
          WHERE d.document_id = $1 AND s.user_id = $2`;
 			params = [documentId, userId];
-		} else if (role === "Investor" || role === "Admin") {
+		} else if (role === "Admin") {
 			query = "SELECT * FROM documents WHERE document_id = $1";
 			params = [documentId];
-		} else if (role === "Mentor") {
-			query = `SELECT d.* FROM documents d
-         JOIN mentorship_requests mr ON mr.startup_id = d.startup_id
-         JOIN mentors m ON m.mentor_id = mr.mentor_id
-         WHERE d.document_id = $1 AND m.user_id = $2 AND mr.status = 'accepted'`;
-			params = [documentId, userId];
+		} else if (role === "Investor" || role === "Mentor") {
+			const targetRes = await pool.query(
+				`SELECT d.*, s.user_id AS startup_user_id
+				 FROM documents d
+				 JOIN startups s ON s.startup_id = d.startup_id
+				 WHERE d.document_id = $1`,
+				[documentId],
+			);
+			if (!targetRes.rows.length) {
+				return res.status(404).json({ error: "Document not found" });
+			}
+			const access = await profileAccessService.evaluateSensitiveAccess(
+				userId,
+				targetRes.rows[0].startup_user_id,
+				{ endpoint: "startup.getDocumentFile" },
+			);
+			if (!access.sensitiveVisible) {
+				return res.status(403).json({
+					error: "Not allowed to view this document",
+					privacy: access.privacy,
+				});
+			}
+			query = "SELECT * FROM documents WHERE document_id = $1";
+			params = [documentId];
 		} else {
 			return res.status(403).json({ error: "Not allowed to view this document" });
 		}

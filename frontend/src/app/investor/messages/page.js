@@ -456,17 +456,28 @@ function MessagesContent() {
     }
   }
 
-  async function handleDownload(message) {
+  async function handleOpenFile(message) {
     try {
-      const { blob, filename } = await downloadInvestorChatFile(message.conversation_id, message.chat_message_id);
+      const { blob, contentType, filename } = await downloadInvestorChatFile(message.conversation_id, message.chat_message_id);
       const url = URL.createObjectURL(blob);
+      const mime = contentType || message.file_mime || blob.type || "";
+      const canOpenInline =
+        mime.startsWith("image/") ||
+        mime.startsWith("audio/") ||
+        mime.startsWith("video/") ||
+        mime === "application/pdf";
+      if (canOpenInline) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        return;
+      }
       const link = document.createElement("a");
       link.href = url;
       link.download = filename || message.file_name || "attachment";
       link.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setError(err.message || "Failed to download file.");
+      setError(err.message || "Failed to open file.");
     }
   }
 
@@ -618,14 +629,14 @@ function MessagesContent() {
                       ) : isFile ? (
                         <button
                           type="button"
-                          onClick={() => handleDownload(message)}
+                          onClick={() => handleOpenFile(message)}
                           className={`w-full text-left rounded-xl border px-4 py-3 transition ${
                             outgoing ? "border-white/20 bg-white/10 hover:bg-white/15" : "border-gray-200 bg-white hover:bg-gray-50"
                           }`}
                         >
                           <div className="text-[13px] font-bold mb-1">{isAudio ? "Voice message" : message.file_name}</div>
                           <div className={`text-[11px] ${outgoing ? "text-white/70" : "text-gray-500"}`}>
-                            {isAudio ? "Audio file" : message.file_mime || "Attachment"} {formatBytes(message.file_size_bytes)}
+                            {isAudio ? "Audio file" : message.file_mime || "Attachment"} {formatBytes(message.file_size_bytes)} - Press to view
                           </div>
                           {message.text_body ? <div className="text-[12px] mt-2">{message.text_body}</div> : null}
                         </button>

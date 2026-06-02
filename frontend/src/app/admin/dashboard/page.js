@@ -77,11 +77,6 @@ const ACTION_LINKS = [
 		titleKey: "dashboard.systemActivity",
 		descriptionKey: "dashboard.systemActivityHelp",
 	},
-	{
-		href: "/admin/maintenance",
-		titleKey: "dashboard.checkMaintenance",
-		descriptionKey: "dashboard.checkMaintenanceHelp",
-	},
 ];
 
 const ACTION_PAGE_SIZE = 4;

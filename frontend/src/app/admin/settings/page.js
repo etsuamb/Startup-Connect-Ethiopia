@@ -731,7 +731,6 @@ export default function AdminSettingsPage() {
         <div className="flex items-center gap-6 mt-4 md:mt-0">
           <span>System Status: {dbStatus?.database === "ok" ? "Database OK" : dbStatus ? "Check backend" : "…"}</span>
           <Link href="/admin/activity" className="hover:text-slate-600 transition">Activity Logs</Link>
-          <Link href="/admin/maintenance" className="hover:text-slate-600 transition">Maintenance</Link>
         </div>
       </div>
 
