@@ -46,7 +46,7 @@ export default function AdminUcCoverage() {
 						<ul className="space-y-1">
 							{s.links.map((l) => (
 								<li key={l.href}>
-									<Link href={l.href} className="text-xs text-emerald-700 font-semibold hover:underline">
+									<Link href={l.href} className="text-xs text-[#0a4d3c] font-semibold hover:underline">
 										{l.label}
 									</Link>
 								</li>

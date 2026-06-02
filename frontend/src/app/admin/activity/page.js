@@ -57,9 +57,9 @@ export default function AdminActivityPage() {
 
 	return (
 		<div className="max-w-7xl mx-auto pb-12">
-			<section className="mb-8 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8">
+			<section className="mb-8 rounded-2xl bg-[#0a4d3c] text-white p-8 border border-[#07382b]/20">
 				<h1 className="text-3xl font-bold mb-2">Monitoring & security</h1>
-				<p className="text-slate-300 text-sm max-w-2xl">
+				<p className="text-white/80 text-sm max-w-2xl">
 					Audit trail of admin actions, login attempts, security events, and system errors. The entity column shows what record was affected (user, payment, project, etc.).
 				</p>
 			</section>

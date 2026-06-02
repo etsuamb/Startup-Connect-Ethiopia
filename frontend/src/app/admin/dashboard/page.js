@@ -13,22 +13,21 @@ import AdminTabs from "@/components/admin/AdminTabs";
 import { useAdminLocale } from "@/components/admin/AdminLocaleProvider";
 
 const STAT_CARDS = [
-	{ labelKey: "dashboard.totalUsers", valueKey: "total_users", icon: "users", tone: "emerald" },
-	{ labelKey: "dashboard.verifiedStartups", valueKey: "total_startups", icon: "startup", tone: "teal" },
-	{ labelKey: "dashboard.investors", valueKey: "total_investors", icon: "investor", tone: "cyan" },
-	{ labelKey: "dashboard.mentors", valueKey: "total_mentors", icon: "mentor", tone: "amber" },
+	{ labelKey: "dashboard.totalUsers", valueKey: "total_users" },
+	{ labelKey: "dashboard.verifiedStartups", valueKey: "total_startups" },
+	{ labelKey: "dashboard.investors", valueKey: "total_investors" },
+	{ labelKey: "dashboard.mentors", valueKey: "total_mentors" },
 ];
 
 const METRIC_CARDS = [
-	{ labelKey: "dashboard.verifiedUsers", valueKey: "total_verified_users", icon: "verified" },
+	{ labelKey: "dashboard.verifiedUsers", valueKey: "total_verified_users" },
 	{
 		labelKey: "dashboard.platformFeeRevenue",
 		valueKey: "revenue_from_platform_fees",
 		format: "currency",
-		icon: "revenue",
 	},
-	{ labelKey: "dashboard.mentorshipPayments", valueKey: "total_mentorship_transactions", icon: "payment" },
-	{ labelKey: "dashboard.investmentPayments", valueKey: "total_investment_transactions", icon: "growth" },
+	{ labelKey: "dashboard.mentorshipPayments", valueKey: "total_mentorship_transactions" },
+	{ labelKey: "dashboard.investmentPayments", valueKey: "total_investment_transactions" },
 ];
 
 const ACTION_LINKS = [
@@ -80,32 +79,6 @@ const ACTION_LINKS = [
 ];
 
 const ACTION_PAGE_SIZE = 4;
-
-const ICON_PATHS = {
-	users: "M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m7-10a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87m-4-10a4 4 0 010 7.75",
-	startup: "M13 10V3L4 14h7v7l9-11h-7z",
-	investor: "M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8c1.11 0 2.08.4 2.6 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.4-2.6-1m11.6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-	mentor: "M12 6.25v13m0-13C10.83 5.48 9.25 5 7.5 5S4.17 5.48 3 6.25v13C4.17 18.48 5.75 18 7.5 18s3.33.48 4.5 1.25m0-13C13.17 5.48 14.75 5 16.5 5s3.33.48 4.5 1.25v13C19.83 18.48 18.25 18 16.5 18s-3.33.48-4.5 1.25",
-	verified: "M9 12l2 2 4-4m5.62-4.02A11.96 11.96 0 0112 2.94a11.96 11.96 0 01-8.62 3.04A12.02 12.02 0 003 9c0 5.59 3.82 10.29 9 11.62 5.18-1.33 9-6.03 9-11.62 0-1.04-.13-2.05-.38-3.02z",
-	revenue: "M12 8c-1.66 0-3 .9-3 2s1.34 2 3 2 3 .9 3 2-1.34 2-3 2m0-8c1.11 0 2.08.4 2.6 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.4-2.6-1m11.6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-	payment: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z",
-	growth: "M7 17l4-4 3 3 5-6m0 0h-4m4 0v4",
-};
-
-const TONE_CLASSES = {
-	emerald: "bg-emerald-50 text-emerald-700",
-	teal: "bg-teal-50 text-teal-700",
-	cyan: "bg-cyan-50 text-cyan-700",
-	amber: "bg-amber-50 text-amber-700",
-};
-
-function DashboardIcon({ name, className = "h-5 w-5" }) {
-	return (
-		<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-			<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d={ICON_PATHS[name]} />
-		</svg>
-	);
-}
 
 function formatCardValue(card, stats, loading) {
 	if (loading) return "...";
@@ -177,33 +150,26 @@ export default function AdminDashboard() {
 
 			<section className="mb-7 flex flex-col justify-between gap-5 md:flex-row md:items-end">
 				<div>
-					<p className="text-xs font-bold uppercase tracking-[0.22em] text-[#007c6a]">{t("dashboard.adminOverview")}</p>
-					<h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">StartupConnect Ethiopia</h1>
-					<p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">{t("dashboard.intro")}</p>
+					<p className="text-xs font-bold uppercase tracking-[0.22em] text-[#0a4d3c]">{t("dashboard.adminOverview")}</p>
+					<h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">StartupConnect Ethiopia</h1>
+					<p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">{t("dashboard.intro")}</p>
 				</div>
 			</section>
 
 			<section className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				{STAT_CARDS.map((card) => (
-					<div key={card.labelKey} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-						<div className="flex items-start justify-between gap-4">
-							<div>
-								<p className="text-xs font-semibold text-slate-500">{t(card.labelKey)}</p>
-								<p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{formatCardValue(card, s, loading)}</p>
-							</div>
-							<span className={`flex h-10 w-10 items-center justify-center rounded-xl ${TONE_CLASSES[card.tone]}`}>
-								<DashboardIcon name={card.icon} />
-							</span>
-						</div>
+					<div key={card.labelKey} className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+						<p className="text-xs font-semibold text-gray-500">{t(card.labelKey)}</p>
+						<p className="mt-3 text-3xl font-bold tracking-tight text-gray-900">{formatCardValue(card, s, loading)}</p>
 					</div>
 				))}
 			</section>
 
-			<section className="mb-7 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-				<div className="flex flex-col justify-between gap-3 border-b border-slate-100 pb-4 md:flex-row md:items-center">
+			<section className="mb-7 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+				<div className="flex flex-col justify-between gap-3 border-b border-gray-100 pb-4 md:flex-row md:items-center">
 					<div>
-						<p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">{t("dashboard.statisticsOverview")}</p>
-						<p className="mt-1 text-sm text-slate-500">
+						<p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400">{t("dashboard.statisticsOverview")}</p>
+						<p className="mt-1 text-sm text-gray-500">
 							{t("dashboard.lastUpdated")}:{" "}
 							{new Date().toLocaleString(dateLocale, {
 								weekday: "short",
@@ -232,12 +198,9 @@ export default function AdminDashboard() {
 					{analyticsTab === "system" ? (
 						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
 							{METRIC_CARDS.map((card) => (
-								<div key={card.labelKey} className="rounded-xl bg-slate-50 p-4 ring-1 ring-inset ring-slate-100">
-									<div className="flex items-center gap-2 text-[#007c6a]">
-										<DashboardIcon name={card.icon} className="h-4 w-4" />
-										<p className="text-xs font-semibold text-slate-500">{t(card.labelKey)}</p>
-									</div>
-									<p className="mt-3 text-xl font-bold tracking-tight text-slate-900">{formatCardValue(card, s, loading)}</p>
+								<div key={card.labelKey} className="rounded-xl bg-gray-50 p-4 ring-1 ring-inset ring-gray-100">
+									<p className="text-xs font-semibold text-gray-500">{t(card.labelKey)}</p>
+									<p className="mt-3 text-xl font-bold tracking-tight text-gray-900">{formatCardValue(card, s, loading)}</p>
 								</div>
 							))}
 						</div>
@@ -276,13 +239,13 @@ export default function AdminDashboard() {
 			</section>
 
 			<div className="grid grid-cols-1 gap-7 xl:grid-cols-[1.2fr_0.8fr]">
-				<section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-					<div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+				<section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+					<div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4">
 						<div>
-							<p className="text-xs font-bold uppercase tracking-[0.2em] text-[#007c6a]">{t("dashboard.platformPulse")}</p>
-							<h2 className="mt-2 text-lg font-bold text-slate-900">{t("dashboard.approvalOverview")}</h2>
+							<p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0a4d3c]">{t("dashboard.platformPulse")}</p>
+							<h2 className="mt-2 text-lg font-bold text-gray-900">{t("dashboard.approvalOverview")}</h2>
 						</div>
-						<span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{t("dashboard.operational")}</span>
+						<span className="rounded-full bg-[#0a4d3c]/10 px-3 py-1 text-xs font-bold text-[#0a4d3c]">{t("dashboard.operational")}</span>
 					</div>
 
 					<div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -293,39 +256,37 @@ export default function AdminDashboard() {
 					</div>
 				</section>
 
-				<section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-					<div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
+				<section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+					<div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4">
 						<div>
-							<p className="text-xs font-bold uppercase tracking-[0.2em] text-[#007c6a]">{t("dashboard.actionCenter")}</p>
-							<h2 className="mt-2 text-lg font-bold text-slate-900">{t("dashboard.adminControls")}</h2>
+							<p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0a4d3c]">{t("dashboard.actionCenter")}</p>
+							<h2 className="mt-2 text-lg font-bold text-gray-900">{t("dashboard.adminControls")}</h2>
 						</div>
-						<span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{t("dashboard.priority")}</span>
+						<span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-orange-700">{t("dashboard.priority")}</span>
 					</div>
 
-					<div className="mt-3 divide-y divide-slate-100">
+					<div className="mt-3 divide-y divide-gray-100">
 						{visibleActionLinks.map((item) => (
 							<Link key={item.href} href={item.href} className="group flex items-center justify-between gap-4 py-3.5">
 								<div>
-									<p className="text-sm font-bold text-slate-800 transition group-hover:text-[#007c6a]">{t(item.titleKey)}</p>
-									<p className="mt-1 text-xs leading-5 text-slate-500">{t(item.descriptionKey)}</p>
+									<p className="text-sm font-bold text-gray-800 transition group-hover:text-[#0a4d3c]">{t(item.titleKey)}</p>
+									<p className="mt-1 text-xs leading-5 text-gray-500">{t(item.descriptionKey)}</p>
 								</div>
-								<span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition group-hover:bg-emerald-50 group-hover:text-[#007c6a]">
-									<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-									</svg>
+								<span className="text-sm font-bold text-gray-300 transition group-hover:text-[#0a4d3c]">
+									→
 								</span>
 							</Link>
 						))}
 					</div>
 
-					<div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-4">
-						<p className="text-xs text-slate-500">{t("dashboard.page", { current: actionPage + 1, total: actionTotalPages })}</p>
+					<div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-4">
+						<p className="text-xs text-gray-500">{t("dashboard.page", { current: actionPage + 1, total: actionTotalPages })}</p>
 						<div className="flex items-center gap-2">
 							<button
 								type="button"
 								onClick={() => setActionPage((page) => Math.max(0, page - 1))}
 								disabled={actionPage === 0}
-								className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+								className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
 							>
 								{t("dashboard.previous")}
 							</button>
@@ -333,7 +294,7 @@ export default function AdminDashboard() {
 								type="button"
 								onClick={() => setActionPage((page) => Math.min(actionTotalPages - 1, page + 1))}
 								disabled={actionPage >= actionTotalPages - 1}
-								className="rounded-lg bg-[#007c6a] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#006457] disabled:cursor-not-allowed disabled:opacity-40"
+								className="rounded-lg bg-[#0a4d3c] px-3 py-1.5 text-xs font-bold text-white transition hover:bg-[#07382b] disabled:cursor-not-allowed disabled:opacity-40"
 							>
 								{t("dashboard.next")}
 							</button>
@@ -347,19 +308,19 @@ export default function AdminDashboard() {
 
 function AnalyticsValue({ label, value }) {
 	return (
-		<div className="rounded-xl bg-slate-50 p-4 ring-1 ring-inset ring-slate-100">
-			<p className="text-xs font-semibold text-slate-500">{label}</p>
-			<p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+		<div className="rounded-xl bg-gray-50 p-4 ring-1 ring-inset ring-gray-100">
+			<p className="text-xs font-semibold text-gray-500">{label}</p>
+			<p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
 		</div>
 	);
 }
 
 function PulseCard({ label, value, help }) {
 	return (
-		<div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-			<p className="text-xs font-bold text-slate-600">{label}</p>
-			<p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">{value}</p>
-			<p className="mt-2 text-xs leading-5 text-slate-500">{help}</p>
+		<div className="rounded-xl border border-gray-100 bg-gray-50/70 p-4">
+			<p className="text-xs font-bold text-gray-600">{label}</p>
+			<p className="mt-3 text-2xl font-bold tracking-tight text-gray-900">{value}</p>
+			<p className="mt-2 text-xs leading-5 text-gray-500">{help}</p>
 		</div>
 	);
 }

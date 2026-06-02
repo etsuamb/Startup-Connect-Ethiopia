@@ -108,9 +108,10 @@ export default function Sidebar() {
 
       {/* Logo */}
       <div className={`relative z-10 flex items-center ${collapsed ? "justify-center p-4" : "justify-between p-6 pb-2"}`}>
-        {(!collapsed || mobileOpen) && <Link href="/" className="flex items-center gap-3">
+        {(!collapsed || mobileOpen) && <Link href="/" className="flex min-w-0 flex-1 items-center gap-3">
+          <img src="/logo.png" alt="StartupConnect Logo" className="w-10 h-10 object-contain" />
           <div className="flex flex-col">
-             <span className="font-bold text-white text-lg tracking-tight leading-tight">{t("sidebar.adminCentral")}</span>
+             <span className="font-bold text-white text-lg tracking-tight leading-tight">StartupConnect</span>
              <span className="text-[9px] font-bold text-[#10b981] uppercase tracking-widest leading-tight">{t("sidebar.platformManagement")}</span>
           </div>
         </Link>}

@@ -358,9 +358,9 @@ export default function AdminInvestmentsPage() {
 				/>
 			) : null}
 
-			<section className="mb-8 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8">
+			<section className="mb-8 rounded-2xl bg-[#0a4d3c] text-white p-8 border border-[#07382b]/20">
 				<h1 className="text-3xl font-bold mb-2">Investment oversight</h1>
-				<p className="text-slate-300 text-sm">
+				<p className="text-white/80 text-sm">
 					Track funding requests, verify legitimacy, review investment history, and resolve disputes.
 				</p>
 			</section>

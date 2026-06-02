@@ -48,9 +48,9 @@ export default function VerifyUsersPage() {
 
 	return (
 		<div className="max-w-7xl mx-auto pb-12">
-			<section className="mb-8 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8 shadow-lg">
+			<section className="mb-8 rounded-2xl bg-[#0a4d3c] text-white p-8 border border-[#07382b]/20 shadow-sm">
 				<h1 className="text-3xl md:text-4xl font-bold mb-2">User management</h1>
-				<p className="text-slate-300 max-w-2xl">
+				<p className="text-white/80 max-w-2xl">
 					Review pending registrations or search all platform users. Open a user to review their profile, documents, and approve or reject.
 				</p>
 			</section>
@@ -60,7 +60,7 @@ export default function VerifyUsersPage() {
 					type="button"
 					onClick={() => setView("pending")}
 					className={`px-4 py-2 rounded-full text-xs font-bold border transition ${
-						view === "pending" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
+						view === "pending" ? "bg-[#0a4d3c] text-white border-[#0a4d3c]" : "bg-white text-gray-600 border-gray-200"
 					}`}
 				>
 					Pending verification
@@ -69,7 +69,7 @@ export default function VerifyUsersPage() {
 					type="button"
 					onClick={() => setView("all")}
 					className={`px-4 py-2 rounded-full text-xs font-bold border transition ${
-						view === "all" ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-600 border-slate-200"
+						view === "all" ? "bg-[#0a4d3c] text-white border-[#0a4d3c]" : "bg-white text-gray-600 border-gray-200"
 					}`}
 				>
 					All users
@@ -112,8 +112,8 @@ export default function VerifyUsersPage() {
 								onClick={() => setRoleFilter(r)}
 								className={`px-4 py-2 rounded-full text-xs font-bold border transition ${
 									roleFilter === r
-										? "bg-emerald-600 text-white border-emerald-600 shadow-md"
-										: "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+										? "bg-[#0a4d3c] text-white border-[#0a4d3c] shadow-md"
+										: "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
 								}`}
 							>
 								{r === "all" ? "All Roles" : r} ({users.filter((u) => roleFilter === "all" || u.role === r).length})

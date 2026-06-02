@@ -89,9 +89,9 @@ export default function AdminModerationPage() {
 
 	return (
 		<div className="max-w-7xl mx-auto pb-12">
-			<section className="mb-8 rounded-[32px] bg-gradient-to-r from-slate-900 to-slate-800 text-white p-8">
+			<section className="mb-8 rounded-2xl bg-[#0a4d3c] text-white p-8 border border-[#07382b]/20">
 				<h1 className="text-3xl font-bold mb-2">Content moderation</h1>
-				<p className="text-slate-300 text-sm">
+				<p className="text-white/80 text-sm">
 					Review flagged chat and project content, enforce guidelines, approve or remove posts.
 				</p>
 			</section>
@@ -152,7 +152,7 @@ export default function AdminModerationPage() {
 					<p className="text-sm text-slate-600 mb-4">
 						Project moderation has moved to the dedicated Projects page for full details and admin actions.
 					</p>
-					<a href="/admin/projects" className="inline-flex rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
+					<a href="/admin/projects" className="inline-flex rounded-xl bg-[#0a4d3c] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#07382b]">
 						Open Projects
 					</a>
 				</div>

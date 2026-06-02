@@ -122,10 +122,10 @@ export default function AdminLayoutClient({ children }) {
 
 	return (
 		<AdminAuthGuard>
-			<div data-admin-locale-root className="flex min-h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-[#006054] selection:text-white">
+			<div data-admin-locale-root className="flex min-h-screen bg-[#f8f9fa] text-gray-900 font-sans selection:bg-[#0a4d3c] selection:text-white">
 				<Sidebar />
 				<div className="flex-1 flex flex-col h-screen overflow-hidden">
-					<header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 relative z-30">
+					<header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 shrink-0 relative z-30">
 						<div className="flex-1" />
 
 						{/* Right Actions */}
@@ -160,15 +160,15 @@ export default function AdminLayoutClient({ children }) {
 								{isOpen && (
 									<div className="absolute right-0 mt-3 w-[420px] bg-white rounded-3xl shadow-xl border border-slate-100 z-50 overflow-hidden transition-all duration-200 transform origin-top-right">
 										{/* Header */}
-										<div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-[#061e16] to-[#0a2f23] text-white">
+										<div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-[#061e16] text-white">
 											<div>
 												<h3 className="font-bold text-base">{t("layout.notifications")}</h3>
-												<p className="text-xs text-emerald-400 mt-0.5">{t("layout.unreadAlerts", { count: unreadCount })}</p>
+												<p className="text-xs text-[#10b981] mt-0.5">{t("layout.unreadAlerts", { count: unreadCount })}</p>
 											</div>
 											{unreadCount > 0 && (
 												<button
 													onClick={handleMarkAllRead}
-													className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition focus:outline-none"
+													className="text-xs font-semibold text-[#10b981] hover:text-[#34d399] transition focus:outline-none"
 												>
 													{t("layout.markAllRead")}
 												</button>
@@ -210,8 +210,8 @@ export default function AdminLayoutClient({ children }) {
 													<div
 														key={notif.notification_id}
 														onClick={() => handleNotificationClick(notif)}
-														className={`p-5 flex gap-4 transition cursor-pointer hover:bg-slate-50/80 ${
-															!notif.is_read ? "bg-[#eaf5f2]/40" : ""
+														className={`p-5 flex gap-4 transition cursor-pointer hover:bg-gray-50/80 ${
+															!notif.is_read ? "bg-[#0a4d3c]/5" : ""
 														}`}
 													>
 														{/* Icon based on type */}
@@ -243,7 +243,7 @@ export default function AdminLayoutClient({ children }) {
 																	{notif.title}
 																</p>
 																{!notif.is_read && (
-																	<span className="w-2 h-2 bg-[#006054] rounded-full shrink-0"></span>
+																	<span className="w-2 h-2 bg-[#0a4d3c] rounded-full shrink-0"></span>
 																)}
 															</div>
 															<p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
@@ -272,18 +272,18 @@ export default function AdminLayoutClient({ children }) {
 							</div>
 
 							{/* Admin Profile Badge */}
-							<Link href="/admin/settings" className="flex items-center gap-3 rounded-xl border-l border-slate-100 pl-4 pr-2 py-1.5 transition hover:bg-slate-50">
-								<div className="w-9 h-9 bg-emerald-800 text-white rounded-full flex items-center justify-center font-bold text-sm">
+							<Link href="/admin/settings" className="flex items-center gap-3 rounded-xl border-l border-gray-100 pl-4 pr-2 py-1.5 transition hover:bg-gray-50">
+								<div className="w-9 h-9 bg-[#0a4d3c] text-white rounded-full flex items-center justify-center font-bold text-sm">
 									{adminInitial}
 								</div>
 								<div className="hidden lg:block text-left">
-									<p className="text-xs font-bold text-slate-800 leading-tight">{adminName}</p>
-									<p className="text-[10px] text-emerald-600 font-semibold uppercase tracking-wider mt-0.5">{t("layout.administrator")}</p>
+									<p className="text-xs font-bold text-gray-800 leading-tight">{adminName}</p>
+									<p className="text-[10px] text-[#0a4d3c] font-semibold uppercase tracking-wider mt-0.5">{t("layout.administrator")}</p>
 								</div>
 							</Link>
 						</div>
 					</header>
-					<main className="flex-1 overflow-y-auto bg-[#f8fafc] p-8">{children}</main>
+					<main className="flex-1 overflow-y-auto bg-[#f8f9fa] p-8">{children}</main>
 				</div>
 			</div>
 		</AdminAuthGuard>
